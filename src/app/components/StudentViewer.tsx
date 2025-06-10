@@ -1,311 +1,175 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import debounce from 'lodash.debounce';
-import TableHeader from './table/TableHeader';
-import TableRow from './table/TableRow';
-import AddRowButton from './table/AddRowButton';
-import { Card, CardContent } from '../components/ui/Card';
-import { Student } from '../lib/types';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Card, CardContent } from './ui/Card';
+import { Input, Table } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import type { FilterValue } from 'antd/es/table/interface';
 
-const INITIAL_ROWS = 30;
-const ADDITIONAL_ROWS = 10;
+const { Search } = Input;
 
-const initialRow: Student = {
-    번호: '',
-    단계: '',
-    이름: '',
-    연락처: '',
-    생년월일: '',
-    인도자지역: '',
-    인도자팀: '',
-    인도자이름: '',
-    인도자_고유번호: null,
-    교사지역: '',
-    교사팀: '',
-    교사이름: '',
-    교사_고유번호: null,
-};
-
-const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F'];
-
-function validateRow(row: Student): string[] {
-    const errors: string[] = [];
-    const stage = row.단계.trim();
-    if (!단계순서.includes(stage)) errors.push('유효한 단계가 아닙니다.');
-    if (!row.이름.trim()) errors.push('이름이 필요합니다.');
-    if (stage === 'A' && !row.연락처.trim()) errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
-    if (stage === 'B' && !row.생년월일.trim()) errors.push('B단계는 생년월일이 필요합니다.');
-    if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
-        if (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim()) {
-            errors.push('C~F단계는 교사 정보(지역, 팀, 이름)가 필요합니다.');
-        }
-    }
-    return errors;
+interface Student {
+    번호: number;
+    이름: string;
+    연락처: string;
+    생년월일?: string;
+    단계?: string;
+    인도자지역?: string;
+    인도자팀?: string;
+    인도자이름?: string;
+    교사지역?: string;
+    교사팀?: string;
+    교사이름?: string;
+    a?: string;
+    b?: string;
+    c?: string;
+    'd-1'?: string;
+    'd-2'?: string;
+    e?: string;
+    f?: string;
+    dropOut?: boolean;
 }
 
-async function checkMember(region: string, team: string, name: string): Promise<boolean> {
-    if (!region || !team || !name) return true;
-    const query = new URLSearchParams({ region, team, name }).toString();
-    try {
-        const res = await fetch(`/api/members/check?${query}`);
-        if (!res.ok) return false;
-        const json = await res.json();
-        return json.exists === true;
-    } catch {
-        return false;
-    }
-}
-type CheckMemberFn = (key: string, region: string, team: string, name: string, updateErrors: () => void) => void;
+const COMPLETION_KEYS = ['a', 'b', 'c', 'd-1', 'd-2', 'e', 'f'] as const;
 
-export default function StudentTracker() {
-    const [data, setData] = useState<Student[]>(Array.from({ length: INITIAL_ROWS }, () => ({ ...initialRow })));
-    const [errorsData, setErrorsData] = useState<string[][]>(Array.from({ length: INITIAL_ROWS }, () => []));
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
-    const [memberCheckCache, setMemberCheckCache] = useState<Record<string, boolean>>({});
-    const [memberCheckStatus, setMemberCheckStatus] = useState<Record<string, boolean | null>>({});
-    const [debouncedCheckMemberFn, setDebouncedCheckMemberFn] = useState<CheckMemberFn | null>(null);
+export default function StudentViewer() {
+    const [students, setStudents] = useState<Student[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [searchText, setSearchText] = useState('');
+    const [filters, setFilters] = useState<Record<string, FilterValue | null>>({});
+
+    // 유니크 필터 옵션 계산
+    const getFilterOptions = (field: keyof Student) =>
+        Array.from(
+            new Set(
+                students
+                    .map((s) => s[field])
+                    .filter((val): val is string | number => Boolean(val))
+                    .map(String)
+            )
+        )
+            .sort()
+            .map((value) => ({ text: value, value }));
+
+    // 필터링된 수강생
+    const filteredStudents = useMemo(() => {
+        return students
+            .filter((student) => {
+                if (!searchText.trim()) return true;
+                const query = searchText.toLowerCase();
+                return [student.이름, student.연락처, student.인도자이름, student.교사이름].some((field) =>
+                    field?.toLowerCase().includes(query)
+                );
+            })
+            .filter((student) =>
+                Object.entries(filters).every(([key, values]) => {
+                    if (!values || values.length === 0) return true;
+                    const fieldKey = key as keyof Student;
+                    const val = student[fieldKey];
+                    return val != null && values.includes(String(val));
+                })
+            );
+    }, [students, searchText, filters]);
+
     useEffect(() => {
-        const fn = debounce(
-            async (key: string, region: string, team: string, name: string, updateErrors: () => void) => {
-                if (memberCheckCache[key] !== undefined) {
-                    setMemberCheckStatus((prev) => ({ ...prev, [key]: memberCheckCache[key] }));
-                    updateErrors();
-                    return;
+        const fetchStudents = async () => {
+            try {
+                const res = await fetch('/api/students');
+                if (!res.ok) throw new Error('데이터를 불러오는 데 실패했습니다.');
+                const data: Student[] = await res.json();
+                setStudents(data.filter((s) => s.번호 != null));
+            } catch (err) {
+                if (err instanceof Error) {
+                    console.error(err.message);
+                } else {
+                    console.error('알 수 없는 오류 발생');
                 }
-                setMemberCheckStatus((prev) => ({ ...prev, [key]: null }));
-                const exists = await checkMember(region, team, name);
-                setMemberCheckCache((prev) => ({ ...prev, [key]: exists }));
-                setMemberCheckStatus((prev) => ({ ...prev, [key]: exists }));
-                updateErrors();
-            },
-            500
-        );
-        setDebouncedCheckMemberFn(() => fn);
-        return () => fn.cancel();
-    }, [memberCheckCache]);
-
-    const updateRowErrors = (newData: Student[], currentErrors: string[][], index: number) => {
-        const baseErrors = validateRow(newData[index]);
-        const indTeam = newData[index].인도자팀.trim().split('-')[0];
-        const 교사Team = newData[index].교사팀.trim().split('-')[0];
-        const 인도자Key = `인도자-${newData[index].인도자지역.trim()}-${indTeam}-${newData[index].인도자이름.trim()}`;
-        const 교사Key = `교사-${newData[index].교사지역.trim()}-${교사Team}-${newData[index].교사이름.trim()}`;
-        if (memberCheckStatus[인도자Key] === false) baseErrors.push('인도자 정보가 멤버 목록과 일치하지 않습니다.');
-        if (memberCheckStatus[교사Key] === false) baseErrors.push('교사 정보가 멤버 목록과 일치하지 않습니다.');
-        const newErrors = [...currentErrors];
-        newErrors[index] = baseErrors;
-        setErrorsData(newErrors);
-    };
-
-    const handleChange = (index: number, field: keyof Student, value: string) => {
-        setData((prev) => {
-            const newData = [...prev];
-            if (field === '인도자_고유번호' || field === '교사_고유번호') return newData;
-            newData[index] = { ...newData[index], [field]: value };
-            if (['인도자지역', '인도자팀', '인도자이름'].includes(field)) newData[index].인도자_고유번호 = null;
-            if (['교사지역', '교사팀', '교사이름'].includes(field)) newData[index].교사_고유번호 = null;
-
-            const indTeam = newData[index].인도자팀.trim().split('-')[0];
-            const 교사Team = newData[index].교사팀.trim().split('-')[0];
-            const 인도자Key = `인도자-${newData[index].인도자지역.trim()}-${indTeam}-${newData[
-                index
-            ].인도자이름.trim()}`;
-            const 교사Key = `교사-${newData[index].교사지역.trim()}-${교사Team}-${newData[index].교사이름.trim()}`;
-
-            if (
-                newData[index].인도자지역 &&
-                newData[index].인도자팀 &&
-                newData[index].인도자이름 &&
-                debouncedCheckMemberFn
-            ) {
-                debouncedCheckMemberFn(
-                    인도자Key,
-                    newData[index].인도자지역.trim(),
-                    indTeam,
-                    newData[index].인도자이름.trim(),
-                    () => updateRowErrors(newData, errorsData, index)
-                );
-            } else {
-                setMemberCheckStatus((prev) => ({ ...prev, [인도자Key]: true }));
-            }
-
-            if (newData[index].교사지역 && newData[index].교사팀 && newData[index].교사이름 && debouncedCheckMemberFn) {
-                debouncedCheckMemberFn(
-                    교사Key,
-                    newData[index].교사지역.trim(),
-                    교사Team,
-                    newData[index].교사이름.trim(),
-                    () => updateRowErrors(newData, errorsData, index)
-                );
-            } else {
-                setMemberCheckStatus((prev) => ({ ...prev, [교사Key]: true }));
-            }
-
-            setErrorsData((prevErrors) => {
-                const newErrors = [...prevErrors];
-                newErrors[index] = validateRow(newData[index]);
-                return newErrors;
-            });
-            return newData;
-        });
-    };
-
-    const addRows = () => {
-        setData((prev) => {
-            const newRows = Array.from({ length: ADDITIONAL_ROWS }, () => ({ ...initialRow }));
-            setErrorsData((prevErrors) => [...prevErrors, ...Array.from({ length: ADDITIONAL_ROWS }, () => [])]);
-            return [...prev, ...newRows];
-        });
-    };
-
-    const safe = (arr: string[], index: number) => (index < arr.length ? arr[index].trim() : '');
-
-    const handlePaste = (e: React.ClipboardEvent<HTMLTableElement>) => {
-        e.preventDefault();
-        const paste = e.clipboardData.getData('text');
-        const rows = paste.split('\n').filter((r) => r.trim() !== '');
-        const parsed = rows.map((row) => row.split(/\t|\//));
-
-        setData((prev) => {
-            const newData = [...prev];
-            let writeIndex = newData.findIndex((r) => r.단계 === '');
-
-            parsed.forEach((cols) => {
-                if (writeIndex < 0 || writeIndex >= newData.length) return;
-
-                const 단계 = safe(cols, 0)?.toUpperCase();
-                const 이름 = safe(cols, 1);
-
-                const newRow: Student = {
-                    번호: '',
-                    단계,
-                    이름,
-                    연락처: '',
-                    생년월일: '',
-                    인도자지역: '',
-                    인도자팀: '',
-                    인도자이름: '',
-                    인도자_고유번호: null,
-                    교사지역: '',
-                    교사팀: '',
-                    교사이름: '',
-                    교사_고유번호: null,
-                };
-
-                if (단계 === 'A') {
-                    newRow.연락처 = safe(cols, 2);
-                    newRow.인도자지역 = safe(cols, 3);
-                    newRow.인도자팀 = safe(cols, 4);
-                    newRow.인도자이름 = safe(cols, 5);
-                } else if (단계 === 'B') {
-                    newRow.생년월일 = safe(cols, 2);
-                    newRow.인도자지역 = safe(cols, 3);
-                    newRow.인도자팀 = safe(cols, 4);
-                    newRow.인도자이름 = safe(cols, 5);
-                } else if (['C', 'D', 'E', 'F'].includes(단계)) {
-                    newRow.인도자지역 = safe(cols, 2);
-                    newRow.인도자팀 = safe(cols, 3);
-                    newRow.인도자이름 = safe(cols, 4);
-                    newRow.교사지역 = safe(cols, 5);
-                    newRow.교사팀 = safe(cols, 6);
-                    newRow.교사이름 = safe(cols, 7);
-                }
-
-                newData[writeIndex] = newRow;
-                writeIndex++;
-            });
-
-            setErrorsData((prevErrors) => {
-                const newErrors = [...prevErrors];
-                for (let i = 0; i < newData.length; i++) {
-                    newErrors[i] = validateRow(newData[i]);
-                }
-                return newErrors;
-            });
-
-            return newData;
-        });
-    };
-
-    const handleSubmit = async () => {
-        setLoading(true);
-        setError(null);
-        setSuccess(null);
-        const filledRows = data.filter((row) => row.단계.trim() !== '');
-        for (let i = 0; i < filledRows.length; i++) {
-            const errs = validateRow(filledRows[i]);
-            if (errs.length > 0) {
-                setError(`유효성 검사 실패: ${i + 1}번째 행 - ${errs.join(', ')}`);
+            } finally {
                 setLoading(false);
-                return;
             }
-        }
-        try {
-            const res = await fetch('/api/students', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(filledRows),
-            });
-            if (!res.ok) {
-                const json = await res.json();
-                throw new Error(json.message || '서버 오류가 발생했습니다.');
-            }
-            setSuccess('저장이 완료되었습니다.');
-        } catch (e: unknown) {
-            if (e instanceof Error) {
-                setError(e.message);
-            } else {
-                setError('알 수 없는 오류가 발생했습니다.');
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
+        };
+        fetchStudents();
+    }, []);
+
+    // 공통 필터 컬럼 생성기
+    const filterableColumn = (title: string, dataIndex: keyof Student): ColumnsType<Student>[number] => ({
+        title,
+        dataIndex,
+        key: dataIndex,
+        width: 120,
+        filters: getFilterOptions(dataIndex),
+        filteredValue: filters[dataIndex as string] || null,
+        onFilter: (value, record) => record[dataIndex] === value,
+    });
+
+    // 완료일 컬럼 생성기
+    const completionColumns = COMPLETION_KEYS.map((key): ColumnsType<Student>[number] => ({
+        title: `${key.toUpperCase()} 완료일`,
+        dataIndex: key,
+        key,
+        width: 110,
+        sorter: (a, b) => new Date(a[key] ?? '').getTime() - new Date(b[key] ?? '').getTime(),
+    }));
+
+    const columns: ColumnsType<Student> = [
+        { title: '번호', dataIndex: '번호', key: '번호', fixed: 'left', width: 70 },
+        filterableColumn('단계', '단계'),
+        { title: '이름', dataIndex: '이름', key: '이름', width: 100 },
+        { title: '연락처', dataIndex: '연락처', key: '연락처', width: 120 },
+        { title: '생년월일', dataIndex: '생년월일', key: '생년월일', width: 110 },
+        filterableColumn('인도자지역', '인도자지역'),
+        filterableColumn('인도자팀', '인도자팀'),
+        { title: '인도자이름', dataIndex: '인도자이름', key: '인도자이름', width: 100 },
+        filterableColumn('교사지역', '교사지역'),
+        filterableColumn('교사팀', '교사팀'),
+        { title: '교사이름', dataIndex: '교사이름', key: '교사이름', width: 100 },
+        ...completionColumns,
+        {
+            title: '탈락',
+            dataIndex: 'dropOut',
+            key: 'dropOut',
+            width: 90,
+            filters: [
+                { text: 'true', value: true },
+                { text: 'false', value: false },
+            ],
+            filteredValue: filters['dropOut'] || null,
+            onFilter: (value, record) => record.dropOut === value,
+        },
+    ];
 
     return (
-        <Card>
-            <CardContent>
-                <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
-                    <TableHeader />
-                    <tbody>
-                        {data.map((row, i) => {
-                            const 인도자Key = `인도자-${row.인도자지역.trim()}-${
-                                row.인도자팀.trim().split('-')[0]
-                            }-${row.인도자이름.trim()}`;
-                            const 교사Key = `교사-${row.교사지역.trim()}-${
-                                row.교사팀.trim().split('-')[0]
-                            }-${row.교사이름.trim()}`;
-                            return (
-                                <TableRow
-                                    key={i}
-                                    index={i}
-                                    row={row}
-                                    errors={errorsData[i]}
-                                    memberCheckStatus={{
-                                        인도자: memberCheckStatus[인도자Key],
-                                        교사: memberCheckStatus[교사Key],
-                                    }}
-                                    onChange={handleChange}
-                                    selectStages={단계순서}
-                                />
-                            );
-                        })}
-                    </tbody>
-                </table>
-                <AddRowButton onClick={addRows} />
-                <button
-                    onClick={handleSubmit}
-                    disabled={loading}
-                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
-                >
-                    저장하기
-                </button>
-                {loading && <p>저장 중...</p>}
-                {error && <p className="text-red-600">에러: {error}</p>}
-                {success && <p className="text-green-600">{success}</p>}
-            </CardContent>
-        </Card>
+        <div className="p-4 md:p-6 max-w-full">
+            <h1 className="text-xl md:text-2xl font-bold mb-4">수강생 조회</h1>
+            <Card>
+                <CardContent>
+                    <Search
+                        placeholder="이름, 연락처, 인도자이름, 교사이름 검색"
+                        allowClear
+                        enterButton="검색"
+                        size="middle"
+                        onSearch={(value) => setSearchText(value.trim())}
+                        onChange={(e) => e.target.value === '' && setSearchText('')}
+                        style={{ marginBottom: 16, maxWidth: 400 }}
+                    />
+                    <div className="overflow-x-auto">
+                        <Table<Student>
+                            columns={columns}
+                            dataSource={filteredStudents}
+                            rowKey="번호"
+                            pagination={{
+                                pageSize: 50,
+                                showSizeChanger: true,
+                                pageSizeOptions: ['20', '50', '100', '200'],
+                                showTotal: (total, range) => `${range[0]}-${range[1]} / 전체 ${total}명`,
+                            }}
+                            loading={loading}
+                            scroll={{ x: 1800 }}
+                            size="middle"
+                            onChange={(_, filters) => setFilters(filters)}
+                        />
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
     );
 }
