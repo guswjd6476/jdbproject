@@ -1,9 +1,10 @@
-import React from 'react';
+// src/app/ui/Card.tsx
+import React, { ReactNode } from 'react';
 
-export const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => {
-    return <div className={`bg-white rounded-xl shadow p-4 ${className}`}>{children}</div>;
-};
+export function Card({ children }: { children: ReactNode }) {
+    return <div className="border rounded-md shadow p-4 bg-white">{children}</div>;
+}
 
-export const CardContent = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => {
-    return <div className={className}>{children}</div>;
-};
+export function CardContent({ children }: { children: ReactNode }) {
+    return <div>{children}</div>;
+}

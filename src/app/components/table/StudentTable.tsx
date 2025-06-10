@@ -7,7 +7,7 @@ import TableRow from './TableRow';
 import AddRowButton from './AddRowButton';
 import { Card, CardContent } from '../ui/Card';
 
-// Student 타입이 아래와 같이 확장되어야 합니다.
+// Student 타입 (예시, 실제로는 '@/app/lib/types'에서 가져옵니다)
 // export interface Student {
 //   단계: string;
 //   이름: string;
@@ -17,8 +17,11 @@ import { Card, CardContent } from '../ui/Card';
 //   인도자팀: string;
 //   인도자이름: string;
 //   교사지역: string;
-//   교사님: string;
+//   교사팀: string;
 //   교사이름: string;
+//   번호: string;
+//   인도자_고유번호: number | null;
+//   교사_고유번호: number | null;
 // }
 
 const initialRow: Student = {
@@ -30,8 +33,11 @@ const initialRow: Student = {
     인도자팀: '',
     인도자이름: '',
     교사지역: '',
-    교사님: '',
+    교사팀: '',
     교사이름: '',
+    번호: '',
+    인도자_고유번호: null,
+    교사_고유번호: null,
 };
 
 export default function StudentTable() {
@@ -71,8 +77,11 @@ export default function StudentTable() {
                     인도자팀: cols[5] || '',
                     인도자이름: cols[6] || '',
                     교사지역: cols[7] || '',
-                    교사님: cols[8] || '',
+                    교사팀: cols[8] || '',
                     교사이름: cols[9] || '',
+                    번호: '', // 초기값
+                    인도자_고유번호: null,
+                    교사_고유번호: null,
                 };
             });
             return newData;
@@ -83,20 +92,29 @@ export default function StudentTable() {
         <div className="p-6">
             <h1 className="text-2xl font-bold mb-4">수강생 리스트</h1>
             <Card>
-                <CardContent className="overflow-x-auto">
-                    <table className="min-w-full table-auto border border-gray-300">
-                        <TableHeader />
-                        <tbody onPaste={handlePaste}>
-                            {data.map((row, i) => (
-                                <TableRow
-                                    key={i}
-                                    index={i}
-                                    row={row}
-                                    onChange={handleChange}
-                                />
-                            ))}
-                        </tbody>
-                    </table>
+                {/* CardContent에 className 직접 전달이 타입 에러 발생하면 div로 래핑 */}
+                <CardContent>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full table-auto border border-gray-300">
+                            <TableHeader />
+                            <tbody onPaste={handlePaste}>
+                                {data.map((row, i) => (
+                                    <TableRow
+                                        key={i}
+                                        index={i}
+                                        row={row}
+                                        onChange={handleChange}
+                                        errors={[]}
+                                        selectStages={[]}
+                                        memberCheckStatus={{
+                                            인도자: null,
+                                            교사: null,
+                                        }}
+                                    />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </CardContent>
             </Card>
             <div className="mt-4">

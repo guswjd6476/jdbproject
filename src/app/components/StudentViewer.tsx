@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import debounce from 'lodash.debounce';
 import TableHeader from './table/TableHeader';
 import TableRow from './table/TableRow';
@@ -55,6 +55,7 @@ async function checkMember(region: string, team: string, name: string): Promise<
         return false;
     }
 }
+type CheckMemberFn = (key: string, region: string, team: string, name: string, updateErrors: () => void) => void;
 
 export default function StudentTracker() {
     const [data, setData] = useState<Student[]>(Array.from({ length: INITIAL_ROWS }, () => ({ ...initialRow })));
@@ -64,20 +65,25 @@ export default function StudentTracker() {
     const [success, setSuccess] = useState<string | null>(null);
     const [memberCheckCache, setMemberCheckCache] = useState<Record<string, boolean>>({});
     const [memberCheckStatus, setMemberCheckStatus] = useState<Record<string, boolean | null>>({});
-
-    const debouncedCheckMember = useMemo(() => {
-        return debounce(async (key: string, region: string, team: string, name: string, updateErrors: () => void) => {
-            if (memberCheckCache[key] !== undefined) {
-                setMemberCheckStatus((prev) => ({ ...prev, [key]: memberCheckCache[key] }));
+    const [debouncedCheckMemberFn, setDebouncedCheckMemberFn] = useState<CheckMemberFn | null>(null);
+    useEffect(() => {
+        const fn = debounce(
+            async (key: string, region: string, team: string, name: string, updateErrors: () => void) => {
+                if (memberCheckCache[key] !== undefined) {
+                    setMemberCheckStatus((prev) => ({ ...prev, [key]: memberCheckCache[key] }));
+                    updateErrors();
+                    return;
+                }
+                setMemberCheckStatus((prev) => ({ ...prev, [key]: null }));
+                const exists = await checkMember(region, team, name);
+                setMemberCheckCache((prev) => ({ ...prev, [key]: exists }));
+                setMemberCheckStatus((prev) => ({ ...prev, [key]: exists }));
                 updateErrors();
-                return;
-            }
-            setMemberCheckStatus((prev) => ({ ...prev, [key]: null }));
-            const exists = await checkMember(region, team, name);
-            setMemberCheckCache((prev) => ({ ...prev, [key]: exists }));
-            setMemberCheckStatus((prev) => ({ ...prev, [key]: exists }));
-            updateErrors();
-        }, 500);
+            },
+            500
+        );
+        setDebouncedCheckMemberFn(() => fn);
+        return () => fn.cancel();
     }, [memberCheckCache]);
 
     const updateRowErrors = (newData: Student[], currentErrors: string[][], index: number) => {
@@ -108,8 +114,13 @@ export default function StudentTracker() {
             ].인도자이름.trim()}`;
             const 교사Key = `교사-${newData[index].교사지역.trim()}-${교사Team}-${newData[index].교사이름.trim()}`;
 
-            if (newData[index].인도자지역 && newData[index].인도자팀 && newData[index].인도자이름) {
-                debouncedCheckMember(
+            if (
+                newData[index].인도자지역 &&
+                newData[index].인도자팀 &&
+                newData[index].인도자이름 &&
+                debouncedCheckMemberFn
+            ) {
+                debouncedCheckMemberFn(
                     인도자Key,
                     newData[index].인도자지역.trim(),
                     indTeam,
@@ -119,8 +130,9 @@ export default function StudentTracker() {
             } else {
                 setMemberCheckStatus((prev) => ({ ...prev, [인도자Key]: true }));
             }
-            if (newData[index].교사지역 && newData[index].교사팀 && newData[index].교사이름) {
-                debouncedCheckMember(
+
+            if (newData[index].교사지역 && newData[index].교사팀 && newData[index].교사이름 && debouncedCheckMemberFn) {
+                debouncedCheckMemberFn(
                     교사Key,
                     newData[index].교사지역.trim(),
                     교사Team,
@@ -130,6 +142,7 @@ export default function StudentTracker() {
             } else {
                 setMemberCheckStatus((prev) => ({ ...prev, [교사Key]: true }));
             }
+
             setErrorsData((prevErrors) => {
                 const newErrors = [...prevErrors];
                 newErrors[index] = validateRow(newData[index]);
@@ -146,6 +159,7 @@ export default function StudentTracker() {
             return [...prev, ...newRows];
         });
     };
+
     const safe = (arr: string[], index: number) => (index < arr.length ? arr[index].trim() : '');
 
     const handlePaste = (e: React.ClipboardEvent<HTMLTableElement>) => {
@@ -251,49 +265,47 @@ export default function StudentTracker() {
     };
 
     return (
-        <>
-            <Card>
-                <CardContent>
-                    <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
-                        <TableHeader />
-                        <tbody>
-                            {data.map((row, i) => {
-                                const 인도자Key = `인도자-${row.인도자지역.trim()}-${
-                                    row.인도자팀.trim().split('-')[0]
-                                }-${row.인도자이름.trim()}`;
-                                const 교사Key = `교사-${row.교사지역.trim()}-${
-                                    row.교사팀.trim().split('-')[0]
-                                }-${row.교사이름.trim()}`;
-                                return (
-                                    <TableRow
-                                        key={i}
-                                        index={i}
-                                        row={row}
-                                        errors={errorsData[i]}
-                                        memberCheckStatus={{
-                                            인도자: memberCheckStatus[인도자Key],
-                                            교사: memberCheckStatus[교사Key],
-                                        }}
-                                        onChange={handleChange}
-                                        selectStages={단계순서}
-                                    />
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                    <AddRowButton onClick={addRows} />
-                    <button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
-                    >
-                        저장하기
-                    </button>
-                    {loading && <p>저장 중...</p>}
-                    {error && <p className="text-red-600">에러: {error}</p>}
-                    {success && <p className="text-green-600">{success}</p>}
-                </CardContent>
-            </Card>
-        </>
+        <Card>
+            <CardContent>
+                <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
+                    <TableHeader />
+                    <tbody>
+                        {data.map((row, i) => {
+                            const 인도자Key = `인도자-${row.인도자지역.trim()}-${
+                                row.인도자팀.trim().split('-')[0]
+                            }-${row.인도자이름.trim()}`;
+                            const 교사Key = `교사-${row.교사지역.trim()}-${
+                                row.교사팀.trim().split('-')[0]
+                            }-${row.교사이름.trim()}`;
+                            return (
+                                <TableRow
+                                    key={i}
+                                    index={i}
+                                    row={row}
+                                    errors={errorsData[i]}
+                                    memberCheckStatus={{
+                                        인도자: memberCheckStatus[인도자Key],
+                                        교사: memberCheckStatus[교사Key],
+                                    }}
+                                    onChange={handleChange}
+                                    selectStages={단계순서}
+                                />
+                            );
+                        })}
+                    </tbody>
+                </table>
+                <AddRowButton onClick={addRows} />
+                <button
+                    onClick={handleSubmit}
+                    disabled={loading}
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
+                >
+                    저장하기
+                </button>
+                {loading && <p>저장 중...</p>}
+                {error && <p className="text-red-600">에러: {error}</p>}
+                {success && <p className="text-green-600">{success}</p>}
+            </CardContent>
+        </Card>
     );
 }
