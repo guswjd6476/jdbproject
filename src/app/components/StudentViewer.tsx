@@ -1,43 +1,20 @@
 'use client';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from './ui/Card';
 import { Input, Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { FilterValue } from 'antd/es/table/interface';
+import { useStudentsQuery, Student } from '../hook/useStudentsQuery';
 
 const { Search } = Input;
-
-interface Student {
-    번호: number;
-    이름: string;
-    연락처: string;
-    생년월일?: string;
-    단계?: string;
-    인도자지역?: string;
-    인도자팀?: string;
-    인도자이름?: string;
-    교사지역?: string;
-    교사팀?: string;
-    교사이름?: string;
-    a?: string;
-    b?: string;
-    c?: string;
-    'd-1'?: string;
-    'd-2'?: string;
-    e?: string;
-    f?: string;
-    dropOut?: boolean;
-}
 
 const COMPLETION_KEYS = ['a', 'b', 'c', 'd-1', 'd-2', 'e', 'f'] as const;
 
 export default function StudentViewer() {
-    const [students, setStudents] = useState<Student[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data: students = [], isLoading } = useStudentsQuery();
     const [searchText, setSearchText] = useState('');
     const [filters, setFilters] = useState<Record<string, FilterValue | null>>({});
 
-    // 유니크 필터 옵션 계산
     const getFilterOptions = (field: keyof Student) =>
         Array.from(
             new Set(
@@ -50,7 +27,6 @@ export default function StudentViewer() {
             .sort()
             .map((value) => ({ text: value, value }));
 
-    // 필터링된 수강생
     const filteredStudents = useMemo(() => {
         return students
             .filter((student) => {
@@ -70,27 +46,6 @@ export default function StudentViewer() {
             );
     }, [students, searchText, filters]);
 
-    useEffect(() => {
-        const fetchStudents = async () => {
-            try {
-                const res = await fetch('/api/students');
-                if (!res.ok) throw new Error('데이터를 불러오는 데 실패했습니다.');
-                const data: Student[] = await res.json();
-                setStudents(data.filter((s) => s.번호 != null));
-            } catch (err) {
-                if (err instanceof Error) {
-                    console.error(err.message);
-                } else {
-                    console.error('알 수 없는 오류 발생');
-                }
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchStudents();
-    }, []);
-
-    // 공통 필터 컬럼 생성기
     const filterableColumn = (title: string, dataIndex: keyof Student): ColumnsType<Student>[number] => ({
         title,
         dataIndex,
@@ -101,7 +56,6 @@ export default function StudentViewer() {
         onFilter: (value, record) => record[dataIndex] === value,
     });
 
-    // 완료일 컬럼 생성기
     const completionColumns = COMPLETION_KEYS.map((key): ColumnsType<Student>[number] => ({
         title: `${key.toUpperCase()} 완료일`,
         dataIndex: key,
@@ -162,7 +116,7 @@ export default function StudentViewer() {
                                 pageSizeOptions: ['20', '50', '100', '200'],
                                 showTotal: (total, range) => `${range[0]}-${range[1]} / 전체 ${total}명`,
                             }}
-                            loading={loading}
+                            loading={isLoading}
                             scroll={{ x: 1800 }}
                             size="middle"
                             onChange={(_, filters) => setFilters(filters)}
