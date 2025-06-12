@@ -109,32 +109,57 @@ export default function DashboardPage() {
             ? Array.from({ length: selectedDateRange[1]!.month() - selectedDateRange[0]!.month() + 1 }, (_, i) =>
                   (selectedDateRange[0]!.month() + 1 + i).toString()
               )
-            : selectedMonth
+            : filterMode === 'month' && selectedMonth
             ? [selectedMonth.toString()]
-            : Object.keys(grouped).sort((a, b) => Number(a) - Number(b));
+            : Array.from({ length: 12 }, (_, i) => (i + 1).toString());
 
     const tableData: TableRow[] = [];
 
-    monthsToShow.forEach((month) => {
+    if (filterMode === 'month' && selectedMonth === null) {
         fixedTeams.forEach((team) => {
-            const stepData = grouped[month]?.[team] || {};
             const row: TableRow = {
-                key: `${month}-${team}`,
-                월: `${month}월`,
+                key: `합계-${team}`,
+                월: '합계',
                 팀: team,
                 탈락: 0,
             };
+
             단계목록.forEach((step) => {
-                row[step] = stepData[step] ?? 0;
-                const dropoutKey = `${step}_탈락`;
-                if (stepData[dropoutKey]) {
-                    row.탈락 += stepData[dropoutKey];
+                let stepSum = 0;
+                for (let month = 1; month <= 12; month++) {
+                    const monthStr = month.toString();
+                    stepSum += grouped[monthStr]?.[team]?.[step] ?? 0;
+                    const dropoutKey = `${step}_탈락`;
+                    row.탈락 += grouped[monthStr]?.[team]?.[dropoutKey] ?? 0;
                 }
+                row[step] = stepSum;
             });
+
             row['총합'] = 단계목록.reduce((acc, step) => acc + ((row[step] as number) ?? 0), 0) + row.탈락;
             tableData.push(row);
         });
-    });
+    } else {
+        monthsToShow.forEach((month) => {
+            fixedTeams.forEach((team) => {
+                const stepData = grouped[month]?.[team] || {};
+                const row: TableRow = {
+                    key: `${month}-${team}`,
+                    월: `${month}월`,
+                    팀: team,
+                    탈락: 0,
+                };
+                단계목록.forEach((step) => {
+                    row[step] = stepData[step] ?? 0;
+                    const dropoutKey = `${step}_탈락`;
+                    if (stepData[dropoutKey]) {
+                        row.탈락 += stepData[dropoutKey];
+                    }
+                });
+                row['총합'] = 단계목록.reduce((acc, step) => acc + ((row[step] as number) ?? 0), 0) + row.탈락;
+                tableData.push(row);
+            });
+        });
+    }
 
     const totalRow: TableRow = {
         key: 'total',

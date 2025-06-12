@@ -5,7 +5,7 @@ import { Input, Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { FilterValue } from 'antd/es/table/interface';
 import { useStudentsQuery, Student } from '../hook/useStudentsQuery';
-
+import dayjs from 'dayjs';
 const { Search } = Input;
 
 const COMPLETION_KEYS = ['a', 'b', 'c', 'd-1', 'd-2', 'e', 'f'] as const;
@@ -62,8 +62,8 @@ export default function StudentViewer() {
         key,
         width: 110,
         sorter: (a, b) => new Date(a[key] ?? '').getTime() - new Date(b[key] ?? '').getTime(),
+        render: (value) => (value ? dayjs(value).format('YYYY.MM.DD') : ''),
     }));
-
     const columns: ColumnsType<Student> = [
         { title: '번호', dataIndex: '번호', key: '번호', fixed: 'left', width: 70 },
         filterableColumn('단계', '단계'),
