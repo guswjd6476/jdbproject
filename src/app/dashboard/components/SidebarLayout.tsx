@@ -2,17 +2,12 @@
 
 import React from 'react';
 import { Layout, Menu } from 'antd';
-import { DashboardOutlined, TeamOutlined, SettingOutlined } from '@ant-design/icons';
+import { TeamOutlined, SettingOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 
 const { Header, Sider, Content } = Layout;
 
 const menuItems = [
-    {
-        key: 'dashboard',
-        icon: <DashboardOutlined />,
-        label: <Link href="/dashboard/monthcompare">월별비교</Link>,
-    },
     {
         key: 'students',
         icon: <TeamOutlined />,

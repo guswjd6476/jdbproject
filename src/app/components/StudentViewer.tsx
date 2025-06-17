@@ -32,8 +32,8 @@ export default function StudentViewer() {
             .filter((student) => {
                 if (!searchText.trim()) return true;
                 const query = searchText.toLowerCase();
-                return [student.이름, student.연락처, student.인도자이름, student.교사이름].some((field) =>
-                    field?.toLowerCase().includes(query)
+                return [student.이름, student.연락처, student.인도자이름, student.교사이름].some(
+                    (field) => typeof field === 'string' && field.toLowerCase().includes(query)
                 );
             })
             .filter((student) =>

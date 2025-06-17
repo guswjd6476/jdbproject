@@ -3,23 +3,18 @@ import { useQuery } from '@tanstack/react-query';
 export interface Student {
     번호: number;
     이름: string;
-    연락처: string;
-    생년월일?: string;
-    단계?: string;
-    인도자지역?: string;
-    인도자팀?: string;
-    인도자이름?: string;
-    교사지역?: string;
-    교사팀?: string;
-    교사이름?: string;
-    a?: string;
-    b?: string;
-    c?: string;
-    'd-1'?: string;
-    'd-2'?: string;
-    e?: string;
-    f?: string;
-    dropOut?: boolean;
+    단계: string | null;
+    인도자지역: string | null;
+    인도자팀: string | null;
+    a?: string | null;
+    b?: string | null;
+    c?: string | null;
+    'd-1'?: string | null;
+    'd-2'?: string | null;
+    e?: string | null;
+    f?: string | null;
+    g?: string | null; // 탈락일 추가
+    [key: string]: string | number | null | undefined;
 }
 
 export const useStudentsQuery = () => {
