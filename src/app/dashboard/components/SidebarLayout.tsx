@@ -14,6 +14,11 @@ const menuItems = [
         label: <Link href="/dashboard/teamcompare">지역별 팀 비교</Link>,
     },
     {
+        key: 'goal',
+        icon: <TeamOutlined />,
+        label: <Link href="/dashboard/goal">목표달성</Link>,
+    },
+    {
         key: 'settings',
         icon: <SettingOutlined />,
         label: <Link href="/settings">설정</Link>,

@@ -30,3 +30,37 @@ export const 단계목록 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F'] as const;
 // constants.ts (또는 위쪽에 선언)
 export const 지역순서 = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자'] satisfies readonly string[];
 export const fixedTeams = ['1', '2', '3', '4', '5'] satisfies readonly string[];
+export interface WeeklyGoals {
+    A: number;
+    B: number;
+    C: number;
+    D: number;
+    F: number;
+}
+
+export interface WeeklyPercentages {
+    week1: WeeklyGoals;
+    week2: WeeklyGoals;
+    week3: WeeklyGoals;
+    week4: WeeklyGoals;
+}
+
+export interface ConversionRates {
+    aToB: number;
+    bToC: number;
+    cToD: number;
+    dToF: number;
+}
+
+export type FGoals = Record<string, string>;
+
+export interface TeamResult {
+    team: number;
+    goals: WeeklyGoals;
+    weeks: WeeklyGoals[];
+}
+
+export interface Results {
+    teams: TeamResult[];
+    totals: WeeklyGoals;
+}
