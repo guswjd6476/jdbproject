@@ -32,42 +32,56 @@ const 단계완료일컬럼: { [key: string]: string } = {
     f: 'f_완료일',
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     const client = await pool.connect();
     try {
-        const query = `
-            SELECT 
-                s.id AS 번호, 
-                s.단계, 
-                s.이름, 
-                s.연락처, 
-                s.생년월일,
-                s.a_완료일 AS "a",
-                s.b_완료일 AS "b",
-                s.c_완료일 AS "c",
-                s.d_1_완료일 AS "d-1",
-                s.d_2_완료일 AS "d-2",
-                s.e_완료일 AS "e",
-                s.f_완료일 AS "f",
-                s.탈락 AS "g",
-                m_ind.지역 AS 인도자지역, 
-                m_ind.구역 AS 인도자팀, 
-                m_ind.이름 AS 인도자이름,
-                m_tch.지역 AS 교사지역, 
-                m_tch.구역 AS 교사팀, 
-                m_tch.이름 AS 교사이름
-            FROM students s
-            LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
-            LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
-            ORDER BY s.id ASC
-        `;
+        const search = request.nextUrl.searchParams.get('q')?.trim();
 
-        const res = await client.query(query);
+        const baseQuery = `
+      SELECT 
+        s.id ,
+        s.이름,
+        m_ind.지역 AS 인도자지역,
+        m_ind.구역 AS 인도자팀,
+        m_ind.이름 AS 인도자이름,
+        m_tch.지역 AS 교사지역,
+        m_tch.구역 AS 교사팀,
+        m_tch.이름 AS 교사이름,
+        s.단계,
+        s.연락처,
+        s.생년월일,
+        s.인도자_고유번호,
+        s.교사_고유번호
+      FROM students s
+      LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
+      LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
+    `;
+
+        let finalQuery = baseQuery;
+        let values: string[] = [];
+
+        if (search) {
+            finalQuery += `
+        WHERE 
+          s.이름 ILIKE $1 OR 
+          m_ind.이름 ILIKE $1 OR 
+          m_tch.이름 ILIKE $1 OR 
+          m_ind.지역 ILIKE $1 OR 
+          m_tch.지역 ILIKE $1 OR 
+          m_ind.구역 ILIKE $1 OR 
+          m_tch.구역 ILIKE $1
+        ORDER BY s.id ASC
+      `;
+            values = [`%${search}%`];
+        } else {
+            finalQuery += `ORDER BY s.id ASC`;
+        }
+
+        const res = await client.query(finalQuery, values);
         return NextResponse.json(res.rows);
-    } catch (err: unknown) {
+    } catch (err) {
         console.error('GET /api/students 에러:', err);
-        const message = err instanceof Error ? err.message : '데이터 조회 실패';
-        return NextResponse.json({ error: message }, { status: 500 });
+        return NextResponse.json({ error: '조회 실패' }, { status: 500 });
     } finally {
         client.release();
     }
@@ -83,7 +97,7 @@ export async function POST(request: NextRequest) {
             row.단계 = row.단계.trim().toUpperCase();
             row.인도자_고유번호 = await getMemberUniqueId(client, row.인도자지역, row.인도자팀, row.인도자이름);
 
-            if (row.단계 === 'a' || row.단계 === 'b') {
+            if (row.단계 === 'A' || row.단계 === 'B') {
                 row.교사_고유번호 = null;
             } else {
                 row.교사_고유번호 = await getMemberUniqueId(client, row.교사지역, row.교사팀, row.교사이름);
@@ -98,7 +112,7 @@ export async function POST(request: NextRequest) {
                 e_완료일: null,
                 f_완료일: null,
             };
-            const colName = 단계완료일컬럼[row.단계];
+            const colName = 단계완료일컬럼[row.단계.toLowerCase()];
             if (colName) 완료일[colName] = now;
 
             const existingRes = await client.query('SELECT * FROM students WHERE 이름 = $1 ORDER BY 단계 ASC', [

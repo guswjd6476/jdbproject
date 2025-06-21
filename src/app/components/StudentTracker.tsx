@@ -11,7 +11,7 @@ const INITIAL_ROWS = 30;
 const ADDITIONAL_ROWS = 10;
 
 const initialRow: Student = {
-    번호: '',
+    id: '',
     단계: '',
     이름: '',
     연락처: '',
@@ -165,7 +165,7 @@ export default function StudentTracker() {
                 const 이름 = safe(cols, 1);
 
                 const newRow: Student = {
-                    번호: '',
+                    id: '',
                     단계,
                     이름,
                     연락처: '',

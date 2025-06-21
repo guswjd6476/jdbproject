@@ -6,7 +6,7 @@ import { Table, Select, Typography, Space, Spin, Radio, DatePicker, Button } fro
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
-import { 단계목록, 지역순서, fixedTeams } from '@/app/lib/types';
+import { STEPS, fixedTeams, REGIONS } from '@/app/lib/types';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -66,18 +66,18 @@ export default function DashboardPage() {
         students.forEach((s) => {
             const 지역 = (s.인도자지역 ?? '').trim();
             const 팀 = getTeamName(s.인도자팀);
-            if (!지역순서.includes(지역) || !fixedTeams.includes(팀)) return;
+            if (!REGIONS.includes(지역) || !fixedTeams.includes(팀)) return;
             if (selectedRegion && 지역 !== selectedRegion) return;
             if (selectedTeam && 팀 !== selectedTeam) return;
 
             // 보유건 처리
             const currentStep = (s.단계 ?? '').toUpperCase();
-            if (단계목록.includes(currentStep as 단계)) {
+            if (STEPS.includes(currentStep as 단계)) {
                 const key = `${지역}-${팀}-${currentStep}`;
                 보유건Map[key] = (보유건Map[key] ?? 0) + 1;
             }
 
-            단계목록.forEach((step) => {
+            STEPS.forEach((step) => {
                 const key = step.toLowerCase() as keyof Student;
                 const dateStr = s[key] as string | null | undefined;
                 if (!dateStr) return;
@@ -119,10 +119,10 @@ export default function DashboardPage() {
                 const month = (탈락일.month() + 1).toString();
 
                 let 마지막단계: 단계 | null = null;
-                for (let i = 단계목록.length - 1; i >= 0; i--) {
-                    const key = 단계목록[i].toLowerCase() as keyof Student;
+                for (let i = STEPS.length - 1; i >= 0; i--) {
+                    const key = STEPS[i].toLowerCase() as keyof Student;
                     if (s[key]) {
-                        마지막단계 = 단계목록[i];
+                        마지막단계 = STEPS[i];
                         break;
                     }
                 }
@@ -161,7 +161,7 @@ export default function DashboardPage() {
         }
 
         monthsToShow.forEach((month) => {
-            const regions = selectedRegion ? [selectedRegion] : 지역순서.filter((r) => grouped[month]?.[r]);
+            const regions = selectedRegion ? [selectedRegion] : REGIONS.filter((r) => grouped[month]?.[r]);
             regions.forEach((region) => {
                 const teams = selectedTeam ? [selectedTeam] : fixedTeams.filter((t) => grouped[month]?.[region]?.[t]);
                 teams.forEach((team) => {
@@ -172,7 +172,7 @@ export default function DashboardPage() {
                         지역: region,
                         팀: team,
                         탈락: stepData['탈락'] ?? 0,
-                        ...단계목록.reduce((acc, step) => {
+                        ...STEPS.reduce((acc, step) => {
                             const 보유key = `${region}-${team}-${step}`;
                             return {
                                 ...acc,
@@ -193,7 +193,7 @@ export default function DashboardPage() {
             지역: '',
             팀: '',
             탈락: 0,
-            ...단계목록.reduce(
+            ...STEPS.reduce(
                 (acc, step) => ({
                     ...acc,
                     [step]: 0,
@@ -204,7 +204,7 @@ export default function DashboardPage() {
             ),
         };
         tableData.forEach((row) => {
-            단계목록.forEach((step) => {
+            STEPS.forEach((step) => {
                 totalRow[step] = (totalRow[step] as number) + (row[step] as number);
                 totalRow[`${step}_탈락`] = (totalRow[`${step}_탈락`] as number) + (row[`${step}_탈락`] as number);
                 totalRow[`${step}_보유`] = (totalRow[`${step}_보유`] as number) + (row[`${step}_보유`] as number);
@@ -228,7 +228,7 @@ export default function DashboardPage() {
         { title: '월', dataIndex: '월', key: 'month', fixed: 'left', width: 80 },
         { title: '지역', dataIndex: '지역', key: 'region', fixed: 'left', width: 100 },
         { title: '팀', dataIndex: '팀', key: 'team', fixed: 'left', width: 100 },
-        ...단계목록.flatMap((step) => [
+        ...STEPS.flatMap((step) => [
             {
                 title: step,
                 dataIndex: step,
@@ -278,7 +278,7 @@ export default function DashboardPage() {
                         style={{ width: 120 }}
                         value={selectedRegion}
                         onChange={setSelectedRegion}
-                        options={지역순서.map((r) => ({ label: r, value: r }))}
+                        options={REGIONS.map((r) => ({ label: r, value: r }))}
                     />
                     <Select
                         placeholder="팀 선택"
@@ -336,7 +336,7 @@ export default function DashboardPage() {
                             <Table.Summary.Cell index={0} colSpan={3}>
                                 전체 합계
                             </Table.Summary.Cell>
-                            {단계목록.flatMap((step, i) => [
+                            {STEPS.flatMap((step, i) => [
                                 <Table.Summary.Cell key={step} index={i * 3 + 3} align="center">
                                     {totalRow[step]}
                                 </Table.Summary.Cell>,
@@ -347,7 +347,7 @@ export default function DashboardPage() {
                                     {totalRow[`${step}_보유`]}
                                 </Table.Summary.Cell>,
                             ])}
-                            <Table.Summary.Cell index={단계목록.length * 3 + 3} align="center">
+                            <Table.Summary.Cell index={STEPS.length * 3 + 3} align="center">
                                 {totalRow.탈락}
                             </Table.Summary.Cell>
                         </Table.Summary.Row>

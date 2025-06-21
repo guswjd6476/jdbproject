@@ -12,10 +12,12 @@
         "@ant-design/plots": "^2.4.0",
         "@tanstack/react-query": "^5.80.6",
         "antd": "^5.25.4",
+        "chart.js": "^4.5.0",
         "lodash.debounce": "^4.0.8",
         "next": "15.3.3",
         "pg": "^8.16.0",
         "react": "^18.2.0",
+        "react-chartjs-2": "^5.3.0",
         "react-dom": "^18.2.0",
         "recharts": "^2.15.3"
     },

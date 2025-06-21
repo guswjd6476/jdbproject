@@ -1,32 +1,32 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from './ui/Card';
-import { Input, Table } from 'antd';
+import { Input, Table, Button } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { FilterValue } from 'antd/es/table/interface';
 import { useStudentsQuery, Student } from '../hook/useStudentsQuery';
 import dayjs from 'dayjs';
-const { Search } = Input;
 
+const { Search } = Input;
 const COMPLETION_KEYS = ['a', 'b', 'c', 'd-1', 'd-2', 'e', 'f'] as const;
 
 export default function StudentViewer() {
     const { data: students = [], isLoading } = useStudentsQuery();
     const [searchText, setSearchText] = useState('');
     const [filters, setFilters] = useState<Record<string, FilterValue | null>>({});
+    const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
 
-    const getFilterOptions = (field: keyof Student) =>
-        Array.from(
-            new Set(
-                students
-                    .map((s) => s[field])
-                    .filter((val): val is string | number => Boolean(val))
-                    .map(String)
-            )
-        )
-            .sort()
-            .map((value) => ({ text: value, value }));
+    // ✅ 지역 목록 추출 (타입 안정성 고려)
+    const allRegions = useMemo(() => {
+        const regions = new Set<string>();
+        students.forEach((s) => {
+            if (s.인도자지역) regions.add(String(s.인도자지역));
+            if (s.교사지역) regions.add(String(s.교사지역));
+        });
+        return Array.from(regions).sort();
+    }, [students]);
 
+    // ✅ 전체 필터링
     const filteredStudents = useMemo(() => {
         return students
             .filter((student) => {
@@ -43,8 +43,24 @@ export default function StudentViewer() {
                     const val = student[fieldKey];
                     return val != null && values.includes(String(val));
                 })
-            );
-    }, [students, searchText, filters]);
+            )
+            .filter((student) => {
+                if (!selectedRegion) return true;
+                return String(student.인도자지역) === selectedRegion || String(student.교사지역) === selectedRegion;
+            });
+    }, [students, searchText, filters, selectedRegion]);
+
+    // ✅ TS 오류 발생 부분 수정 (.map(String) → String(val))
+    const getFilterOptions = (field: keyof Student) => {
+        const values = students
+            .map((s) => s[field])
+            .filter((val): val is string | number => val !== undefined && val !== null)
+            .map((val) => String(val));
+
+        return Array.from(new Set(values))
+            .sort()
+            .map((value) => ({ text: value, value }));
+    };
 
     const filterableColumn = (title: string, dataIndex: keyof Student): ColumnsType<Student>[number] => ({
         title,
@@ -53,7 +69,7 @@ export default function StudentViewer() {
         width: 120,
         filters: getFilterOptions(dataIndex),
         filteredValue: filters[dataIndex as string] || null,
-        onFilter: (value, record) => record[dataIndex] === value,
+        onFilter: (value, record) => String(record[dataIndex]) === String(value),
     });
 
     const completionColumns = COMPLETION_KEYS.map((key): ColumnsType<Student>[number] => ({
@@ -64,6 +80,7 @@ export default function StudentViewer() {
         sorter: (a, b) => new Date(a[key] ?? '').getTime() - new Date(b[key] ?? '').getTime(),
         render: (value) => (value ? dayjs(value).format('YYYY.MM.DD') : ''),
     }));
+
     const columns: ColumnsType<Student> = [
         { title: '번호', dataIndex: '번호', key: '번호', fixed: 'left', width: 70 },
         filterableColumn('단계', '단계'),
@@ -96,6 +113,23 @@ export default function StudentViewer() {
             <h1 className="text-xl md:text-2xl font-bold mb-4">수강생 조회</h1>
             <Card>
                 <CardContent>
+                    {/* 지역 필터 버튼 */}
+                    <div className="mb-4 flex flex-wrap gap-2">
+                        <Button type={!selectedRegion ? 'primary' : 'default'} onClick={() => setSelectedRegion(null)}>
+                            전체
+                        </Button>
+                        {allRegions.map((region) => (
+                            <Button
+                                key={region}
+                                type={selectedRegion === region ? 'primary' : 'default'}
+                                onClick={() => setSelectedRegion(region)}
+                            >
+                                {region}
+                            </Button>
+                        ))}
+                    </div>
+
+                    {/* 검색창 */}
                     <Search
                         placeholder="이름, 연락처, 인도자이름, 교사이름 검색"
                         allowClear
@@ -105,6 +139,8 @@ export default function StudentViewer() {
                         onChange={(e) => e.target.value === '' && setSearchText('')}
                         style={{ marginBottom: 16, maxWidth: 400 }}
                     />
+
+                    {/* 테이블 */}
                     <div className="overflow-x-auto">
                         <Table<Student>
                             columns={columns}

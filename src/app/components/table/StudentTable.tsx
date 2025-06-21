@@ -35,7 +35,7 @@ const initialRow: Student = {
     교사지역: '',
     교사팀: '',
     교사이름: '',
-    번호: '',
+    id: '',
     인도자_고유번호: null,
     교사_고유번호: null,
 };
@@ -79,7 +79,7 @@ export default function StudentTable() {
                     교사지역: cols[7] || '',
                     교사팀: cols[8] || '',
                     교사이름: cols[9] || '',
-                    번호: '', // 초기값
+                    id: '', // 초기값
                     인도자_고유번호: null,
                     교사_고유번호: null,
                 };
