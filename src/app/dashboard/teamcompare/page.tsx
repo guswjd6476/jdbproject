@@ -6,7 +6,7 @@ import { Table, Select, Typography, Space, Spin, Radio, DatePicker, Button } fro
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
-import { STEPS, fixedTeams, REGIONS } from '@/app/lib/types';
+import { STEPS, REGIONS, fixedTeams } from '@/app/lib/types';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -40,7 +40,7 @@ interface TableRow {
 
 export default function DashboardPage() {
     const { data: students = [], isLoading } = useStudentsQuery();
-
+    console.log(students, 'st');
     const [selectedYear, setSelectedYear] = useState<number>(dayjs().year());
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
     const [selectedTeam, setSelectedTeam] = useState<string | null>(null);

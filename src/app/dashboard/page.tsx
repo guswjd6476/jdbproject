@@ -4,24 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { Table, Select, Typography, Space, Spin, Button, DatePicker, Radio } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
+import { RawStudent, REGIONS, STEPS } from '../lib/types';
 
 const { Title } = Typography;
-
-interface RawStudent {
-    번호: number;
-    이름: string;
-    단계: string | null;
-    인도자지역: string | null;
-    a?: string | null;
-    b?: string | null;
-    c?: string | null;
-    'd-1'?: string | null;
-    'd-2'?: string | null;
-    e?: string | null;
-    f?: string | null;
-    g?: string | null; // 탈락일
-    [key: string]: string | number | null | undefined;
-}
 
 interface TableRow {
     key: string;
@@ -40,8 +25,6 @@ export default function DashboardPage() {
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
     const [filterMode, setFilterMode] = useState<'month' | 'range'>('month');
 
-    const 단계목록 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F'] as const;
-    const 지역순서 = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자'];
     const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1);
     const yearOptions = [2024, 2025, 2026];
 
@@ -66,9 +49,9 @@ export default function DashboardPage() {
 
     students.forEach((s) => {
         const 지역 = (s.인도자지역 ?? '').trim();
-        if (!지역순서.includes(지역)) return;
+        if (!REGIONS.includes(지역)) return;
 
-        단계목록.forEach((step) => {
+        STEPS.forEach((step) => {
             const key = step.toLowerCase();
             const dateStr = s[key];
             if (!dateStr) return;
@@ -108,10 +91,10 @@ export default function DashboardPage() {
             if (!탈락일.isValid() || 탈락일.year() !== selectedYear) return;
 
             let 마지막단계: string | null = null;
-            for (let i = 단계목록.length - 1; i >= 0; i--) {
-                const key = 단계목록[i].toLowerCase();
+            for (let i = STEPS.length - 1; i >= 0; i--) {
+                const key = STEPS[i].toLowerCase();
                 if (s[key]) {
-                    마지막단계 = 단계목록[i];
+                    마지막단계 = STEPS[i];
                     break;
                 }
             }
@@ -141,7 +124,7 @@ export default function DashboardPage() {
             fixed: 'left',
             width: 120,
         },
-        ...단계목록.flatMap((step) => [
+        ...STEPS.flatMap((step) => [
             {
                 title: step,
                 dataIndex: step,
@@ -168,7 +151,7 @@ export default function DashboardPage() {
             key: `${month}-${region}`,
             월: month === '전체' ? '전체 합산' : `${month}월`,
             지역: region,
-            ...단계목록.reduce((acc, step) => {
+            ...STEPS.reduce((acc, step) => {
                 acc[step] = steps[step] ?? 0;
                 acc[`${step}_탈락`] = steps[`${step}_탈락`] ?? 0;
                 return acc;
@@ -191,7 +174,7 @@ export default function DashboardPage() {
 
         months.forEach((month) => {
             const monthData = grouped[month] || {};
-            const regions = 지역순서.filter((r) => monthData[r]);
+            const regions = REGIONS.filter((r) => monthData[r]);
             regions.forEach((region) => {
                 tableData.push(makeRow(month, region, monthData[region]));
             });
@@ -206,14 +189,14 @@ export default function DashboardPage() {
 
                 if (selectedRegion) {
                     const data = grouped[month]?.[region] || {};
-                    [...단계목록, ...단계목록.map((s) => `${s}_탈락`)].forEach((step) => {
+                    [...STEPS, ...STEPS.map((s) => `${s}_탈락`)].forEach((step) => {
                         steps[step] = data[step] ?? 0;
                     });
                 } else {
                     const monthData = grouped[month] || {};
                     Object.entries(monthData).forEach(([regionName, regionData]) => {
-                        if (!지역순서.includes(regionName)) return;
-                        [...단계목록, ...단계목록.map((s) => `${s}_탈락`)].forEach((step) => {
+                        if (!REGIONS.includes(regionName)) return;
+                        [...STEPS, ...STEPS.map((s) => `${s}_탈락`)].forEach((step) => {
                             steps[step] = (steps[step] ?? 0) + (regionData[step] ?? 0);
                         });
                     });
@@ -306,7 +289,7 @@ export default function DashboardPage() {
                             style={{ width: 120 }}
                             value={selectedRegion ?? undefined}
                             onChange={(v) => setSelectedRegion(v ?? null)}
-                            options={['전체', ...지역순서].map((r) => ({ value: r, label: r }))}
+                            options={['전체', ...REGIONS].map((r) => ({ value: r, label: r }))}
                         />
                     )}
                 </Space>

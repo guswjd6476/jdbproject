@@ -28,7 +28,7 @@ export const headers = [
 ];
 export const STEPS = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F'] as const;
 // constants.ts (또는 위쪽에 선언)
-export const REGIONS = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자'] satisfies readonly string[];
+export const REGIONS = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자'];
 export const fixedTeams = ['1', '2', '3', '4', '5'] satisfies readonly string[];
 export interface WeeklyGoals {
     A: number;
@@ -63,4 +63,19 @@ export interface TeamResult {
 export interface Results {
     teams: TeamResult[];
     totals: WeeklyGoals;
+}
+export interface RawStudent {
+    번호: number;
+    이름: string;
+    단계: string | null;
+    인도자지역: string | null;
+    a?: string | null;
+    b?: string | null;
+    c?: string | null;
+    'd-1'?: string | null;
+    'd-2'?: string | null;
+    e?: string | null;
+    f?: string | null;
+    g?: string | null; // 탈락일
+    [key: string]: string | number | null | undefined;
 }
