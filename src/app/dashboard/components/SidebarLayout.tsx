@@ -5,7 +5,7 @@ import { Layout, Menu } from 'antd';
 import { TeamOutlined, SettingOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 
-const { Header, Sider, Content } = Layout;
+const { Sider } = Layout;
 
 const menuItems = [
     {
