@@ -1,4 +1,5 @@
 'use client';
+import * as React from 'react';
 import {
     ConversionRates,
     FGoals,
@@ -6,18 +7,18 @@ import {
     TeamResult,
     WeeklyGoals,
     WeeklyPercentages,
-    Student,
     STEPS,
     REGIONS,
     fixedTeams,
 } from '@/app/lib/types';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import dayjs, { Dayjs } from 'dayjs';
-import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
+import { useStudentsQuery, Student } from '@/app/hook/useStudentsQuery';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import isBetween from 'dayjs/plugin/isBetween';
 
-// Register Chart.js components
+dayjs.extend(isBetween);
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 type Region = (typeof REGIONS)[number];
@@ -73,8 +74,11 @@ const initializeResults = (
     return { teams: teamResults, totals };
 };
 
-const getWeekDateRange = (month: number, weekIndex: number): { start: Dayjs; end: Dayjs; display: string } => {
-    const year = 2025;
+const getWeekDateRange = (
+    month: number,
+    year: number,
+    weekIndex: number
+): { start: Dayjs; end: Dayjs; display: string } => {
     const firstDay = dayjs(new Date(year, month - 1, 1));
     const firstMonday = firstDay.add((8 - firstDay.day()) % 7 || 7, 'day');
 
@@ -93,45 +97,392 @@ const getTeamName = (team?: string | null): string => {
     const prefix = team.split('-')[0];
     return fixedTeams.find((t) => t.startsWith(prefix)) ?? '기타팀';
 };
+
 type Step = (typeof STEPS)[number];
 interface TableRow {
     key: string;
     지역: string;
     팀: string;
     탈락: number;
-    [step: string]: string | number;
+    [key: string]: string | number;
 }
+
+const calculateAchievements = (
+    students: Student[],
+    selectedMonth: number,
+    year: number,
+    mode: 'weekly' | 'monthly'
+): {
+    weekly: Record<string, Record<string, Record<string, Record<string, number>>>>;
+    monthly?: { achievements: TableRow[]; totalRow: TableRow };
+} => {
+    const weeklyAchievements: Record<string, Record<string, Record<string, Record<string, number>>>> = {};
+    const monthlyAchievements: Record<string, Record<string, Record<string, number>>> = {};
+    const monthlyTotalRow: TableRow = {
+        key: 'total',
+        지역: '',
+        팀: '',
+        탈락: 0,
+        ...['A', 'B', 'C', 'D', 'F'].reduce(
+            (acc, step) => ({
+                ...acc,
+                [step]: 0,
+                [`${step}_탈락`]: 0,
+                [`${step}_보유`]: 0,
+            }),
+            {}
+        ),
+    };
+    const holdMap: Record<string, number> = {};
+
+    students.forEach((s) => {
+        const 지역 = (s.인도자지역 ?? '').trim();
+        const 팀 = getTeamName(s.인도자팀);
+        if (!REGIONS.includes(지역 as Region) || !fixedTeams.includes(팀)) return;
+
+        if (mode === 'monthly') {
+            const currentStep = (s.단계 ?? '').toUpperCase();
+            const mappedStep = currentStep === 'D-1' || currentStep === 'D-2' ? 'D' : currentStep;
+            if (STEPS.includes(mappedStep as Step)) {
+                holdMap[`${지역}-${팀}-${mappedStep}`] = (holdMap[`${지역}-${팀}-${mappedStep}`] ?? 0) + 1;
+            }
+        }
+
+        ['A', 'B', 'C', 'D-1', 'D-2', 'F'].forEach((step) => {
+            const key = step.toLowerCase() as keyof Student;
+            const dateStr = s[key] as string | null | undefined;
+            if (!dateStr) return;
+
+            const date = dayjs(dateStr);
+            if (!date.isValid() || date.year() !== year) return;
+
+            const mappedStep = step === 'D-1' || step === 'D-2' ? 'D' : step;
+            const teamNumber = 팀.match(/\d+/)?.[0] || 팀;
+
+            if (mode === 'weekly') {
+                ['week1', 'week2', 'week3', 'week4'].forEach((week, index) => {
+                    const { start, end } = getWeekDateRange(selectedMonth, year, index);
+                    if (!date.isBetween(start, end, 'day', '[]')) return;
+
+                    weeklyAchievements[지역] = weeklyAchievements[지역] ?? {};
+                    weeklyAchievements[지역][teamNumber] = weeklyAchievements[지역][teamNumber] ?? {};
+                    weeklyAchievements[지역][teamNumber][week] = weeklyAchievements[지역][teamNumber][week] ?? {};
+                    weeklyAchievements[지역][teamNumber][week][mappedStep] =
+                        (weeklyAchievements[지역][teamNumber][week][mappedStep] ?? 0) + 1;
+                });
+            } else if (date.month() + 1 === selectedMonth) {
+                monthlyAchievements[지역] = monthlyAchievements[지역] ?? {};
+                monthlyAchievements[지역][팀] = monthlyAchievements[지역][팀] ?? {};
+                monthlyAchievements[지역][팀][mappedStep] = (monthlyAchievements[지역][팀][mappedStep] ?? 0) + 1;
+            }
+        });
+    });
+
+    if (mode === 'monthly') {
+        const tableData: TableRow[] = [];
+        REGIONS.forEach((region) => {
+            const teams = fixedTeams.filter((t) => monthlyAchievements[region]?.[t]);
+            teams.forEach((team) => {
+                const stepData = monthlyAchievements[region]?.[team] || {};
+                const row: TableRow = {
+                    key: `${region}-${team}`,
+                    지역: region,
+                    팀: team,
+                    탈락: stepData['탈락'] ?? 0,
+                    ...['A', 'B', 'C', 'D', 'F'].reduce(
+                        (acc, step) => ({
+                            ...acc,
+                            [step]: stepData[step] ?? 0,
+                            [`${step}_탈락`]: stepData[`${step}_탈락`] ?? 0,
+                            [`${step}_보유`]: holdMap[`${region}-${team}-${step}`] ?? 0,
+                        }),
+                        {}
+                    ),
+                };
+                tableData.push(row);
+            });
+        });
+
+        tableData.forEach((row) => {
+            ['A', 'B', 'C', 'D', 'F'].forEach((step) => {
+                monthlyTotalRow[step] = (monthlyTotalRow[step] as number) + (row[step] as number);
+                monthlyTotalRow[`${step}_탈락`] =
+                    (monthlyTotalRow[`${step}_탈락`] as number) + (row[`${step}_탈락`] as number);
+                monthlyTotalRow[`${step}_보유`] =
+                    (monthlyTotalRow[`${step}_보유`] as number) + (row[`${step}_보유`] as number);
+            });
+            monthlyTotalRow.탈락 += row.탈락;
+        });
+
+        return { weekly: weeklyAchievements, monthly: { achievements: tableData, totalRow: monthlyTotalRow } };
+    }
+
+    return { weekly: weeklyAchievements };
+};
+
+const WeeklyGoalsTable = ({
+    data,
+    achievements,
+    selectedMonth,
+    year,
+    view,
+}: {
+    data: { region: string; results: Results }[];
+    achievements: Record<string, Record<string, Record<string, Record<string, number>>>>;
+    selectedMonth: number;
+    year: number;
+    view: 'region' | 'month';
+}) => {
+    const weeks = ['week1', 'week2', 'week3', 'week4'] as (keyof WeeklyPercentages)[];
+    const totalAchievements = useMemo(() => {
+        return weeks.reduce((weekAcc: Record<string, WeeklyGoals>, week) => {
+            weekAcc[week] = data.reduce(
+                (acc: WeeklyGoals, { region, results }) => {
+                    const regionTeams = results.teams;
+                    const teamSums = regionTeams.reduce(
+                        (teamAcc: WeeklyGoals, team: TeamResult) => {
+                            const teamAch = achievements[region]?.[`${team.team}`]?.[week] || {};
+                            return {
+                                A: teamAcc.A + (teamAch.A || 0),
+                                B: teamAcc.B + (teamAch.B || 0),
+                                C: teamAcc.C + (teamAch.C || 0),
+                                D: teamAcc.D + (teamAch.D || 0),
+                                F: teamAcc.F + (teamAch.F || 0),
+                            };
+                        },
+                        { A: 0, B: 0, C: 0, D: 0, F: 0 }
+                    );
+                    return {
+                        A: acc.A + teamSums.A,
+                        B: acc.B + teamSums.B,
+                        C: acc.C + teamSums.C,
+                        D: acc.D + teamSums.D,
+                        F: acc.F + teamSums.F,
+                    };
+                },
+                { A: 0, B: 0, C: 0, D: 0, F: 0 }
+            );
+            return weekAcc;
+        }, {});
+    }, [data, achievements, weeks]);
+
+    return (
+        <>
+            {weeks.map((week, weekIndex) => {
+                const { display } = getWeekDateRange(selectedMonth, year, weekIndex);
+                return (
+                    <div key={week} className="mb-6">
+                        <h3 className="text-md font-medium mb-2">
+                            {weekIndex + 1}주차 ({display})
+                        </h3>
+                        <table className="w-full border-collapse">
+                            <thead>
+                                <tr className="bg-gray-100">
+                                    <th className="border p-2">{view === 'region' ? '지역' : '지역/팀'}</th>
+                                    {['A', 'B', 'C', 'D', 'F'].map((step) => (
+                                        <th key={step} className="border p-2" colSpan={3}>
+                                            {step}
+                                        </th>
+                                    ))}
+                                </tr>
+                                <tr className="bg-gray-50">
+                                    <th className="border p-2"></th>
+                                    {['A', 'B', 'C', 'D', 'F'].map((step) => (
+                                        <React.Fragment key={step}>
+                                            <th className="border p-2">목표</th>
+                                            <th className="border p-2">달성</th>
+                                            <th className="border p-2">달성률</th>
+                                        </React.Fragment>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {data.flatMap(({ region, results }) =>
+                                    results.teams.map((team: TeamResult) => {
+                                        const teamAch = achievements[region]?.[`${team.team}`]?.[week] || {};
+                                        return (
+                                            <tr key={`${region}-${team.team}`}>
+                                                <td className="border p-2">
+                                                    {view === 'region'
+                                                        ? `${region} ${team.team}팀`
+                                                        : `${region} ${team.team}팀`}
+                                                </td>
+                                                {(['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).map((step) => (
+                                                    <React.Fragment key={step}>
+                                                        <td className="border p-2 text-center">
+                                                            {team.weeks[weekIndex][step]}
+                                                        </td>
+                                                        <td className="border p-2 text-center">{teamAch[step] || 0}</td>
+                                                        <td className="border p-2 text-center">
+                                                            {team.weeks[weekIndex][step] > 0
+                                                                ? (
+                                                                      ((teamAch[step] || 0) /
+                                                                          team.weeks[weekIndex][step]) *
+                                                                      100
+                                                                  ).toFixed(2) + '%'
+                                                                : '0.00%'}
+                                                        </td>
+                                                    </React.Fragment>
+                                                ))}
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                                <tr className="font-bold">
+                                    <td className="border p-2">계</td>
+                                    {(['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).map((step) => {
+                                        const totalGoal = data.reduce(
+                                            (sum, { results }) =>
+                                                sum +
+                                                results.teams.reduce(
+                                                    (teamSum, team) => teamSum + team.weeks[weekIndex][step],
+                                                    0
+                                                ),
+                                            0
+                                        );
+                                        return (
+                                            <React.Fragment key={step}>
+                                                <td className="border p-2 text-center">{totalGoal}</td>
+                                                <td className="border p-2 text-center">
+                                                    {totalAchievements[week][step]}
+                                                </td>
+                                                <td className="border p-2 text-center">
+                                                    {totalGoal > 0
+                                                        ? ((totalAchievements[week][step] / totalGoal) * 100).toFixed(
+                                                              2
+                                                          ) + '%'
+                                                        : '0.00%'}
+                                                </td>
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                );
+            })}
+        </>
+    );
+};
+
+const RenderChart = ({
+    view,
+    data,
+    achievements,
+    selectedMonth,
+    year,
+}: {
+    view: 'region' | 'month';
+    data: { region: string; results: Results }[];
+    achievements: Record<string, Record<string, Record<string, Record<string, number>>>>;
+    selectedMonth: number;
+    year: number;
+}) => {
+    const weeks = ['week1', 'week2', 'week3', 'week4'] as (keyof WeeklyPercentages)[];
+    const labels =
+        view === 'region'
+            ? data[0].results.teams.map((team) => `${data[0].region} ${team.team}팀`)
+            : data.flatMap(({ region, results }) => results.teams.map((team) => `${region} ${team.team}팀`));
+
+    return weeks.map((week, weekIndex) => {
+        const { display } = getWeekDateRange(selectedMonth, year, weekIndex);
+        const chartData = {
+            labels,
+            datasets: ['A', 'B', 'C', 'D', 'F']
+                .map((step, i) => [
+                    {
+                        label: `${step} 단계 목표`,
+                        data: data.flatMap(({ results }) =>
+                            results.teams.map((team) => team.weeks[weekIndex][step as keyof WeeklyGoals])
+                        ),
+                        backgroundColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 0.3)`,
+                        borderColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 0.8)`,
+                        borderWidth: 1,
+                    },
+                    {
+                        label: `${step} 단계 달성`,
+                        data: data.flatMap(({ region, results }) =>
+                            results.teams.map((team) => achievements[region]?.[`${team.team}`]?.[week]?.[step] || 0)
+                        ),
+                        backgroundColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 0.7)`,
+                        borderColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 1)`,
+                        borderWidth: 1,
+                    },
+                ])
+                .flat(),
+        };
+
+        const options = {
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: '수' } },
+                x: { title: { display: true, text: view === 'region' ? '팀' : '지역 및 팀' } },
+            },
+            plugins: {
+                legend: { position: 'top' as const },
+                title: {
+                    display: true,
+                    text: `${selectedMonth}월 ${weekIndex + 1}주차 (${display}) ${
+                        view === 'region' ? data[0].region : '전체 지역'
+                    } A, B, C, D, F 단계 목표 vs 달성`,
+                },
+            },
+        };
+
+        return (
+            <div key={week} className="mb-8">
+                <h3 className="text-md font-medium mb-4">
+                    {weekIndex + 1}주차 ({display})
+                </h3>
+                <Bar data={chartData} options={options} />
+            </div>
+        );
+    });
+};
 
 export default function GoalCalculatorTable() {
     const { data: students = [], isLoading } = useStudentsQuery();
+    const year = 2025;
 
-    const defaultConversionRates: ConversionRates = {
-        aToB: 0.5,
-        bToC: 0.5,
-        cToD: 0.6,
-        dToF: 0.6,
-    };
-    const defaultWeeklyPercentages: WeeklyPercentages = {
-        week1: { A: 0.72, B: 0.21, C: 0.07, D: 0.0, F: 0.0 },
-        week2: { A: 0.1, B: 0.6, C: 0.2, D: 0.05, F: 0.05 },
-        week3: { A: 0.05, B: 0.05, C: 0.2, D: 0.6, F: 0.1 },
-        week4: { A: 0.05, B: 0.05, C: 0.1, D: 0.1, F: 0.7 },
-    };
+    const defaultConversionRates = useMemo(
+        () => ({
+            aToB: 0.5,
+            bToC: 0.5,
+            cToD: 0.6,
+            dToF: 0.6,
+        }),
+        []
+    );
+
+    const defaultWeeklyPercentages = useMemo(
+        () => ({
+            week1: { A: 0.9, B: 0.5, C: 0.1, D: 0.0, F: 0.0 },
+            week2: { A: 0.1, B: 0.4, C: 0.8, D: 0.1, F: 0.0 },
+            week3: { A: 0.0, B: 0.1, C: 0.1, D: 0.8, F: 0.1 },
+            week4: { A: 0.0, B: 0.0, C: 0.0, D: 0.1, F: 0.9 },
+        }),
+        []
+    );
 
     const [view, setView] = useState<'region' | 'month'>('region');
     const [displayMode, setDisplayMode] = useState<'table' | 'graph'>('table');
-    const [region, setRegion] = useState<Region>('노원');
-    const [fGoals, setFGoals] = useState<FGoals>(DEFAULT_F_GOALS['노원']);
+    const [region, setRegion] = useState<Region>('도봉');
+    const [fGoals, setFGoals] = useState<FGoals>(DEFAULT_F_GOALS['도봉']);
     const [conversionRates, setConversionRates] = useState<ConversionRates>(defaultConversionRates);
     const [weeklyPercentages, setWeeklyPercentages] = useState<WeeklyPercentages>(defaultWeeklyPercentages);
     const [results, setResults] = useState<Results>(
-        initializeResults(DEFAULT_F_GOALS['노원'], defaultConversionRates, defaultWeeklyPercentages)
+        initializeResults(DEFAULT_F_GOALS['도봉'], defaultConversionRates, defaultWeeklyPercentages)
     );
     const [error, setError] = useState<string>('');
     const [apiError, setApiError] = useState<string>('');
     const [successMessage, setSuccessMessage] = useState<string>('');
     const [selectedMonth, setSelectedMonth] = useState<string>('6');
-    const year = 2025;
+    const [allRegionsResults, setAllRegionsResults] = useState<{ region: Region; results: Results }[]>([]);
+
+    const { weekly: weeklyAchievements, monthly } = useMemo(
+        () => calculateAchievements(students, parseInt(selectedMonth), year, view === 'month' ? 'monthly' : 'weekly'),
+        [students, selectedMonth, view]
+    );
 
     useEffect(() => {
         const fetchConfig = async () => {
@@ -153,18 +504,92 @@ export default function GoalCalculatorTable() {
             } catch (err) {
                 setApiError('서버에서 설정을 가져오지 못했습니다.');
                 console.error('Fetch config error:', err);
+                setFGoals(DEFAULT_F_GOALS[region]);
+                calculateGoals(DEFAULT_F_GOALS[region], defaultConversionRates, defaultWeeklyPercentages);
             }
         };
         fetchConfig();
     }, [region, selectedMonth, defaultConversionRates, defaultWeeklyPercentages]);
 
-    const saveConfig = async () => {
+    useEffect(() => {
+        const fetchAllRegionsResults = async () => {
+            const resultsByRegion: { region: Region; results: Results }[] = [];
+            for (const reg of REGIONS) {
+                try {
+                    const response = await fetch(`/api/goal?region=${reg}&month=${selectedMonth}&year=${year}`);
+                    const result = await response.json();
+                    const results = initializeResults(
+                        result.data?.f_goals || DEFAULT_F_GOALS[reg],
+                        result.data?.conversion_rates || defaultConversionRates,
+                        result.data?.weekly_percentages || defaultWeeklyPercentages
+                    );
+                    resultsByRegion.push({ region: reg, results });
+                } catch (err) {
+                    console.error(`Fetch config error for ${reg}:`, err);
+                    const results = initializeResults(
+                        DEFAULT_F_GOALS[reg],
+                        defaultConversionRates,
+                        defaultWeeklyPercentages
+                    );
+                    resultsByRegion.push({ region: reg, results });
+                }
+            }
+            setAllRegionsResults(resultsByRegion);
+        };
+        fetchAllRegionsResults();
+    }, [selectedMonth, defaultConversionRates, defaultWeeklyPercentages]);
+
+    const calculateGoals = useCallback(
+        (
+            currentFGoals: FGoals,
+            currentConversionRates: ConversionRates,
+            currentWeeklyPercentages: WeeklyPercentages
+        ) => {
+            const goals = Object.values(currentFGoals).map(parseFloat);
+            if (goals.some((f) => isNaN(f) || f < 0)) {
+                setError('모든 팀의 F 목표는 유효한 양수이어야 합니다.');
+                return;
+            }
+            if (Object.values(currentConversionRates).some((rate) => isNaN(rate) || rate <= 0 || rate > 1)) {
+                setError('모든 단계향상률은 1~100% 사이의 정수 백분율이어야 합니다.');
+                return;
+            }
+            const invalidWeek = Object.keys(currentWeeklyPercentages).find((week) =>
+                Object.values(currentWeeklyPercentages[week as keyof WeeklyPercentages]).some((p) => isNaN(p) || p < 0)
+            );
+            if (invalidWeek) {
+                setError('모든 주차의 비율은 0~100% 사이의 정수 백분율이어야 합니다.');
+                return;
+            }
+
+            const newResults = initializeResults(currentFGoals, currentConversionRates, currentWeeklyPercentages);
+            setResults((prev) => {
+                if (JSON.stringify(prev) === JSON.stringify(newResults)) return prev;
+                return {
+                    teams: newResults.teams.map((team) => ({
+                        ...team,
+                        goals: { ...team.goals },
+                        weeks: team.weeks.map((week) => ({ ...week })),
+                    })),
+                    totals: { ...newResults.totals },
+                };
+            });
+            setError('');
+        },
+        []
+    );
+
+    const saveConfig = useCallback(async () => {
+        const goals = Object.values(fGoals).map(parseFloat);
+        if (goals.some((f) => isNaN(f) || f < 0)) {
+            setApiError('F 목표는 유효한 양수이어야 합니다.');
+            return;
+        }
+
         try {
             const response = await fetch('/api/goal', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     region,
                     month: parseInt(selectedMonth),
@@ -188,324 +613,81 @@ export default function GoalCalculatorTable() {
             setSuccessMessage('');
             console.error('Save config error:', err);
         }
-    };
+    }, [region, selectedMonth, fGoals, conversionRates, weeklyPercentages]);
 
-    useEffect(() => {
-        console.log('results state updated:', results);
-    }, [results]);
-
-    const calculateGoals = (
-        currentFGoals: FGoals,
-        currentConversionRates: ConversionRates,
-        currentWeeklyPercentages: WeeklyPercentages
-    ) => {
-        const goals = Object.values(currentFGoals).map(parseFloat);
-        if (goals.some((f) => isNaN(f) || f <= 0)) {
-            setError('모든 팀의 F 목표는 유효한 양수이어야 합니다.');
-            return;
-        }
-        if (Object.values(currentConversionRates).some((rate) => isNaN(rate) || rate <= 0 || rate > 1)) {
-            setError('모든 단계향상률은 1~100% 사이의 정수 백분율이어야 합니다.');
-            return;
-        }
-        const invalidWeek = Object.keys(currentWeeklyPercentages).find((week) =>
-            Object.values(currentWeeklyPercentages[week as keyof WeeklyPercentages]).some((p) => isNaN(p) || p < 0)
-        );
-        if (invalidWeek) {
-            setError('모든 주차의 비율은 0~100% 사이의 정수 백분율이어야 합니다.');
-            return;
-        }
-        Object.keys(currentWeeklyPercentages).forEach((week) => {
-            const total = Object.values(currentWeeklyPercentages[week as keyof WeeklyPercentages]).reduce(
-                (sum: number, p: number) => sum + p,
-                0
-            );
-            console.log(`Week ${week} percentage sum: ${total * 100}%`);
-        });
-
-        const newResults = initializeResults(currentFGoals, currentConversionRates, currentWeeklyPercentages);
-        setResults({
-            teams: newResults.teams.map((team) => ({
-                ...team,
-                goals: { ...team.goals },
-                weeks: team.weeks.map((week) => ({ ...week })),
-            })),
-            totals: { ...newResults.totals },
-        });
-        setError('');
-    };
-
-    const { monthlyAchievements, monthlyTotalRow } = useMemo(() => {
-        const grouped: Record<string, Record<string, Record<string, number>>> = {};
-        const 보유건Map: Record<string, number> = {};
-
-        students.forEach((s) => {
-            const 지역 = (s.인도자지역 ?? '').trim();
-            const 팀 = getTeamName(s.인도자팀);
-            if (!REGIONS.includes(지역) || !fixedTeams.includes(팀)) return;
-
-            const currentStep = (s.단계 ?? '').toUpperCase();
-            const mappedStep = currentStep === 'D-1' || currentStep === 'D-2' ? 'D' : currentStep;
-            if (STEPS.includes(currentStep as Step)) {
-                const key = `${지역}-${팀}-${mappedStep}`;
-                보유건Map[key] = (보유건Map[key] ?? 0) + 1;
-            }
-
-            ['A', 'B', 'C', 'D-1', 'D-2', 'F'].forEach((step) => {
-                const key = step.toLowerCase() as keyof Student;
-                const dateStr = s[key] as string | null | undefined;
-                if (!dateStr) return;
-
-                const date = dayjs(dateStr);
-                if (!date.isValid() || date.year() !== year || date.month() + 1 !== parseInt(selectedMonth)) return;
-
-                const mappedStep = step === 'D-1' || step === 'D-2' ? 'D' : step;
-                grouped[지역] = grouped[지역] ?? {};
-                grouped[지역][팀] = grouped[지역][팀] ?? {};
-                grouped[지역][팀][mappedStep] = (grouped[지역][팀][mappedStep] ?? 0) + 1;
-            });
-
-            const 탈락일Str = s.g;
-            if (탈락일Str) {
-                const 탈락일 = dayjs(탈락일Str);
-                if (!탈락일.isValid() || 탈락일.year() !== year || 탈락일.month() + 1 !== parseInt(selectedMonth))
+    const handleInputChange = useCallback(
+        (
+            type: 'fGoal' | 'conversionRate' | 'weeklyPercentage',
+            key: string,
+            value: string,
+            week?: keyof WeeklyPercentages
+        ) => {
+            if (type === 'fGoal') {
+                const regex = /^\d*\.?\d?$/;
+                if (!regex.test(value) && value !== '') {
+                    setError('F 목표는 양수이며 소수점 한 자리까지만 입력 가능합니다.');
                     return;
-
-                let 마지막단계: string | null = null;
-                for (let i = STEPS.length - 1; i >= 0; i--) {
-                    const key = STEPS[i].toLowerCase() as keyof Student;
-                    if (s[key]) {
-                        마지막단계 = STEPS[i];
-                        break;
-                    }
                 }
-                if (마지막단계) {
-                    const mappedStep = 마지막단계 === 'D-1' || 마지막단계 === 'D-2' ? 'D' : 마지막단계;
-                    const 탈락key = `${mappedStep}_탈락`;
-                    grouped[지역] = grouped[지역] ?? {};
-                    grouped[지역][팀] = grouped[지역][팀] ?? {};
-                    grouped[지역][팀][탈락key] = (grouped[지역][팀][탈락key] ?? 0) + 1;
-                    grouped[지역][팀]['탈락'] = (grouped[지역][팀]['탈락'] ?? 0) + 1;
-                }
-            }
-        });
-
-        const tableData: TableRow[] = [];
-        REGIONS.forEach((region) => {
-            const teams = fixedTeams.filter((t) => grouped[region]?.[t]);
-            teams.forEach((team) => {
-                const stepData = grouped[region]?.[team] || {};
-                const row: TableRow = {
-                    key: `${region}-${team}`,
-                    지역: region,
-                    팀: team,
-                    탈락: stepData['탈락'] ?? 0,
-                    ...['A', 'B', 'C', 'D', 'F'].reduce((acc, step) => {
-                        const 보유key = `${region}-${team}-${step}`;
-                        return {
-                            ...acc,
-                            [step]: stepData[step] ?? 0,
-                            [`${step}_탈락`]: stepData[`${step}_탈락`] ?? 0,
-                            [`${step}_보유`]: 보유건Map[보유key] ?? 0,
-                        };
-                    }, {}),
-                };
-                tableData.push(row);
-            });
-        });
-
-        const totalRow: TableRow = {
-            key: 'total',
-            지역: '',
-            팀: '',
-            탈락: 0,
-            ...['A', 'B', 'C', 'D', 'F'].reduce(
-                (acc, step) => ({
-                    ...acc,
-                    [step]: 0,
-                    [`${step}_탈락`]: 0,
-                    [`${step}_보유`]: 0,
-                }),
-                {}
-            ),
-        };
-        tableData.forEach((row) => {
-            ['A', 'B', 'C', 'D', 'F'].forEach((step) => {
-                totalRow[step] = (totalRow[step] as number) + (row[step] as number);
-                totalRow[`${step}_탈락`] = (totalRow[`${step}_탈락`] as number) + (row[`${step}_탈락`] as number);
-                totalRow[`${step}_보유`] = (totalRow[`${step}_보유`] as number) + (row[`${step}_보유`] as number);
-            });
-            totalRow.탈락 += row.탈락;
-        });
-
-        return { monthlyAchievements: tableData, monthlyTotalRow: totalRow };
-    }, [students, selectedMonth]);
-
-    const achievements = useMemo(() => {
-        const grouped: Record<string, Record<string, Record<string, Record<string, number>>>> = {};
-
-        ['week1', 'week2', 'week3', 'week4'].forEach((week, index) => {
-            const { start, end, display } = getWeekDateRange(parseInt(selectedMonth), index);
-            console.log(
-                `${week} date range: ${display} (${start.format('YYYY-MM-DD')} to ${end.format('YYYY-MM-DD')})`
-            );
-        });
-
-        students.forEach((s) => {
-            const 지역 = (s.인도자지역 ?? '').trim();
-            const 팀 = getTeamName(s.인도자팀);
-            if (!REGIONS.includes(지역) || !fixedTeams.includes(팀)) return;
-
-            ['A', 'B', 'C', 'D-1', 'D-2', 'F'].forEach((step) => {
-                const key = step.toLowerCase() as keyof Student;
-                const dateStr = s[key] as string | null | undefined;
-                if (!dateStr) return;
-
-                const date = dayjs(dateStr);
-                if (!date.isValid() || date.year() !== year) return;
-
-                const mappedStep = step === 'D-1' || step === 'D-2' ? 'D' : step;
-
-                for (let weekIndex = 0; weekIndex < 4; weekIndex++) {
-                    const { start, end } = getWeekDateRange(parseInt(selectedMonth), weekIndex);
-                    if (date.isBefore(start, 'day') || date.isAfter(end, 'day')) continue;
-
-                    const teamNumber = 팀.match(/\d+/)?.[0] || 팀;
-                    grouped[지역] = grouped[지역] ?? {};
-                    grouped[지역][teamNumber] = grouped[지역][teamNumber] ?? {};
-                    grouped[지역][teamNumber][`week${weekIndex + 1}`] =
-                        grouped[지역][teamNumber][`week${weekIndex + 1}`] ?? {};
-                    grouped[지역][teamNumber][`week${weekIndex + 1}`][mappedStep] =
-                        (grouped[지역][teamNumber][`week${weekIndex + 1}`][mappedStep] ?? 0) + 1;
-                }
-            });
-
-            const 탈락일Str = s.g;
-            if (탈락일Str) {
-                const 탈락일 = dayjs(탈락일Str);
-                if (!탈락일.isValid() || 탈락일.year() !== year || 탈락일.month() + 1 !== parseInt(selectedMonth))
+                const numValue = parseFloat(value);
+                if (value !== '' && (isNaN(numValue) || numValue < 0)) {
+                    setError('F 목표는 유효한 양수이어야 합니다.');
                     return;
-
-                let 마지막단계: string | null = null;
-                for (let i = STEPS.length - 1; i >= 0; i--) {
-                    const key = STEPS[i].toLowerCase() as keyof Student;
-                    if (s[key]) {
-                        마지막단계 = STEPS[i];
-                        break;
-                    }
                 }
-                if (마지막단계) {
-                    const mappedStep = 마지막단계 === 'D-1' || 마지막단계 === 'D-2' ? 'D' : 마지막단계;
-                    const 탈락key = `${mappedStep}_탈락`;
-                    for (let weekIndex = 0; weekIndex < 4; weekIndex++) {
-                        const { start, end } = getWeekDateRange(parseInt(selectedMonth), weekIndex);
-                        if (탈락일.isBefore(start, 'day') || 탈락일.isAfter(end, 'day')) continue;
-
-                        const teamNumber = 팀.match(/\d+/)?.[0] || 팀;
-                        grouped[지역] = grouped[지역] ?? {};
-                        grouped[지역][teamNumber] = grouped[지역][teamNumber] ?? {};
-                        grouped[지역][teamNumber][`week${weekIndex + 1}`] =
-                            grouped[지역][teamNumber][`week${weekIndex + 1}`] ?? {};
-                        grouped[지역][teamNumber][`week${weekIndex + 1}`][탈락key] =
-                            (grouped[지역][teamNumber][`week${weekIndex + 1}`][탈락key] ?? 0) + 1;
-                        grouped[지역][teamNumber][`week${weekIndex + 1}`]['탈락'] =
-                            (grouped[지역][teamNumber][`week${weekIndex + 1}`]['탈락'] ?? 0) + 1;
-                    }
+                setFGoals((prev) => {
+                    const newFGoals = { ...prev, [key]: value };
+                    calculateGoals(newFGoals, conversionRates, weeklyPercentages);
+                    return newFGoals;
+                });
+            } else if (type === 'conversionRate') {
+                const numValue = parseInt(value) / 100;
+                if (isNaN(numValue) || numValue <= 0 || numValue > 1 || !Number.isInteger(parseFloat(value))) {
+                    setError('단계향상률은 1~100% 사이의 정수 백분율이어야 합니다.');
+                    return;
                 }
-            }
-        });
-
-        console.log('Grouped achievements:', JSON.stringify(grouped, null, 2));
-
-        return grouped;
-    }, [students, selectedMonth]);
-
-    const handleRegionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const newRegion = e.target.value as Region;
-        setRegion(newRegion);
-        const newFGoals = DEFAULT_F_GOALS[newRegion];
-        setFGoals(newFGoals);
-        calculateGoals(newFGoals, conversionRates, weeklyPercentages);
-    };
-
-    const handleFGoalChange = (team: string, value: string) => {
-        setFGoals((prev: FGoals) => {
-            const newFGoals = { ...prev, [team]: value };
-            calculateGoals(newFGoals, conversionRates, weeklyPercentages);
-            return newFGoals;
-        });
-    };
-
-    const handleConversionRateChange = (key: keyof ConversionRates, value: string) => {
-        const numValue = parseInt(value) / 100;
-        if (isNaN(numValue) || numValue <= 0 || numValue > 1 || !Number.isInteger(parseFloat(value))) {
-            setError('단계향상률은 1~100% 사이의 정수 백분율이어야 합니다.');
-            return;
-        }
-        setConversionRates((prev: ConversionRates) => {
-            const newConversionRates = { ...prev, [key]: numValue };
-            calculateGoals(fGoals, newConversionRates, weeklyPercentages);
-            return newConversionRates;
-        });
-    };
-
-    const handleWeeklyPercentageChange = (week: keyof WeeklyPercentages, key: keyof WeeklyGoals, value: string) => {
-        const num = Number(value);
-        if (isNaN(num) || num < 0 || num > 100 || !Number.isInteger(num)) {
-            setError('비율은 0~100% 사이의 정수 백분율이어야 합니다.');
-            return;
-        }
-        setWeeklyPercentages((prev: WeeklyPercentages) => {
-            const currentWeek = { ...prev[week] };
-            const newValue = num / 100;
-            currentWeek[key] = newValue;
-            if (newValue === 1) {
-                (['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).forEach((k) => {
-                    if (k !== key) currentWeek[k] = 0;
+                setConversionRates((prev) => {
+                    const newConversionRates = { ...prev, [key]: numValue };
+                    calculateGoals(fGoals, newConversionRates, weeklyPercentages);
+                    return newConversionRates;
+                });
+            } else if (type === 'weeklyPercentage' && week) {
+                const num = Number(value);
+                if (isNaN(num) || num < 0 || num > 100 || !Number.isInteger(num)) {
+                    setError('비율은 0~100% 사이의 정수 백분율이어야 합니다.');
+                    return;
+                }
+                setWeeklyPercentages((prev) => {
+                    const currentWeek = { ...prev[week] };
+                    const newValue = num / 100;
+                    currentWeek[key as keyof WeeklyGoals] = newValue;
+                    if (newValue === 1) {
+                        (['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).forEach((k) => {
+                            if (k !== key) currentWeek[k] = 0;
+                        });
+                    }
+                    const newWeeklyPercentages = { ...prev, [week]: currentWeek };
+                    calculateGoals(fGoals, conversionRates, newWeeklyPercentages);
+                    return newWeeklyPercentages;
                 });
             }
-            const newWeeklyPercentages = { ...prev, [week]: currentWeek };
-            calculateGoals(fGoals, conversionRates, newWeeklyPercentages);
-            return newWeeklyPercentages;
-        });
-        setError('');
-    };
+            setError('');
+        },
+        [fGoals, conversionRates, weeklyPercentages, calculateGoals]
+    );
 
-    const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setSelectedMonth(e.target.value);
-    };
+    const handleRegionChange = useCallback(
+        (e: React.ChangeEvent<HTMLSelectElement>) => {
+            const newRegion = e.target.value as Region;
+            setRegion(newRegion);
+            setFGoals(DEFAULT_F_GOALS[newRegion]);
+            calculateGoals(DEFAULT_F_GOALS[newRegion], conversionRates, weeklyPercentages);
+        },
+        [conversionRates, weeklyPercentages, calculateGoals]
+    );
 
-    const allRegionsResults = useMemo(() => {
-        const resultsByRegion: { region: Region; results: Results }[] = [];
-        REGIONS.forEach((reg) => {
-            const fetchConfig = async () => {
-                try {
-                    const response = await fetch(`/api/goal?region=${reg}&month=${selectedMonth}&year=${year}`);
-                    const result = await response.json();
-                    if (result.data) {
-                        return initializeResults(
-                            result.data.f_goals,
-                            result.data.conversion_rates,
-                            result.data.weekly_percentages
-                        );
-                    } else {
-                        return initializeResults(
-                            DEFAULT_F_GOALS[reg],
-                            defaultConversionRates,
-                            defaultWeeklyPercentages
-                        );
-                    }
-                } catch (err) {
-                    console.error(`Fetch config error for ${reg}:`, err);
-                    return initializeResults(DEFAULT_F_GOALS[reg], defaultConversionRates, defaultWeeklyPercentages);
-                }
-            };
-            fetchConfig().then((res) => {
-                resultsByRegion.push({ region: reg, results: res });
-            });
-        });
-        return resultsByRegion;
-    }, [selectedMonth]);
+    const handleMonthChange = useCallback(
+        (e: React.ChangeEvent<HTMLSelectElement>) => setSelectedMonth(e.target.value),
+        []
+    );
 
     if (isLoading) {
         return (
@@ -517,283 +699,6 @@ export default function GoalCalculatorTable() {
             </div>
         );
     }
-
-    const renderRegionChart = () => {
-        const weeks = ['week1', 'week2', 'week3', 'week4'] as (keyof WeeklyPercentages)[];
-        const labels = results.teams.map((team) => `${region} ${team.team}팀`);
-
-        return weeks.map((week, weekIndex) => {
-            const { display } = getWeekDateRange(parseInt(selectedMonth), weekIndex);
-
-            const data = {
-                labels,
-                datasets: [
-                    {
-                        label: 'A 단계 목표',
-                        data: results.teams.map((team) => team.weeks[weekIndex].A),
-                        backgroundColor: 'rgba(54, 162, 235, 0.3)', // Light Blue
-                        borderColor: 'rgba(54, 162, 235, 0.8)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'A 단계 달성',
-                        data: results.teams.map((team) => achievements[region]?.[`${team.team}`]?.[week]?.A || 0),
-                        backgroundColor: 'rgba(54, 162, 235, 0.7)', // Blue
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'B 단계 목표',
-                        data: results.teams.map((team) => team.weeks[weekIndex].B),
-                        backgroundColor: 'rgba(75, 192, 192, 0.3)', // Light Teal
-                        borderColor: 'rgba(75, 192, 192, 0.8)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'B 단계 달성',
-                        data: results.teams.map((team) => achievements[region]?.[`${team.team}`]?.[week]?.B || 0),
-                        backgroundColor: 'rgba(75, 192, 192, 0.7)', // Teal
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'C 단계 목표',
-                        data: results.teams.map((team) => team.weeks[weekIndex].C),
-                        backgroundColor: 'rgba(255, 159, 64, 0.3)', // Light Orange
-                        borderColor: 'rgba(255, 159, 64, 0.8)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'C 단계 달성',
-                        data: results.teams.map((team) => achievements[region]?.[`${team.team}`]?.[week]?.C || 0),
-                        backgroundColor: 'rgba(255, 159, 64, 0.7)', // Orange
-                        borderColor: 'rgba(255, 159, 64, 1)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'D 단계 목표',
-                        data: results.teams.map((team) => team.weeks[weekIndex].D),
-                        backgroundColor: 'rgba(153, 102, 255, 0.3)', // Light Purple
-                        borderColor: 'rgba(153, 102, 255, 0.8)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'D 단계 달성',
-                        data: results.teams.map((team) => achievements[region]?.[`${team.team}`]?.[week]?.D || 0),
-                        backgroundColor: 'rgba(153, 102, 255, 0.7)', // Purple
-                        borderColor: 'rgba(153, 102, 255, 1)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'F 단계 목표',
-                        data: results.teams.map((team) => team.weeks[weekIndex].F),
-                        backgroundColor: 'rgba(255, 206, 86, 0.3)', // Light Yellow
-                        borderColor: 'rgba(255, 206, 86, 0.8)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'F 단계 달성',
-                        data: results.teams.map((team) => achievements[region]?.[`${team.team}`]?.[week]?.F || 0),
-                        backgroundColor: 'rgba(255, 206, 86, 0.7)', // Yellow
-                        borderColor: 'rgba(255, 206, 86, 1)',
-                        borderWidth: 1,
-                    },
-                ],
-            };
-
-            const options = {
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: '수',
-                        },
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: '팀',
-                        },
-                    },
-                },
-                plugins: {
-                    legend: {
-                        position: 'top' as const,
-                    },
-                    title: {
-                        display: true,
-                        text: `${selectedMonth}월 ${
-                            weekIndex + 1
-                        }주차 (${display}) ${region} 팀별 A, B, C, D, F 단계 목표 vs 달성`,
-                    },
-                },
-            };
-
-            return (
-                <div key={week} className="mb-8">
-                    <h3 className="text-md font-medium mb-4">
-                        {weekIndex + 1}주차 ({display})
-                    </h3>
-                    <Bar data={data} options={options} />
-                </div>
-            );
-        });
-    };
-
-    const renderMonthChart = (monthlyAchievements: TableRow[]) => {
-        const weeks = ['week1', 'week2', 'week3', 'week4'] as (keyof WeeklyPercentages)[];
-        const labels = monthlyAchievements.map((row: TableRow) => `${row.지역} ${row.팀}`);
-
-        return weeks.map((week, weekIndex) => {
-            const { display } = getWeekDateRange(parseInt(selectedMonth), weekIndex);
-
-            // Aggregate weekly data for A, B, C, D, F achievements
-            const weeklyAchievements = monthlyAchievements.map((row: TableRow) => {
-                const region = row.지역;
-                const team = row.팀;
-                const teamNumber = team.match(/\d+/)?.[0] || team;
-                const weekAchievements = achievements[region]?.[teamNumber]?.[week] || {};
-                return {
-                    A: weekAchievements.A || 0,
-                    B: weekAchievements.B || 0,
-                    C: weekAchievements.C || 0,
-                    D: weekAchievements.D || 0,
-                    F: weekAchievements.F || 0,
-                };
-            });
-
-            // Aggregate weekly goals from allRegionsResults
-            const weeklyGoals = monthlyAchievements.map((row: TableRow) => {
-                const region = row.지역;
-                const team = row.팀;
-                const teamNumber = parseInt(team.match(/\d+/)?.[0] || '0');
-                const regionResults = allRegionsResults.find((r) => r.region === region)?.results;
-                const teamResult = regionResults?.teams.find((t) => t.team === teamNumber);
-                return {
-                    A: teamResult?.weeks[weekIndex].A || 0,
-                    B: teamResult?.weeks[weekIndex].B || 0,
-                    C: teamResult?.weeks[weekIndex].C || 0,
-                    D: teamResult?.weeks[weekIndex].D || 0,
-                    F: teamResult?.weeks[weekIndex].F || 0,
-                };
-            });
-
-            const data = {
-                labels,
-                datasets: [
-                    {
-                        label: 'A 단계 목표',
-                        data: weeklyGoals.map((data) => data.A),
-                        backgroundColor: 'rgba(54, 162, 235, 0.3)', // Light Blue
-                        borderColor: 'rgba(54, 162, 235, 0.8)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'A 단계 달성',
-                        data: weeklyAchievements.map((data) => data.A),
-                        backgroundColor: 'rgba(54, 162, 235, 0.7)', // Blue
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'B 단계 목표',
-                        data: weeklyGoals.map((data) => data.B),
-                        backgroundColor: 'rgba(75, 192, 192, 0.3)', // Light Teal
-                        borderColor: 'rgba(75, 192, 192, 0.8)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'B 단계 달성',
-                        data: weeklyAchievements.map((data) => data.B),
-                        backgroundColor: 'rgba(75, 192, 192, 0.7)', // Teal
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'C 단계 목표',
-                        data: weeklyGoals.map((data) => data.C),
-                        backgroundColor: 'rgba(255, 159, 64, 0.3)', // Light Orange
-                        borderColor: 'rgba(255, 159, 64, 0.8)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'C 단계 달성',
-                        data: weeklyAchievements.map((data) => data.C),
-                        backgroundColor: 'rgba(255, 159, 64, 0.7)', // Orange
-                        borderColor: 'rgba(255, 159, 64, 1)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'D 단계 목표',
-                        data: weeklyGoals.map((data) => data.D),
-                        backgroundColor: 'rgba(153, 102, 255, 0.3)', // Light Purple
-                        borderColor: 'rgba(153, 102, 255, 0.8)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'D 단계 달성',
-                        data: weeklyAchievements.map((data) => data.D),
-                        backgroundColor: 'rgba(153, 102, 255, 0.7)', // Purple
-                        borderColor: 'rgba(153, 102, 255, 1)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'F 단계 목표',
-                        data: weeklyGoals.map((data) => data.F),
-                        backgroundColor: 'rgba(255, 206, 86, 0.3)', // Light Yellow
-                        borderColor: 'rgba(255, 206, 86, 0.8)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'F 단계 달성',
-                        data: weeklyAchievements.map((data) => data.F),
-                        backgroundColor: 'rgba(255, 206, 86, 0.7)', // Yellow
-                        borderColor: 'rgba(255, 206, 86, 1)',
-                        borderWidth: 1,
-                    },
-                ],
-            };
-
-            const options = {
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: '수',
-                        },
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: '지역 및 팀',
-                        },
-                    },
-                },
-                plugins: {
-                    legend: {
-                        position: 'top' as const,
-                    },
-                    title: {
-                        display: true,
-                        text: `${selectedMonth}월 ${
-                            weekIndex + 1
-                        }주차 (${display}) 지역별 A, B, C, D, F 단계 목표 vs 달성`,
-                    },
-                },
-            };
-
-            return (
-                <div key={week} className="mb-8">
-                    <h3 className="text-md font-medium mb-4">
-                        {weekIndex + 1}주차 ({display})
-                    </h3>
-                    <Bar data={data} options={options} />
-                </div>
-            );
-        });
-    };
 
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">
@@ -889,7 +794,7 @@ export default function GoalCalculatorTable() {
                                     type="number"
                                     id={team}
                                     value={fGoals[team]}
-                                    onChange={(e) => handleFGoalChange(team, e.target.value)}
+                                    onChange={(e) => handleInputChange('fGoal', team, e.target.value)}
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                     placeholder={`e.g., ${Object.values(DEFAULT_F_GOALS[region])[index]}`}
                                     step="0.1"
@@ -958,7 +863,7 @@ export default function GoalCalculatorTable() {
                                                             type="number"
                                                             value={(conversionRates[key] * 100).toFixed(0)}
                                                             onChange={(e) =>
-                                                                handleConversionRateChange(key, e.target.value)
+                                                                handleInputChange('conversionRate', key, e.target.value)
                                                             }
                                                             className="w-16 px-2 py-1 border rounded-md text-center"
                                                             step="1"
@@ -999,10 +904,11 @@ export default function GoalCalculatorTable() {
                                                                 ] * 100
                                                             ).toFixed(0)}
                                                             onChange={(e) =>
-                                                                handleWeeklyPercentageChange(
-                                                                    week as keyof WeeklyPercentages,
+                                                                handleInputChange(
+                                                                    'weeklyPercentage',
                                                                     key,
-                                                                    e.target.value
+                                                                    e.target.value,
+                                                                    week as keyof WeeklyPercentages
                                                                 )
                                                             }
                                                             className="w-16 px-2 py-1 border rounded-md text-center"
@@ -1042,301 +948,24 @@ export default function GoalCalculatorTable() {
                                 <h2 className="text-lg font-semibold mb-2">
                                     {selectedMonth}월 {region} 개강 목표
                                 </h2>
-                                {(['week1', 'week2', 'week3', 'week4'] as (keyof WeeklyPercentages)[]).map(
-                                    (week, weekIndex) => {
-                                        const { display } = getWeekDateRange(parseInt(selectedMonth), weekIndex);
-                                        const totalAchievements = results.teams.reduce(
-                                            (acc: WeeklyGoals, team: TeamResult) => {
-                                                const teamAch = achievements[region]?.[`${team.team}`]?.[week] || {};
-                                                return {
-                                                    A: acc.A + (teamAch.A || 0),
-                                                    B: acc.B + (teamAch.B || 0),
-                                                    C: acc.C + (teamAch.C || 0),
-                                                    D: acc.D + (teamAch.D || 0),
-                                                    F: acc.F + (teamAch.F || 0),
-                                                };
-                                            },
-                                            { A: 0, B: 0, C: 0, D: 0, F: 0 }
-                                        );
-
-                                        return (
-                                            <div key={week} className="mb-6">
-                                                <h3 className="text-md font-medium mb-2">
-                                                    {weekIndex + 1}주차 ({display})
-                                                </h3>
-                                                <table className="w-full border-collapse">
-                                                    <thead>
-                                                        <tr className="bg-gray-100">
-                                                            <th className="border p-2">지역</th>
-                                                            <th className="border p-2" colSpan={3}>
-                                                                A
-                                                            </th>
-                                                            <th className="border p-2" colSpan={3}>
-                                                                B
-                                                            </th>
-                                                            <th className="border p-2" colSpan={3}>
-                                                                C
-                                                            </th>
-                                                            <th className="border p-2" colSpan={3}>
-                                                                D
-                                                            </th>
-                                                            <th className="border p-2" colSpan={3}>
-                                                                F
-                                                            </th>
-                                                        </tr>
-                                                        <tr className="bg-gray-50">
-                                                            <th className="border p-2"></th>
-                                                            <th className="border p-2">목표</th>
-                                                            <th className="border p-2">달성</th>
-                                                            <th className="border p-2">달성률</th>
-                                                            <th className="border p-2">목표</th>
-                                                            <th className="border p-2">달성</th>
-                                                            <th className="border p-2">달성률</th>
-                                                            <th className="border p-2">목표</th>
-                                                            <th className="border p-2">달성</th>
-                                                            <th className="border p-2">달성률</th>
-                                                            <th className="border p-2">목표</th>
-                                                            <th className="border p-2">달성</th>
-                                                            <th className="border p-2">달성률</th>
-                                                            <th className="border p-2">목표</th>
-                                                            <th className="border p-2">달성</th>
-                                                            <th className="border p-2">달성률</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {results.teams.map((team: TeamResult) => {
-                                                            const teamAch =
-                                                                achievements[region]?.[`${team.team}`]?.[week] || {};
-                                                            return (
-                                                                <tr key={team.team}>
-                                                                    <td className="border p-2">
-                                                                        {region} {team.team}팀
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {team.weeks[weekIndex].A}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {teamAch.A || 0}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {team.weeks[weekIndex].A > 0
-                                                                            ? (
-                                                                                  ((teamAch.A || 0) /
-                                                                                      team.weeks[weekIndex].A) *
-                                                                                  100
-                                                                              ).toFixed(2) + '%'
-                                                                            : '0.00%'}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {team.weeks[weekIndex].B}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {teamAch.B || 0}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {team.weeks[weekIndex].B > 0
-                                                                            ? (
-                                                                                  ((teamAch.B || 0) /
-                                                                                      team.weeks[weekIndex].B) *
-                                                                                  100
-                                                                              ).toFixed(2) + '%'
-                                                                            : '0.00%'}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {team.weeks[weekIndex].C}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {teamAch.C || 0}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {team.weeks[weekIndex].C > 0
-                                                                            ? (
-                                                                                  ((teamAch.C || 0) /
-                                                                                      team.weeks[weekIndex].C) *
-                                                                                  100
-                                                                              ).toFixed(2) + '%'
-                                                                            : '0.00%'}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {team.weeks[weekIndex].D}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {teamAch.D || 0}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {team.weeks[weekIndex].D > 0
-                                                                            ? (
-                                                                                  ((teamAch.D || 0) /
-                                                                                      team.weeks[weekIndex].D) *
-                                                                                  100
-                                                                              ).toFixed(2) + '%'
-                                                                            : '0.00%'}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {team.weeks[weekIndex].F}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {teamAch.F || 0}
-                                                                    </td>
-                                                                    <td className="border p-2 text-center">
-                                                                        {team.weeks[weekIndex].F > 0
-                                                                            ? (
-                                                                                  ((teamAch.F || 0) /
-                                                                                      team.weeks[weekIndex].F) *
-                                                                                  100
-                                                                              ).toFixed(2) + '%'
-                                                                            : '0.00%'}
-                                                                    </td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                        <tr className="font-bold">
-                                                            <td className="border p-2">계</td>
-                                                            <td className="border p-2 text-center">
-                                                                {results.teams.reduce(
-                                                                    (sum: number, team: TeamResult) =>
-                                                                        sum + team.weeks[weekIndex].A,
-                                                                    0
-                                                                )}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {totalAchievements.A}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {results.teams.reduce(
-                                                                    (sum: number, team: TeamResult) =>
-                                                                        sum + team.weeks[weekIndex].A,
-                                                                    0
-                                                                ) > 0
-                                                                    ? (
-                                                                          (totalAchievements.A /
-                                                                              results.teams.reduce(
-                                                                                  (sum: number, team: TeamResult) =>
-                                                                                      sum + team.weeks[weekIndex].A,
-                                                                                  0
-                                                                              )) *
-                                                                          100
-                                                                      ).toFixed(2) + '%'
-                                                                    : '0.00%'}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {results.teams.reduce(
-                                                                    (sum: number, team: TeamResult) =>
-                                                                        sum + team.weeks[weekIndex].B,
-                                                                    0
-                                                                )}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {totalAchievements.B}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {results.teams.reduce(
-                                                                    (sum: number, team: TeamResult) =>
-                                                                        sum + team.weeks[weekIndex].B,
-                                                                    0
-                                                                ) > 0
-                                                                    ? (
-                                                                          (totalAchievements.B /
-                                                                              results.teams.reduce(
-                                                                                  (sum: number, team: TeamResult) =>
-                                                                                      sum + team.weeks[weekIndex].B,
-                                                                                  0
-                                                                              )) *
-                                                                          100
-                                                                      ).toFixed(2) + '%'
-                                                                    : '0.00%'}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {results.teams.reduce(
-                                                                    (sum: number, team: TeamResult) =>
-                                                                        sum + team.weeks[weekIndex].C,
-                                                                    0
-                                                                )}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {totalAchievements.C}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {results.teams.reduce(
-                                                                    (sum: number, team: TeamResult) =>
-                                                                        sum + team.weeks[weekIndex].C,
-                                                                    0
-                                                                ) > 0
-                                                                    ? (
-                                                                          (totalAchievements.C /
-                                                                              results.teams.reduce(
-                                                                                  (sum: number, team: TeamResult) =>
-                                                                                      sum + team.weeks[weekIndex].C,
-                                                                                  0
-                                                                              )) *
-                                                                          100
-                                                                      ).toFixed(2) + '%'
-                                                                    : '0.00%'}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {results.teams.reduce(
-                                                                    (sum: number, team: TeamResult) =>
-                                                                        sum + team.weeks[weekIndex].D,
-                                                                    0
-                                                                )}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {totalAchievements.D}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {results.teams.reduce(
-                                                                    (sum: number, team: TeamResult) =>
-                                                                        sum + team.weeks[weekIndex].D,
-                                                                    0
-                                                                ) > 0
-                                                                    ? (
-                                                                          (totalAchievements.D /
-                                                                              results.teams.reduce(
-                                                                                  (sum: number, team: TeamResult) =>
-                                                                                      sum + team.weeks[weekIndex].D,
-                                                                                  0
-                                                                              )) *
-                                                                          100
-                                                                      ).toFixed(2) + '%'
-                                                                    : '0.00%'}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {results.teams.reduce(
-                                                                    (sum: number, team: TeamResult) =>
-                                                                        sum + team.weeks[weekIndex].F,
-                                                                    0
-                                                                )}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {totalAchievements.F}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {results.teams.reduce(
-                                                                    (sum: number, team: TeamResult) =>
-                                                                        sum + team.weeks[weekIndex].F,
-                                                                    0
-                                                                ) > 0
-                                                                    ? (
-                                                                          (totalAchievements.F /
-                                                                              results.teams.reduce(
-                                                                                  (sum: number, team: TeamResult) =>
-                                                                                      sum + team.weeks[weekIndex].F,
-                                                                                  0
-                                                                              )) *
-                                                                          100
-                                                                      ).toFixed(2) + '%'
-                                                                    : '0.00%'}
-                                                            </td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        );
-                                    }
-                                )}
+                                <WeeklyGoalsTable
+                                    data={[{ region, results }]}
+                                    achievements={weeklyAchievements}
+                                    selectedMonth={parseInt(selectedMonth)}
+                                    year={year}
+                                    view="region"
+                                />
                             </>
                         ) : (
-                            <div className="mt-6">{renderRegionChart()}</div>
+                            <div className="mt-6">
+                                <RenderChart
+                                    view="region"
+                                    data={[{ region, results }]}
+                                    achievements={weeklyAchievements}
+                                    selectedMonth={parseInt(selectedMonth)}
+                                    year={year}
+                                />
+                            </div>
                         )}
                     </div>
                 </>
@@ -1370,454 +999,92 @@ export default function GoalCalculatorTable() {
                         {displayMode === 'table' ? (
                             <>
                                 <h2 className="text-lg font-semibold mb-2">{selectedMonth}월 전체 지역 개강 목표</h2>
-                                {(['week1', 'week2', 'week3', 'week4'] as (keyof WeeklyPercentages)[]).map(
-                                    (week, weekIndex) => {
-                                        const { display } = getWeekDateRange(parseInt(selectedMonth), weekIndex);
-                                        const totalAchievements = allRegionsResults.reduce(
-                                            (acc: WeeklyGoals, { region: reg }) => {
-                                                const regionTeams =
-                                                    allRegionsResults.find((r) => r.region === reg)?.results.teams ||
-                                                    [];
-                                                const teamSums = regionTeams.reduce(
-                                                    (teamAcc: WeeklyGoals, team: TeamResult) => {
-                                                        const teamAch =
-                                                            achievements[reg]?.[`${team.team}`]?.[week] || {};
-                                                        return {
-                                                            A: teamAcc.A + (teamAch.A || 0),
-                                                            B: teamAcc.B + (teamAch.B || 0),
-                                                            C: teamAcc.C + (teamAch.C || 0),
-                                                            D: teamAcc.D + (teamAch.D || 0),
-                                                            F: teamAcc.F + (teamAch.F || 0),
-                                                        };
-                                                    },
-                                                    { A: 0, B: 0, C: 0, D: 0, F: 0 }
-                                                );
-                                                return {
-                                                    A: acc.A + teamSums.A,
-                                                    B: acc.B + teamSums.B,
-                                                    C: acc.C + teamSums.C,
-                                                    D: acc.D + teamSums.D,
-                                                    F: acc.F + teamSums.F,
-                                                };
-                                            },
-                                            { A: 0, B: 0, C: 0, D: 0, F: 0 }
-                                        );
-
-                                        return (
-                                            <div key={week} className="mb-6">
-                                                <h3 className="text-md font-medium mb-2">
-                                                    {weekIndex + 1}주차 ({display})
-                                                </h3>
-                                                <table className="w-full border-collapse">
-                                                    <thead>
-                                                        <tr className="bg-gray-100">
-                                                            <th className="border p-2">지역</th>
-                                                            <th className="border p-2" colSpan={3}>
-                                                                A
-                                                            </th>
-                                                            <th className="border p-2" colSpan={3}>
-                                                                B
-                                                            </th>
-                                                            <th className="border p-2" colSpan={3}>
-                                                                C
-                                                            </th>
-                                                            <th className="border p-2" colSpan={3}>
-                                                                D
-                                                            </th>
-                                                            <th className="border p-2" colSpan={3}>
-                                                                F
-                                                            </th>
-                                                        </tr>
-                                                        <tr className="bg-gray-50">
-                                                            <th className="border p-2"></th>
-                                                            <th className="border p-2">목표</th>
-                                                            <th className="border p-2">달성</th>
-                                                            <th className="border p-2">달성률</th>
-                                                            <th className="border p-2">목표</th>
-                                                            <th className="border p-2">달성</th>
-                                                            <th className="border p-2">달성률</th>
-                                                            <th className="border p-2">목표</th>
-                                                            <th className="border p-2">달성</th>
-                                                            <th className="border p-2">달성률</th>
-                                                            <th className="border p-2">목표</th>
-                                                            <th className="border p-2">달성</th>
-                                                            <th className="border p-2">달성률</th>
-                                                            <th className="border p-2">목표</th>
-                                                            <th className="border p-2">달성</th>
-                                                            <th className="border p-2">달성률</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {allRegionsResults.flatMap(({ region: reg, results: res }) =>
-                                                            res.teams.map((team: TeamResult) => {
-                                                                const teamAch =
-                                                                    achievements[reg]?.[`${team.team}`]?.[week] || {};
-                                                                return (
-                                                                    <tr key={`${reg}-${team.team}`}>
-                                                                        <td className="border p-2">
-                                                                            {reg} {team.team}팀
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {team.weeks[weekIndex].A}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {teamAch.A || 0}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {team.weeks[weekIndex].A > 0
-                                                                                ? (
-                                                                                      ((teamAch.A || 0) /
-                                                                                          team.weeks[weekIndex].A) *
-                                                                                      100
-                                                                                  ).toFixed(2) + '%'
-                                                                                : '0.00%'}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {team.weeks[weekIndex].B}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {teamAch.B || 0}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {team.weeks[weekIndex].B > 0
-                                                                                ? (
-                                                                                      ((teamAch.B || 0) /
-                                                                                          team.weeks[weekIndex].B) *
-                                                                                      100
-                                                                                  ).toFixed(2) + '%'
-                                                                                : '0.00%'}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {team.weeks[weekIndex].C}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {teamAch.C || 0}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {team.weeks[weekIndex].C > 0
-                                                                                ? (
-                                                                                      ((teamAch.C || 0) /
-                                                                                          team.weeks[weekIndex].C) *
-                                                                                      100
-                                                                                  ).toFixed(2) + '%'
-                                                                                : '0.00%'}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {team.weeks[weekIndex].D}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {teamAch.D || 0}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {team.weeks[weekIndex].D > 0
-                                                                                ? (
-                                                                                      ((teamAch.D || 0) /
-                                                                                          team.weeks[weekIndex].D) *
-                                                                                      100
-                                                                                  ).toFixed(2) + '%'
-                                                                                : '0.00%'}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {team.weeks[weekIndex].F}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {teamAch.F || 0}
-                                                                        </td>
-                                                                        <td className="border p-2 text-center">
-                                                                            {team.weeks[weekIndex].F > 0
-                                                                                ? (
-                                                                                      ((teamAch.F || 0) /
-                                                                                          team.weeks[weekIndex].F) *
-                                                                                      100
-                                                                                  ).toFixed(2) + '%'
-                                                                                : '0.00%'}
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            })
+                                <WeeklyGoalsTable
+                                    data={allRegionsResults}
+                                    achievements={weeklyAchievements}
+                                    selectedMonth={parseInt(selectedMonth)}
+                                    year={year}
+                                    view="month"
+                                />
+                                {monthly && (
+                                    <div>
+                                        <h2 className="text-lg font-semibold mb-2">{selectedMonth}월 월별 달성 현황</h2>
+                                        <table className="w-full border-collapse">
+                                            <thead>
+                                                <tr className="bg-gray-100">
+                                                    <th className="border p-2">지역</th>
+                                                    <th className="border p-2">팀</th>
+                                                    {(['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).map(
+                                                        (step) => (
+                                                            <React.Fragment key={step}>
+                                                                <th className="border p-2">{step}</th>
+                                                                <th className="border p-2">{`${step}_탈락`}</th>
+                                                                <th className="border p-2">{`${step}_보유`}</th>
+                                                            </React.Fragment>
+                                                        )
+                                                    )}
+                                                    <th className="border p-2">총 탈락</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {monthly.achievements.map((row: TableRow) => (
+                                                    <tr key={row.key}>
+                                                        <td className="border p-2">{row.지역}</td>
+                                                        <td className="border p-2">{row.팀}</td>
+                                                        {(['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).map(
+                                                            (step) => (
+                                                                <React.Fragment key={step}>
+                                                                    <td className="border p-2 text-center">
+                                                                        {row[step]}
+                                                                    </td>
+                                                                    <td className="border p-2 text-center">
+                                                                        {row[`${step}_탈락`]}
+                                                                    </td>
+                                                                    <td className="border p-2 text-center">
+                                                                        {row[`${step}_보유`]}
+                                                                    </td>
+                                                                </React.Fragment>
+                                                            )
                                                         )}
-                                                        <tr className="font-bold">
-                                                            <td className="border p-2">계</td>
-                                                            <td className="border p-2 text-center">
-                                                                {allRegionsResults.reduce(
-                                                                    (sum, { results }) =>
-                                                                        sum +
-                                                                        results.teams.reduce(
-                                                                            (teamSum, team) =>
-                                                                                teamSum + team.weeks[weekIndex].A,
-                                                                            0
-                                                                        ),
-                                                                    0
-                                                                )}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {totalAchievements.A}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {allRegionsResults.reduce(
-                                                                    (sum, { results }) =>
-                                                                        sum +
-                                                                        results.teams.reduce(
-                                                                            (teamSum, team) =>
-                                                                                teamSum + team.weeks[weekIndex].A,
-                                                                            0
-                                                                        ),
-                                                                    0
-                                                                ) > 0
-                                                                    ? (
-                                                                          (totalAchievements.A /
-                                                                              allRegionsResults.reduce(
-                                                                                  (sum, { results }) =>
-                                                                                      sum +
-                                                                                      results.teams.reduce(
-                                                                                          (teamSum, team) =>
-                                                                                              teamSum +
-                                                                                              team.weeks[weekIndex].A,
-                                                                                          0
-                                                                                      ),
-                                                                                  0
-                                                                              )) *
-                                                                          100
-                                                                      ).toFixed(2) + '%'
-                                                                    : '0.00%'}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {allRegionsResults.reduce(
-                                                                    (sum, { results }) =>
-                                                                        sum +
-                                                                        results.teams.reduce(
-                                                                            (teamSum, team) =>
-                                                                                teamSum + team.weeks[weekIndex].B,
-                                                                            0
-                                                                        ),
-                                                                    0
-                                                                )}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {totalAchievements.B}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {allRegionsResults.reduce(
-                                                                    (sum, { results }) =>
-                                                                        sum +
-                                                                        results.teams.reduce(
-                                                                            (teamSum, team) =>
-                                                                                teamSum + team.weeks[weekIndex].B,
-                                                                            0
-                                                                        ),
-                                                                    0
-                                                                ) > 0
-                                                                    ? (
-                                                                          (totalAchievements.B /
-                                                                              allRegionsResults.reduce(
-                                                                                  (sum, { results }) =>
-                                                                                      sum +
-                                                                                      results.teams.reduce(
-                                                                                          (teamSum, team) =>
-                                                                                              teamSum +
-                                                                                              team.weeks[weekIndex].B,
-                                                                                          0
-                                                                                      ),
-                                                                                  0
-                                                                              )) *
-                                                                          100
-                                                                      ).toFixed(2) + '%'
-                                                                    : '0.00%'}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {allRegionsResults.reduce(
-                                                                    (sum, { results }) =>
-                                                                        sum +
-                                                                        results.teams.reduce(
-                                                                            (teamSum, team) =>
-                                                                                teamSum + team.weeks[weekIndex].C,
-                                                                            0
-                                                                        ),
-                                                                    0
-                                                                )}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {totalAchievements.C}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {allRegionsResults.reduce(
-                                                                    (sum, { results }) =>
-                                                                        sum +
-                                                                        results.teams.reduce(
-                                                                            (teamSum, team) =>
-                                                                                teamSum + team.weeks[weekIndex].C,
-                                                                            0
-                                                                        ),
-                                                                    0
-                                                                ) > 0
-                                                                    ? (
-                                                                          (totalAchievements.C /
-                                                                              allRegionsResults.reduce(
-                                                                                  (sum, { results }) =>
-                                                                                      sum +
-                                                                                      results.teams.reduce(
-                                                                                          (teamSum, team) =>
-                                                                                              teamSum +
-                                                                                              team.weeks[weekIndex].C,
-                                                                                          0
-                                                                                      ),
-                                                                                  0
-                                                                              )) *
-                                                                          100
-                                                                      ).toFixed(2) + '%'
-                                                                    : '0.00%'}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {allRegionsResults.reduce(
-                                                                    (sum, { results }) =>
-                                                                        sum +
-                                                                        results.teams.reduce(
-                                                                            (teamSum, team) =>
-                                                                                teamSum + team.weeks[weekIndex].D,
-                                                                            0
-                                                                        ),
-                                                                    0
-                                                                )}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {totalAchievements.D}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {allRegionsResults.reduce(
-                                                                    (sum, { results }) =>
-                                                                        sum +
-                                                                        results.teams.reduce(
-                                                                            (teamSum, team) =>
-                                                                                teamSum + team.weeks[weekIndex].D,
-                                                                            0
-                                                                        ),
-                                                                    0
-                                                                ) > 0
-                                                                    ? (
-                                                                          (totalAchievements.D /
-                                                                              allRegionsResults.reduce(
-                                                                                  (sum, { results }) =>
-                                                                                      sum +
-                                                                                      results.teams.reduce(
-                                                                                          (teamSum, team) =>
-                                                                                              teamSum +
-                                                                                              team.weeks[weekIndex].D,
-                                                                                          0
-                                                                                      ),
-                                                                                  0
-                                                                              )) *
-                                                                          100
-                                                                      ).toFixed(2) + '%'
-                                                                    : '0.00%'}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {allRegionsResults.reduce(
-                                                                    (sum, { results }) =>
-                                                                        sum +
-                                                                        results.teams.reduce(
-                                                                            (teamSum, team) =>
-                                                                                teamSum + team.weeks[weekIndex].F,
-                                                                            0
-                                                                        ),
-                                                                    0
-                                                                )}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {totalAchievements.F}
-                                                            </td>
-                                                            <td className="border p-2 text-center">
-                                                                {allRegionsResults.reduce(
-                                                                    (sum, { results }) =>
-                                                                        sum +
-                                                                        results.teams.reduce(
-                                                                            (teamSum, team) =>
-                                                                                teamSum + team.weeks[weekIndex].F,
-                                                                            0
-                                                                        ),
-                                                                    0
-                                                                ) > 0
-                                                                    ? (
-                                                                          (totalAchievements.F /
-                                                                              allRegionsResults.reduce(
-                                                                                  (sum, { results }) =>
-                                                                                      sum +
-                                                                                      results.teams.reduce(
-                                                                                          (teamSum, team) =>
-                                                                                              teamSum +
-                                                                                              team.weeks[weekIndex].F,
-                                                                                          0
-                                                                                      ),
-                                                                                  0
-                                                                              )) *
-                                                                          100
-                                                                      ).toFixed(2) + '%'
-                                                                    : '0.00%'}
-                                                            </td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        );
-                                    }
+                                                        <td className="border p-2 text-center">{row.탈락}</td>
+                                                    </tr>
+                                                ))}
+                                                <tr className="font-bold">
+                                                    <td className="border p-2" colSpan={2}>
+                                                        계
+                                                    </td>
+                                                    {(['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).map(
+                                                        (step) => (
+                                                            <React.Fragment key={step}>
+                                                                <td className="border p-2 text-center">
+                                                                    {monthly.totalRow[step]}
+                                                                </td>
+                                                                <td className="border p-2 text-center">
+                                                                    {monthly.totalRow[`${step}_탈락`]}
+                                                                </td>
+                                                                <td className="border p-2 text-center">
+                                                                    {monthly.totalRow[`${step}_보유`]}
+                                                                </td>
+                                                            </React.Fragment>
+                                                        )
+                                                    )}
+                                                    <td className="border p-2 text-center">{monthly.totalRow.탈락}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 )}
-
-                                <h2 className="text-lg font-semibold mb-2">{selectedMonth}월 월별 달성 현황</h2>
-                                <table className="w-full border-collapse">
-                                    <thead>
-                                        <tr className="bg-gray-100">
-                                            <th className="border p-2">지역</th>
-                                            <th className="border p-2">팀</th>
-                                            {['A', 'B', 'C', 'D', 'F'].flatMap((step) => [
-                                                <th key={step} className="border p-2">
-                                                    {step}
-                                                </th>,
-                                                <th key={`${step}_탈락`} className="border p-2">{`${step}_탈락`}</th>,
-                                                <th key={`${step}_보유`} className="border p-2">{`${step}_보유`}</th>,
-                                            ])}
-                                            <th className="border p-2">총 탈락</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {monthlyAchievements.map((row: TableRow) => (
-                                            <tr key={row.key}>
-                                                <td className="border p-2">{row.지역}</td>
-                                                <td className="border p-2">{row.팀}</td>
-                                                {['A', 'B', 'C', 'D', 'F'].flatMap((step) => [
-                                                    <td key={step} className="border p-2 text-center">
-                                                        {row[step]}
-                                                    </td>,
-                                                    <td key={`${step}_탈락`} className="border p-2 text-center">
-                                                        {row[`${step}_탈락`]}
-                                                    </td>,
-                                                    <td key={`${step}_보유`} className="border p-2 text-center">
-                                                        {row[`${step}_보유`]}
-                                                    </td>,
-                                                ])}
-                                                <td className="border p-2 text-center">{row.탈락}</td>
-                                            </tr>
-                                        ))}
-                                        <tr className="font-bold">
-                                            <td className="border p-2" colSpan={2}>
-                                                계
-                                            </td>
-                                            {['A', 'B', 'C', 'D', 'F'].flatMap((step) => [
-                                                <td key={step} className="border p-2 text-center">
-                                                    {monthlyTotalRow[step]}
-                                                </td>,
-                                                <td key={`${step}_탈락`} className="border p-2 text-center">
-                                                    {monthlyTotalRow[`${step}_탈락`]}
-                                                </td>,
-                                                <td key={`${step}_보유`} className="border p-2 text-center">
-                                                    {monthlyTotalRow[`${step}_보유`]}
-                                                </td>,
-                                            ])}
-                                            <td className="border p-2 text-center">{monthlyTotalRow.탈락}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
                             </>
                         ) : (
-                            <div className="mt-6">{renderMonthChart(monthlyAchievements)}</div>
+                            <div className="mt-6">
+                                <RenderChart
+                                    view="month"
+                                    data={allRegionsResults}
+                                    achievements={weeklyAchievements}
+                                    selectedMonth={parseInt(selectedMonth)}
+                                    year={year}
+                                />
+                            </div>
                         )}
                     </div>
                 </>

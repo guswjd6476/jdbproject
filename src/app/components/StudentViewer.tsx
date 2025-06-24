@@ -82,7 +82,7 @@ export default function StudentViewer() {
     }));
 
     const columns: ColumnsType<Student> = [
-        { title: '번호', dataIndex: '번호', key: '번호', fixed: 'left', width: 70 },
+        { title: '번호', dataIndex: 'id', key: 'id', fixed: 'left', width: 70 },
         filterableColumn('단계', '단계'),
         { title: '이름', dataIndex: '이름', key: '이름', width: 100 },
         { title: '연락처', dataIndex: '연락처', key: '연락처', width: 120 },
@@ -145,7 +145,7 @@ export default function StudentViewer() {
                         <Table<Student>
                             columns={columns}
                             dataSource={filteredStudents}
-                            rowKey="번호"
+                            rowKey="id"
                             pagination={{
                                 pageSize: 50,
                                 showSizeChanger: true,

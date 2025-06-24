@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-
 export interface Student {
-    번호: number;
+    id: number;
     이름: string;
     단계: string | null;
     인도자지역: string | null;
@@ -24,7 +23,7 @@ export const useStudentsQuery = () => {
             const res = await fetch('/api/students');
             if (!res.ok) throw new Error('데이터를 불러오는 데 실패했습니다.');
             const data: Student[] = await res.json();
-            return data.filter((s) => s.번호 != null);
+            return data.filter((s) => s.id != null);
         },
         staleTime: 1000 * 60 * 60 * 24,
     });
