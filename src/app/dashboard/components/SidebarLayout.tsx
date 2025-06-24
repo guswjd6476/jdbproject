@@ -34,10 +34,7 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
             </Sider>
 
             <Layout>
-                <Header style={{ background: '#fff', padding: 0 }} />
-                <Content style={{ margin: '24px 16px', padding: 24, background: '#fff' }}>
-                    <main className="max-w-6xl mx-auto">{children}</main>
-                </Content>
+                <main className="mx-auto w-full">{children}</main>
             </Layout>
         </Layout>
     );

@@ -43,6 +43,7 @@ export interface WeeklyPercentages {
     week2: WeeklyGoals;
     week3: WeeklyGoals;
     week4: WeeklyGoals;
+    week5: WeeklyGoals;
 }
 
 export interface ConversionRates {
@@ -79,3 +80,14 @@ export interface RawStudent {
     g?: string | null; // 탈락일
     [key: string]: string | number | null | undefined;
 }
+export type Region = (typeof REGIONS)[number];
+
+export const DEFAULT_F_GOALS: Record<Region, FGoals> = {
+    도봉: { team1: '8', team2: '8' },
+    성북: { team1: '4.0', team2: '4.0', team3: '3.5', team4: '3.0' },
+    노원: { team1: '4.5', team2: '4.5', team3: '4.0', team4: '3.0' },
+    중랑: { team1: '4.0', team2: '3.5', team3: '3.5', team4: '3.0' },
+    강북: { team1: '4.5', team2: '4.0', team3: '3.5', team4: '3.0' },
+    대학: { team1: '5.0', team2: '4.5', team3: '4.0', team4: '3.5' },
+    새신자: { team1: '3.5', team2: '3.0', team3: '3.0', team4: '2.5' },
+};

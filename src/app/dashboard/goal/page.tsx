@@ -10,6 +10,8 @@ import {
     STEPS,
     REGIONS,
     fixedTeams,
+    DEFAULT_F_GOALS,
+    Region,
 } from '@/app/lib/types';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import dayjs, { Dayjs } from 'dayjs';
@@ -20,18 +22,6 @@ import isBetween from 'dayjs/plugin/isBetween';
 
 dayjs.extend(isBetween);
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
-
-type Region = (typeof REGIONS)[number];
-
-const DEFAULT_F_GOALS: Record<Region, FGoals> = {
-    도봉: { team1: '4.5', team2: '4.5', team3: '4.0', team4: '3.0' },
-    성북: { team1: '4.0', team2: '4.0', team3: '3.5', team4: '3.0' },
-    노원: { team1: '4.5', team2: '4.5', team3: '4.0', team4: '3.0' },
-    중랑: { team1: '4.0', team2: '3.5', team3: '3.5', team4: '3.0' },
-    강북: { team1: '4.5', team2: '4.0', team3: '3.5', team4: '3.0' },
-    대학: { team1: '5.0', team2: '4.5', team3: '4.0', team4: '3.5' },
-    새신자: { team1: '3.5', team2: '3.0', team3: '3.0', team4: '2.5' },
-};
 
 const initializeResults = (
     fGoals: FGoals,
@@ -46,7 +36,7 @@ const initializeResults = (
         const b = Math.ceil(c / conversionRates.bToC);
         const a = Math.ceil(b / conversionRates.aToB);
 
-        const weeks = ['week1', 'week2', 'week3', 'week4'].map((week) => {
+        const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'].map((week) => {
             const percentages = weeklyPercentages[week as keyof WeeklyPercentages];
             return {
                 A: percentages.A === 0 ? 0 : Math.ceil(a * percentages.A),
@@ -82,7 +72,7 @@ const getWeekDateRange = (
     const firstDay = dayjs(new Date(year, month - 1, 1));
     const firstMonday = firstDay.add((8 - firstDay.day()) % 7 || 7, 'day');
 
-    const startDate = firstMonday.add(weekIndex * 7 - 7, 'day');
+    const startDate = firstMonday.add(weekIndex * 7 - 14, 'day');
     const endDate = startDate.add(6, 'day');
 
     return {
@@ -233,7 +223,7 @@ const WeeklyGoalsTable = ({
     year: number;
     view: 'region' | 'month';
 }) => {
-    const weeks = ['week1', 'week2', 'week3', 'week4'] as (keyof WeeklyPercentages)[];
+    const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'] as (keyof WeeklyPercentages)[];
     const totalAchievements = useMemo(() => {
         return weeks.reduce((weekAcc: Record<string, WeeklyGoals>, week) => {
             weekAcc[week] = data.reduce(
@@ -379,7 +369,7 @@ const RenderChart = ({
     selectedMonth: number;
     year: number;
 }) => {
-    const weeks = ['week1', 'week2', 'week3', 'week4'] as (keyof WeeklyPercentages)[];
+    const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'] as (keyof WeeklyPercentages)[];
     const labels =
         view === 'region'
             ? data[0].results.teams.map((team) => `${data[0].region} ${team.team}팀`)
@@ -456,10 +446,11 @@ export default function GoalCalculatorTable() {
 
     const defaultWeeklyPercentages = useMemo(
         () => ({
-            week1: { A: 0.9, B: 0.5, C: 0.1, D: 0.0, F: 0.0 },
-            week2: { A: 0.1, B: 0.4, C: 0.8, D: 0.1, F: 0.0 },
-            week3: { A: 0.0, B: 0.1, C: 0.1, D: 0.8, F: 0.1 },
-            week4: { A: 0.0, B: 0.0, C: 0.0, D: 0.1, F: 0.9 },
+            week1: { A: 0.5, B: 0.2, C: 0.0, D: 0.0, F: 0.0 },
+            week2: { A: 0.4, B: 0.3, C: 0.1, D: 0.0, F: 0.0 },
+            week3: { A: 0.1, B: 0.4, C: 0.8, D: 0.1, F: 0.0 },
+            week4: { A: 0.0, B: 0.1, C: 0.1, D: 0.8, F: 0.1 },
+            week5: { A: 0.0, B: 0.0, C: 0.0, D: 0.1, F: 0.9 },
         }),
         []
     );
@@ -701,7 +692,7 @@ export default function GoalCalculatorTable() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">
+        <div className="w-full mx-auto p-6">
             <div className="flex justify-center mb-4">
                 <button
                     onClick={() => setView('region')}

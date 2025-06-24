@@ -261,7 +261,7 @@ export default function DashboardPage() {
     };
 
     return (
-        <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
+        <div className="w-full mx-auto p-6">
             <Title level={2}>월별 · 지역별 · 팀별 대시보드</Title>
 
             <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
