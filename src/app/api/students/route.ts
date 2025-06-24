@@ -32,10 +32,12 @@ const 단계완료일컬럼: { [key: string]: string } = {
     f: 'f_완료일',
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     const client = await pool.connect();
     try {
-        const query = `
+        const search = request.nextUrl.searchParams.get('q')?.trim();
+
+        const baseQuery = `
             SELECT 
                 s.id AS 번호, 
                 s.단계, 
@@ -59,10 +61,28 @@ export async function GET() {
             FROM students s
             LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
             LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
-            ORDER BY s.id ASC
         `;
 
-        const res = await client.query(query);
+        let finalQuery = baseQuery;
+        const values: string[] = [];
+
+        if (search) {
+            finalQuery += `
+                WHERE 
+                    s.이름 ILIKE $1 OR
+                    m_ind.이름 ILIKE $1 OR
+                    m_tch.이름 ILIKE $1 OR
+                    m_ind.지역 ILIKE $1 OR
+                    m_tch.지역 ILIKE $1 OR
+                    m_ind.구역 ILIKE $1 OR
+                    m_tch.구역 ILIKE $1
+            `;
+            values.push(`%${search}%`);
+        }
+
+        finalQuery += ` ORDER BY s.id ASC`;
+
+        const res = await client.query(finalQuery, values);
         return NextResponse.json(res.rows);
     } catch (err: unknown) {
         console.error('GET /api/students 에러:', err);

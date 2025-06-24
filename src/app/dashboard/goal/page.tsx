@@ -37,13 +37,13 @@ const initializeResults = (
         const a = Math.ceil(b / conversionRates.aToB);
 
         const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'].map((week) => {
-            const percentages = weeklyPercentages[week as keyof WeeklyPercentages];
+            const percentages = weeklyPercentages[week as keyof WeeklyPercentages] ?? { A: 0, B: 0, C: 0, D: 0, F: 0 };
             return {
-                A: percentages.A === 0 ? 0 : Math.ceil(a * percentages.A),
-                B: percentages.B === 0 ? 0 : Math.ceil(b * percentages.B),
-                C: percentages.C === 0 ? 0 : Math.ceil(c * percentages.C),
-                D: percentages.D === 0 ? 0 : Math.ceil(d * percentages.D),
-                F: percentages.F === 0 ? 0 : Math.ceil(fValue * percentages.F),
+                A: Math.ceil(a * percentages.A),
+                B: Math.ceil(b * percentages.B),
+                C: Math.ceil(c * percentages.C),
+                D: Math.ceil(d * percentages.D),
+                F: Math.ceil(fValue * percentages.F),
             };
         });
 
@@ -436,7 +436,7 @@ export default function GoalCalculatorTable() {
 
     const defaultConversionRates = useMemo(
         () => ({
-            aToB: 0.5,
+            aToB: 0.4,
             bToC: 0.5,
             cToD: 0.6,
             dToF: 0.6,
@@ -446,9 +446,9 @@ export default function GoalCalculatorTable() {
 
     const defaultWeeklyPercentages = useMemo(
         () => ({
-            week1: { A: 0.5, B: 0.2, C: 0.0, D: 0.0, F: 0.0 },
-            week2: { A: 0.4, B: 0.3, C: 0.1, D: 0.0, F: 0.0 },
-            week3: { A: 0.1, B: 0.4, C: 0.8, D: 0.1, F: 0.0 },
+            week1: { A: 0.35, B: 0.1, C: 0.0, D: 0.0, F: 0.0 },
+            week2: { A: 0.55, B: 0.5, C: 0.1, D: 0.0, F: 0.0 },
+            week3: { A: 0.1, B: 0.3, C: 0.8, D: 0.1, F: 0.0 },
             week4: { A: 0.0, B: 0.1, C: 0.1, D: 0.8, F: 0.1 },
             week5: { A: 0.0, B: 0.0, C: 0.0, D: 0.1, F: 0.9 },
         }),
@@ -647,7 +647,7 @@ export default function GoalCalculatorTable() {
                     return;
                 }
                 setWeeklyPercentages((prev) => {
-                    const currentWeek = { ...prev[week] };
+                    const currentWeek = { ...(prev[week] ?? { A: 0, B: 0, C: 0, D: 0, F: 0 }) };
                     const newValue = num / 100;
                     currentWeek[key as keyof WeeklyGoals] = newValue;
                     if (newValue === 1) {

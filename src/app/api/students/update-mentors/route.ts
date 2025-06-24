@@ -23,7 +23,6 @@ async function getMemberUniqueId(client: PoolClient, 지역: string, 팀: string
             [지역, teamNumber, `${teamNumber}-%`, 이름]
         );
 
-        console.log(result.rows[0], '?????dddddd');
         return result.rows[0]?.고유번호 ?? null;
     } catch (err) {
         console.error('getMemberUniqueId error:', err);
