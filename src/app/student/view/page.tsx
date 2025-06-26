@@ -1,4 +1,4 @@
-import StudentViewer from '../components/StudentViewer';
+import StudentViewer from '../../components/StudentViewer';
 
 export default function ViewPage() {
     return (

@@ -6,37 +6,13 @@ import { Table, Select, Typography, Space, Spin, Radio, DatePicker, Button } fro
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
-import { STEPS, REGIONS, fixedTeams } from '@/app/lib/types';
+import { STEPS, REGIONS, fixedTeams, Student, TableRow } from '@/app/lib/types';
+import { getTeamName } from '@/app/lib/function';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
 
 type 단계 = 'A' | 'B' | 'C' | 'D-1' | 'D-2' | 'E' | 'F';
-interface Student {
-    번호: number;
-    이름: string;
-    단계: string | null;
-    인도자지역: string | null;
-    인도자팀: string | null;
-    a?: string | null;
-    b?: string | null;
-    c?: string | null;
-    'd-1'?: string | null;
-    'd-2'?: string | null;
-    e?: string | null;
-    f?: string | null;
-    g?: string | null; // 탈락일 추가
-    [key: string]: string | number | null | undefined;
-}
-
-interface TableRow {
-    key: string;
-    월: string;
-    지역: string;
-    팀: string;
-    탈락: number;
-    [step: string]: string | number;
-}
 
 export default function DashboardPage() {
     const { data: students = [], isLoading } = useStudentsQuery();
@@ -53,11 +29,6 @@ export default function DashboardPage() {
         value: y,
         label: `${y}년`,
     }));
-    const getTeamName = (team?: string | null): string => {
-        if (!team) return '기타팀';
-        const prefix = team.split('-')[0];
-        return fixedTeams.find((t) => t.startsWith(prefix)) ?? '기타팀';
-    };
 
     const { tableData, totalRow } = useMemo(() => {
         const grouped: Record<string, Record<string, Record<string, Record<string, number>>>> = {};
@@ -70,13 +41,14 @@ export default function DashboardPage() {
             if (selectedRegion && 지역 !== selectedRegion) return;
             if (selectedTeam && 팀 !== selectedTeam) return;
 
-            // 보유건 처리
+            // 보유건 처리 (인도자 기준)
             const currentStep = (s.단계 ?? '').toUpperCase();
             if (STEPS.includes(currentStep as 단계)) {
                 const key = `${지역}-${팀}-${currentStep}`;
                 보유건Map[key] = (보유건Map[key] ?? 0) + 1;
             }
 
+            // 단계별 달성 처리
             STEPS.forEach((step) => {
                 const key = step.toLowerCase() as keyof Student;
                 const dateStr = s[key] as string | null | undefined;
@@ -92,33 +64,61 @@ export default function DashboardPage() {
                 }
 
                 const month = (date.month() + 1).toString();
-                grouped[month] = grouped[month] ?? {};
-                grouped[month][지역] = grouped[month][지역] ?? {};
-                grouped[month][지역][팀] = grouped[month][지역][팀] ?? {};
-                grouped[month][지역][팀][step] = (grouped[month][지역][팀][step] ?? 0) + 1;
+                const mappedStep = step === 'D-1' || step === 'D-2' ? 'D' : step;
 
-                grouped['전체'] = grouped['전체'] ?? {};
-                grouped['전체'][지역] = grouped['전체'][지역] ?? {};
-                grouped['전체'][지역][팀] = grouped['전체'][지역][팀] ?? {};
-                grouped['전체'][지역][팀][step] = (grouped['전체'][지역][팀][step] ?? 0) + 1;
+                const targets =
+                    step === 'A' || step === 'B'
+                        ? [
+                              {
+                                  지역: (s.인도자지역 ?? '').trim(),
+                                  팀: getTeamName(s.인도자팀),
+                                  점수: 1,
+                              },
+                          ]
+                        : [
+                              {
+                                  지역: (s.인도자지역 ?? '').trim(),
+                                  팀: getTeamName(s.인도자팀),
+                                  점수: 0.5,
+                              },
+                              {
+                                  지역: (s.교사지역 ?? '').trim(),
+                                  팀: getTeamName(s.교사팀),
+                                  점수: 0.5,
+                              },
+                          ];
+
+                targets.forEach(({ 지역, 팀, 점수 }) => {
+                    if (!REGIONS.includes(지역) || !fixedTeams.includes(팀)) return;
+
+                    grouped[month] = grouped[month] ?? {};
+                    grouped[month][지역] = grouped[month][지역] ?? {};
+                    grouped[month][지역][팀] = grouped[month][지역][팀] ?? {};
+                    grouped[month][지역][팀][mappedStep] = (grouped[month][지역][팀][mappedStep] ?? 0) + 점수;
+
+                    grouped['전체'] = grouped['전체'] ?? {};
+                    grouped['전체'][지역] = grouped['전체'][지역] ?? {};
+                    grouped['전체'][지역][팀] = grouped['전체'][지역][팀] ?? {};
+                    grouped['전체'][지역][팀][mappedStep] = (grouped['전체'][지역][팀][mappedStep] ?? 0) + 점수;
+                });
             });
 
+            // 탈락 처리
             const 탈락일Str = s.g;
             if (탈락일Str) {
                 const 탈락일 = dayjs(탈락일Str);
                 if (!탈락일.isValid() || 탈락일.year() !== selectedYear) return;
 
-                // 기간 필터링 탈락 건수 처리
                 if (filterMode === 'month' && selectedMonth !== null) {
                     if (탈락일.month() + 1 !== selectedMonth) return;
                 } else if (filterMode === 'range' && selectedDateRange[0] && selectedDateRange[1]) {
                     const [start, end] = selectedDateRange;
                     if (탈락일.isBefore(start, 'day') || 탈락일.isAfter(end, 'day')) return;
                 }
-                // 월 계산
-                const month = (탈락일.month() + 1).toString();
 
+                const month = (탈락일.month() + 1).toString();
                 let 마지막단계: 단계 | null = null;
+
                 for (let i = STEPS.length - 1; i >= 0; i--) {
                     const key = STEPS[i].toLowerCase() as keyof Student;
                     if (s[key]) {
@@ -126,6 +126,7 @@ export default function DashboardPage() {
                         break;
                     }
                 }
+
                 if (마지막단계) {
                     const 탈락key = `${마지막단계}_탈락`;
 
@@ -144,7 +145,7 @@ export default function DashboardPage() {
             }
         });
 
-        const tableData: TableRow[] = [];
+        // 표시할 월 계산
         let monthsToShow: string[];
         if (filterMode === 'range' && selectedDateRange[0] && selectedDateRange[1]) {
             monthsToShow = [];
@@ -160,6 +161,8 @@ export default function DashboardPage() {
             monthsToShow = ['전체'];
         }
 
+        // 테이블 데이터 구성
+        const tableData: TableRow[] = [];
         monthsToShow.forEach((month) => {
             const regions = selectedRegion ? [selectedRegion] : REGIONS.filter((r) => grouped[month]?.[r]);
             regions.forEach((region) => {
@@ -187,6 +190,7 @@ export default function DashboardPage() {
             });
         });
 
+        // 전체 합계 행 계산
         const totalRow: TableRow = {
             key: 'total',
             월: '전체 합계',
@@ -203,6 +207,7 @@ export default function DashboardPage() {
                 {}
             ),
         };
+
         tableData.forEach((row) => {
             STEPS.forEach((step) => {
                 totalRow[step] = (totalRow[step] as number) + (row[step] as number);

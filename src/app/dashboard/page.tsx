@@ -1,313 +1,276 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Table, Select, Typography, Space, Spin, Button, DatePicker, Radio } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import React, { useState, useMemo } from 'react';
+import { Table, Select, Typography, Space, Spin, DatePicker, Button, Card, Statistic } from 'antd';
+import { Line } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend } from 'chart.js';
 import dayjs, { Dayjs } from 'dayjs';
-import { RawStudent, REGIONS, STEPS } from '../lib/types';
+import { useStudentsQuery, Students } from '@/app/hook/useStudentsQuery';
+import { REGIONS, STEPS, fixedTeams } from '@/app/lib/types';
 
 const { Title } = Typography;
+const { RangePicker } = DatePicker;
+type 단계 = 'A' | 'B' | 'C' | 'D-1' | 'D-2' | 'E' | 'F';
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
-interface TableRow {
-    key: string;
-    월: string;
-    지역: string;
-    [step: string]: string | number;
-}
-
-export default function DashboardPage() {
-    const [students, setStudents] = useState<RawStudent[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [selectedDateRange, setSelectedDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
-    const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
-    const [selectedYear, setSelectedYear] = useState<number>(2025);
-    const [viewMode, setViewMode] = useState<'month-region' | 'region-month'>('month-region');
+export default function StudentProgressDashboard() {
+    const { data: students = [], isLoading } = useStudentsQuery();
+    const [selectedYear, setSelectedYear] = useState<number>(dayjs().year());
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
-    const [filterMode, setFilterMode] = useState<'month' | 'range'>('month');
+    const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+    const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
 
-    const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1);
-    const yearOptions = [2024, 2025, 2026];
+    const yearOptions = [dayjs().year() - 1, dayjs().year(), dayjs().year() + 1].map((y) => ({
+        value: y,
+        label: `${y}년`,
+    }));
 
-    useEffect(() => {
-        async function fetchData() {
-            setLoading(true);
-            try {
-                const res = await fetch('/api/students');
-                if (!res.ok) throw new Error('데이터를 불러오는 데 실패했습니다.');
-                const raw: RawStudent[] = await res.json();
-                setStudents(raw);
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchData();
-    }, []);
+    const getTeamName = (team?: string | null): string => {
+        if (!team) return '기타팀';
+        const prefix = team.split('-')[0];
+        return fixedTeams.find((t) => t.startsWith(prefix)) ?? '기타팀';
+    };
 
-    const grouped: Record<string, Record<string, Record<string, number>>> = {};
+    // Student table data
+    const tableData = useMemo(() => {
+        return students
+            .filter((student: Students) => {
+                const 지역 = (student.인도자지역 ?? '').trim();
+                const 팀 = getTeamName(student.인도자팀);
+                const lastStepDate = student[student.단계?.toLowerCase() as keyof Students] as string | null;
 
-    students.forEach((s) => {
-        const 지역 = (s.인도자지역 ?? '').trim();
-        if (!REGIONS.includes(지역)) return;
-
-        STEPS.forEach((step) => {
-            const key = step.toLowerCase();
-            const dateStr = s[key];
-            if (!dateStr) return;
-
-            const date = dayjs(dateStr);
-            if (!date.isValid() || date.year() !== selectedYear) return;
-
-            if (viewMode === 'month-region') {
-                if (filterMode === 'range') {
-                    if (selectedDateRange[0] && selectedDateRange[1]) {
-                        const start = selectedDateRange[0].startOf('day');
-                        const end = selectedDateRange[1].endOf('day');
-                        if (date.isBefore(start) || date.isAfter(end)) return;
-                    } else return;
-                } else if (filterMode === 'month') {
-                    if (selectedMonth !== null && date.month() + 1 !== selectedMonth) return;
+                if (selectedRegion && 지역 !== selectedRegion) return false;
+                if (selectedTeam && 팀 !== selectedTeam) return false;
+                if (dateRange[0] && dateRange[1] && lastStepDate) {
+                    const date = dayjs(lastStepDate);
+                    return date.isValid() && date.isBetween(dateRange[0], dateRange[1], 'day', '[]');
                 }
-            }
+                return true;
+            })
+            .map((student: Students) => {
+                const currentStep = student.단계 ?? '없음';
+                const lastStepDate = student[currentStep.toLowerCase() as keyof Students] as string | null;
+                const status = student.g ? '탈락' : STEPS.includes(currentStep as 단계) ? '진행중' : '미정';
+                return {
+                    key: student.번호?.toString() ?? 'unknown',
+                    번호: student.번호,
+                    이름: student.이름,
+                    지역: student.인도자지역 ?? '미지정',
+                    팀: getTeamName(student.인도자팀),
+                    현재단계: currentStep,
+                    진행상태: status,
+                    마지막업데이트: lastStepDate ? dayjs(lastStepDate).format('YYYY.MM.DD') : '-',
+                };
+            });
+    }, [students, selectedRegion, selectedTeam, dateRange, getTeamName]);
 
-            const month = (date.month() + 1).toString();
+    // Trend analysis data
+    const trendData = useMemo(() => {
+        const monthlyData: Record<
+            string,
+            { completed: number; total: number; transitionDays: number[]; count: number }
+        > = {};
 
-            if (!grouped[month]) grouped[month] = {};
-            if (!grouped[month][지역]) grouped[month][지역] = {};
-            if (!grouped[month][지역][step]) grouped[month][지역][step] = 0;
-            grouped[month][지역][step]++;
+        students.forEach((student: Students) => {
+            const 지역 = (student.인도자지역 ?? '').trim();
+            const 팀 = getTeamName(student.인도자팀);
+            if (selectedRegion && 지역 !== selectedRegion) return;
+            if (selectedTeam && 팀 !== selectedTeam) return;
 
-            if (!grouped['전체']) grouped['전체'] = {};
-            if (!grouped['전체'][지역]) grouped['전체'][지역] = {};
-            if (!grouped['전체'][지역][step]) grouped['전체'][지역][step] = 0;
-            grouped['전체'][지역][step]++;
+            STEPS.forEach((step, index) => {
+                const dateStr = student[step.toLowerCase() as keyof Students] as string | null;
+                if (!dateStr) return;
+                const date = dayjs(dateStr);
+                if (!date.isValid() || date.year() !== selectedYear) return;
+                if (dateRange[0] && dateRange[1] && !date.isBetween(dateRange[0], dateRange[1], 'day', '[]')) return;
+
+                const month = date.format('YYYY-MM');
+                monthlyData[month] = monthlyData[month] ?? { completed: 0, total: 0, transitionDays: [], count: 0 };
+
+                monthlyData[month].total += 1;
+                if (step === 'F') monthlyData[month].completed += 1;
+
+                // Calculate transition days between steps
+                if (index > 0) {
+                    const prevStep = STEPS[index - 1].toLowerCase() as keyof Students;
+                    const prevDateStr = student[prevStep] as string | null;
+                    if (prevDateStr) {
+                        const prevDate = dayjs(prevDateStr);
+                        if (prevDate.isValid()) {
+                            const days = date.diff(prevDate, 'day');
+                            monthlyData[month].transitionDays.push(days);
+                            monthlyData[month].count += 1;
+                        }
+                    }
+                }
+            });
         });
 
-        // 탈락자 처리 (g 필드 사용)
-        const 탈락일Str = s.g;
-        if (탈락일Str) {
-            const 탈락일 = dayjs(탈락일Str);
-            if (!탈락일.isValid() || 탈락일.year() !== selectedYear) return;
+        return Object.entries(monthlyData)
+            .map(([month, data]) => ({
+                month,
+                completionRate: data.total > 0 ? (data.completed / data.total) * 100 : 0,
+                averageTransitionDays: data.count > 0 ? data.transitionDays.reduce((a, b) => a + b, 0) / data.count : 0,
+            }))
+            .sort((a, b) => a.month.localeCompare(b.month));
+    }, [students, selectedYear, selectedRegion, selectedTeam, dateRange]);
 
-            let 마지막단계: string | null = null;
-            for (let i = STEPS.length - 1; i >= 0; i--) {
-                const key = STEPS[i].toLowerCase();
-                if (s[key]) {
-                    마지막단계 = STEPS[i];
-                    break;
-                }
-            }
+    // Chart data for trends
+    const chartData = useMemo(
+        () => ({
+            labels: trendData.map((d) => d.month),
+            datasets: [
+                {
+                    label: 'F 단계 완료율 (%)',
+                    data: trendData.map((d) => d.completionRate.toFixed(2)),
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true,
+                },
+                {
+                    label: '평균 단계 전환 일수',
+                    data: trendData.map((d) => d.averageTransitionDays.toFixed(2)),
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    fill: true,
+                },
+            ],
+        }),
+        [trendData]
+    );
 
-            if (마지막단계) {
-                const 탈락key = `${마지막단계}_탈락`;
-                const month = (탈락일.month() + 1).toString();
-
-                if (!grouped[month]) grouped[month] = {};
-                if (!grouped[month][지역]) grouped[month][지역] = {};
-                if (!grouped[month][지역][탈락key]) grouped[month][지역][탈락key] = 0;
-                grouped[month][지역][탈락key]++;
-
-                if (!grouped['전체']) grouped['전체'] = {};
-                if (!grouped['전체'][지역]) grouped['전체'][지역] = {};
-                if (!grouped['전체'][지역][탈락key]) grouped['전체'][지역][탈락key] = 0;
-                grouped['전체'][지역][탈락key]++;
-            }
-        }
-    });
-
-    const columns: ColumnsType<TableRow> = [
-        {
-            title: viewMode === 'month-region' ? '지역' : '월',
-            dataIndex: viewMode === 'month-region' ? '지역' : '월',
-            key: 'regionOrMonth',
-            fixed: 'left',
-            width: 120,
+    const chartOptions = {
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: { display: true, text: '값' },
+            },
+            x: {
+                title: { display: true, text: '월' },
+            },
         },
-        ...STEPS.flatMap((step) => [
-            {
-                title: step,
-                dataIndex: step,
-                key: step,
-                align: 'center' as const,
-                width: 70,
-                render: (count: number) => count ?? 0,
+        plugins: {
+            legend: { position: 'top' as const },
+            title: {
+                display: true,
+                text: `${selectedYear}년 학생 진행 추세`,
             },
-            {
-                title: `${step} 탈락`,
-                dataIndex: `${step}_탈락`,
-                key: `${step}_탈락`,
-                align: 'center' as const,
-                width: 80,
-                render: (count: number) => count ?? 0,
-            },
-        ]),
+        },
+    };
+
+    const columns = [
+        { title: '번호', dataIndex: '번호', key: '번호', width: 80 },
+        { title: '이름', dataIndex: '이름', key: '이름', width: 120 },
+        { title: '지역', dataIndex: '지역', key: '지역', width: 100 },
+        { title: '팀', dataIndex: '팀', key: '팀', width: 100 },
+        { title: '현재 단계', dataIndex: '현재단계', key: '현재단계', width: 100 },
+        { title: '진행 상태', dataIndex: '진행상태', key: '진행상태', width: 100 },
+        { title: '마지막 업데이트', dataIndex: '마지막업데이트', key: '마지막업데이트', width: 120 },
     ];
 
-    const tableData: TableRow[] = [];
+    // KPIs
+    const kpis = useMemo(() => {
+        const totalStudents = tableData.length;
+        const completedStudents = tableData.filter((row) => row.현재단계 === 'F').length;
+        const dropoutStudents = tableData.filter((row) => row.진행상태 === '탈락').length;
+        const completionRate = totalStudents > 0 ? (completedStudents / totalStudents) * 100 : 0;
+        const dropoutRate = totalStudents > 0 ? (dropoutStudents / totalStudents) * 100 : 0;
 
-    if (viewMode === 'month-region') {
-        const makeRow = (month: string, region: string, steps: Record<string, number>) => ({
-            key: `${month}-${region}`,
-            월: month === '전체' ? '전체 합산' : `${month}월`,
-            지역: region,
-            ...STEPS.reduce((acc, step) => {
-                acc[step] = steps[step] ?? 0;
-                acc[`${step}_탈락`] = steps[`${step}_탈락`] ?? 0;
-                return acc;
-            }, {} as Record<string, number>),
-        });
+        return { totalStudents, completedStudents, dropoutRate, completionRate };
+    }, [tableData]);
 
-        const months =
-            filterMode === 'range' && selectedDateRange[0] && selectedDateRange[1]
-                ? Object.keys(grouped)
-                      .filter((m) => m !== '전체')
-                      .filter((m) => {
-                          const mNum = parseInt(m);
-                          const start = selectedDateRange[0]!.month() + 1;
-                          const end = selectedDateRange[1]!.month() + 1;
-                          return mNum >= start && mNum <= end;
-                      })
-                : selectedMonth
-                ? [selectedMonth.toString()]
-                : ['전체'];
-
-        months.forEach((month) => {
-            const monthData = grouped[month] || {};
-            const regions = REGIONS.filter((r) => monthData[r]);
-            regions.forEach((region) => {
-                tableData.push(makeRow(month, region, monthData[region]));
-            });
-        });
-    } else {
-        const regions = selectedRegion ? [selectedRegion] : ['전체'];
-
-        regions.forEach((region) => {
-            monthOptions.forEach((m) => {
-                const month = m.toString();
-                const steps: Record<string, number> = {};
-
-                if (selectedRegion) {
-                    const data = grouped[month]?.[region] || {};
-                    [...STEPS, ...STEPS.map((s) => `${s}_탈락`)].forEach((step) => {
-                        steps[step] = data[step] ?? 0;
-                    });
-                } else {
-                    const monthData = grouped[month] || {};
-                    Object.entries(monthData).forEach(([regionName, regionData]) => {
-                        if (!REGIONS.includes(regionName)) return;
-                        [...STEPS, ...STEPS.map((s) => `${s}_탈락`)].forEach((step) => {
-                            steps[step] = (steps[step] ?? 0) + (regionData[step] ?? 0);
-                        });
-                    });
-                }
-
-                tableData.push({
-                    key: `${region}-${month}`,
-                    월: `${month}월`,
-                    지역: region,
-                    ...steps,
-                });
-            });
-        });
-    }
+    const handleReset = () => {
+        setSelectedYear(dayjs().year());
+        setSelectedRegion(null);
+        setSelectedTeam(null);
+        setDateRange([null, null]);
+    };
 
     return (
-        <div style={{ padding: 20, maxWidth: 1100, margin: '0 auto' }}>
-            <Title level={2} style={{ marginBottom: 20 }}>
-                {viewMode === 'month-region' ? '월별 · 지역별 ' : '지역별 · 월별 '}
-            </Title>
+        <div className="w-full mx-auto p-6">
+            <Title level={2}>학생 진행 현황 대시보드</Title>
 
-            <Space direction="vertical" size="middle" style={{ marginBottom: 20, width: '100%' }}>
+            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
                 <Space wrap size="middle">
                     <Select
                         value={selectedYear}
-                        onChange={(v) => setSelectedYear(v)}
+                        onChange={setSelectedYear}
                         style={{ width: 100 }}
-                        options={yearOptions.map((y) => ({ value: y, label: `${y}년` }))}
+                        options={yearOptions}
                     />
-
-                    <Space>
-                        <Button
-                            type={viewMode === 'month-region' ? 'primary' : 'default'}
-                            onClick={() => setViewMode('month-region')}
-                        >
-                            월별 - 지역별
-                        </Button>
-                        <Button
-                            type={viewMode === 'region-month' ? 'primary' : 'default'}
-                            onClick={() => setViewMode('region-month')}
-                        >
-                            지역별 - 월별
-                        </Button>
-                    </Space>
-
-                    {viewMode === 'month-region' && (
-                        <>
-                            <Radio.Group
-                                onChange={(e) => {
-                                    const val = e.target.value as 'month' | 'range';
-                                    setFilterMode(val);
-                                    setSelectedMonth(null);
-                                    setSelectedDateRange([null, null]);
-                                }}
-                                value={filterMode}
-                                optionType="button"
-                                buttonStyle="solid"
-                            >
-                                <Radio.Button value="month">월 선택</Radio.Button>
-                                <Radio.Button value="range">날짜 구간 선택</Radio.Button>
-                            </Radio.Group>
-
-                            {filterMode === 'month' && (
-                                <Select
-                                    placeholder="월 선택"
-                                    allowClear
-                                    style={{ width: 100 }}
-                                    value={selectedMonth ?? undefined}
-                                    onChange={(v) => setSelectedMonth(v ?? null)}
-                                    options={monthOptions.map((m) => ({ value: m, label: `${m}월` }))}
-                                />
-                            )}
-
-                            {filterMode === 'range' && (
-                                <DatePicker.RangePicker
-                                    value={selectedDateRange}
-                                    onChange={(range) => setSelectedDateRange(range ?? [null, null])}
-                                    format="YYYY.MM.DD"
-                                    style={{ minWidth: 260 }}
-                                    allowClear
-                                />
-                            )}
-                        </>
-                    )}
-
-                    {viewMode === 'region-month' && (
-                        <Select
-                            placeholder="지역 선택"
-                            allowClear
-                            style={{ width: 120 }}
-                            value={selectedRegion ?? undefined}
-                            onChange={(v) => setSelectedRegion(v ?? null)}
-                            options={['전체', ...REGIONS].map((r) => ({ value: r, label: r }))}
-                        />
-                    )}
+                    <Select
+                        placeholder="지역 선택"
+                        allowClear
+                        style={{ width: 120 }}
+                        value={selectedRegion}
+                        onChange={setSelectedRegion}
+                        options={REGIONS.map((r) => ({ label: r, value: r }))}
+                    />
+                    <Select
+                        placeholder="팀 선택"
+                        allowClear
+                        style={{ width: 120 }}
+                        value={selectedTeam}
+                        onChange={setSelectedTeam}
+                        options={fixedTeams.map((t) => ({ label: t, value: t }))}
+                    />
+                    <RangePicker
+                        value={dateRange}
+                        onChange={(dates) => setDateRange(dates ?? [null, null])}
+                        disabledDate={(current) => current && current.year() !== selectedYear}
+                        format="YYYY.MM.DD"
+                    />
+                    <Button onClick={handleReset}>초기화</Button>
                 </Space>
             </Space>
 
-            {loading ? (
-                <div style={{ textAlign: 'center', padding: 40 }}>
-                    <Spin size="large" />
+            {isLoading ? (
+                <div style={{ textAlign: 'center', padding: 50 }}>
+                    <Spin size="large" tip="데이터를 불러오는 중입니다..." />
                 </div>
             ) : (
-                <Table<TableRow>
-                    columns={columns}
-                    dataSource={tableData}
-                    pagination={false}
-                    scroll={{ x: 'max-content' }}
-                    size="middle"
-                    bordered
-                />
+                <>
+                    {/* KPI Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <Card>
+                            <Statistic title="총 학생 수" value={kpis.totalStudents} />
+                        </Card>
+                        <Card>
+                            <Statistic title="F 단계 완료" value={kpis.completedStudents} />
+                        </Card>
+                        <Card>
+                            <Statistic
+                                title="완료율 (%)"
+                                value={kpis.completionRate.toFixed(2)}
+                                precision={2}
+                                suffix="%"
+                            />
+                        </Card>
+                        <Card>
+                            <Statistic
+                                title="탈락률 (%)"
+                                value={kpis.dropoutRate.toFixed(2)}
+                                precision={2}
+                                suffix="%"
+                            />
+                        </Card>
+                    </div>
+
+                    {/* Trend Chart */}
+                    <Card title="월별 진행 추세" className="mb-6">
+                        <Line data={chartData} options={chartOptions} />
+                    </Card>
+
+                    {/* Student Table */}
+                    <Table
+                        columns={columns}
+                        dataSource={tableData}
+                        pagination={{ pageSize: 10 }}
+                        scroll={{ x: 'max-content' }}
+                        bordered
+                        size="middle"
+                    />
+                </>
             )}
         </div>
     );

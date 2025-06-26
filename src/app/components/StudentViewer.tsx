@@ -4,7 +4,7 @@ import { Card, CardContent } from './ui/Card';
 import { Input, Table, Button } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { FilterValue } from 'antd/es/table/interface';
-import { useStudentsQuery, Student } from '../hook/useStudentsQuery';
+import { useStudentsQuery, Students } from '../hook/useStudentsQuery';
 import dayjs from 'dayjs';
 
 const { Search } = Input;
@@ -39,7 +39,7 @@ export default function StudentViewer() {
             .filter((student) =>
                 Object.entries(filters).every(([key, values]) => {
                     if (!values || values.length === 0) return true;
-                    const fieldKey = key as keyof Student;
+                    const fieldKey = key as keyof Students;
                     const val = student[fieldKey];
                     return val != null && values.includes(String(val));
                 })
@@ -51,7 +51,7 @@ export default function StudentViewer() {
     }, [students, searchText, filters, selectedRegion]);
 
     // ✅ TS 오류 발생 부분 수정 (.map(String) → String(val))
-    const getFilterOptions = (field: keyof Student) => {
+    const getFilterOptions = (field: keyof Students) => {
         const values = students
             .map((s) => s[field])
             .filter((val): val is string | number => val !== undefined && val !== null)
@@ -62,7 +62,7 @@ export default function StudentViewer() {
             .map((value) => ({ text: value, value }));
     };
 
-    const filterableColumn = (title: string, dataIndex: keyof Student): ColumnsType<Student>[number] => ({
+    const filterableColumn = (title: string, dataIndex: keyof Students): ColumnsType<Students>[number] => ({
         title,
         dataIndex,
         key: dataIndex,
@@ -72,7 +72,7 @@ export default function StudentViewer() {
         onFilter: (value, record) => String(record[dataIndex]) === String(value),
     });
 
-    const completionColumns = COMPLETION_KEYS.map((key): ColumnsType<Student>[number] => ({
+    const completionColumns = COMPLETION_KEYS.map((key): ColumnsType<Students>[number] => ({
         title: `${key.toUpperCase()} 완료일`,
         dataIndex: key,
         key,
@@ -81,7 +81,7 @@ export default function StudentViewer() {
         render: (value) => (value ? dayjs(value).format('YYYY.MM.DD') : ''),
     }));
 
-    const columns: ColumnsType<Student> = [
+    const columns: ColumnsType<Students> = [
         { title: '번호', dataIndex: 'id', key: 'id', fixed: 'left', width: 70 },
         filterableColumn('단계', '단계'),
         { title: '이름', dataIndex: '이름', key: '이름', width: 100 },
@@ -142,7 +142,7 @@ export default function StudentViewer() {
 
                     {/* 테이블 */}
                     <div className="overflow-x-auto">
-                        <Table<Student>
+                        <Table<Students>
                             columns={columns}
                             dataSource={filteredStudents}
                             rowKey="id"

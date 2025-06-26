@@ -18,14 +18,12 @@ export default function Navbar() {
                         </Link>
                     </li>
                     <li>
-                        <Link href="/add" className="hover:underline">
-                            수강생 추가
+                        <Link href="/student" className="hover:underline">
+                            수강생 관리
                         </Link>
                     </li>
                     <li>
-                        <Link href="/view" className="hover:underline">
-                            수강생 조회
-                        </Link>
+                        <Link href="/" className="hover:underline"></Link>
                     </li>
                 </ul>
             </nav>

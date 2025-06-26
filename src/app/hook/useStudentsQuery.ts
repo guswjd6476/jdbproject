@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-export interface Student {
+export interface Students {
     id: number;
     이름: string;
     단계: string | null;
     인도자지역: string | null;
     인도자팀: string | null;
+    교사지역: string | null;
+    교사팀: string | null;
     a?: string | null;
     b?: string | null;
     c?: string | null;
@@ -17,12 +19,12 @@ export interface Student {
 }
 
 export const useStudentsQuery = () => {
-    return useQuery<Student[]>({
+    return useQuery<Students[]>({
         queryKey: ['students'],
         queryFn: async () => {
             const res = await fetch('/api/students');
             if (!res.ok) throw new Error('데이터를 불러오는 데 실패했습니다.');
-            const data: Student[] = await res.json();
+            const data: Students[] = await res.json();
 
             return data.filter((s) => s.번호 != null);
         },

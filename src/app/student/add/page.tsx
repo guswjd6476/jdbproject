@@ -1,4 +1,5 @@
-import StudentTracker from '../components/StudentTracker';
+import StudentTracker from '@/app/components/StudentTracker';
+
 export default function Home() {
     return (
         <main className="min-h-screen bg-gray-50 p-8">

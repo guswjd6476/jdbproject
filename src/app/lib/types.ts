@@ -91,3 +91,11 @@ export const DEFAULT_F_GOALS: Record<Region, FGoals> = {
     대학: { team1: '5.0', team2: '4.5', team3: '4.0', team4: '3.5' },
     새신자: { team1: '3.5', team2: '3.0', team3: '3.0', team4: '2.5' },
 };
+
+export interface TableRow {
+    key: string;
+    지역: string;
+    팀: string;
+    탈락: number;
+    [key: string]: string | number;
+}
