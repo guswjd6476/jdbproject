@@ -15,6 +15,7 @@ export interface Student {
 }
 
 export const headers = [
+    '번호',
     '단계',
     '이름',
     '연락처 뒷자리',
@@ -83,13 +84,13 @@ export interface RawStudent {
 export type Region = (typeof REGIONS)[number];
 
 export const DEFAULT_F_GOALS: Record<Region, FGoals> = {
-    도봉: { team1: '8', team2: '8', team3: '0', team4: '0' },
+    도봉: { team1: '8', team2: '8' },
     성북: { team1: '4.0', team2: '4.0', team3: '3.5', team4: '3.0' },
     노원: { team1: '4.0', team2: '4.0', team3: '4.0', team4: '4.0' },
-    중랑: { team1: '4.0', team2: '3.5', team3: '3.5', team4: '3.0' },
-    강북: { team1: '4.5', team2: '4.0', team3: '3.5', team4: '3.0' },
-    대학: { team1: '5.0', team2: '4.5', team3: '4.0', team4: '3.5' },
-    새신자: { team1: '3.5', team2: '3.0', team3: '3.0', team4: '2.5' },
+    중랑: { team1: '4.0', team2: '3.5', team3: '3.5', team4: '4' },
+    강북: { team1: '4', team2: '4', team3: '4', team4: '4' },
+    대학: { team1: '5', team2: '5', team3: '5', team4: '5' },
+    새신자: { team1: '1.5', team2: '1.5' },
 };
 
 export interface TableRow {

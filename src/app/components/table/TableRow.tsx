@@ -40,6 +40,10 @@ export default function TableRow({ row, index, onChange, errors, selectStages, m
 
     return (
         <tr className={errors.length ? 'bg-red-50' : ''}>
+            {/* 번호 열 추가 */}
+            <td className="border p-1 text-center text-sm font-medium">{index + 1}</td>
+
+            {/* 나머지 입력 필드 */}
             {editableFields.map((field) => (
                 <td key={field} className="border p-1">
                     {field === '단계' ? (
@@ -65,13 +69,14 @@ export default function TableRow({ row, index, onChange, errors, selectStages, m
                     )}
                 </td>
             ))}
+
+            {/* 오류 메시지 및 멤버 체크 */}
             <td className="border p-1">
                 {errors.map((e, i) => (
                     <p key={i} className="text-xs text-red-600">
                         {e}
                     </p>
                 ))}
-
                 {renderMemberCheckMessage('인도자')}
                 {renderMemberCheckMessage('교사')}
             </td>

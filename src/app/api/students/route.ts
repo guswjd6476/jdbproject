@@ -22,14 +22,14 @@ async function getMemberUniqueId(client: PoolClient, 지역: string, 팀: string
     return res.rows.length > 0 ? res.rows[0].고유번호 : null;
 }
 
-const 단계완료일컬럼: { [key: string]: string } = {
-    a: 'a_완료일',
-    b: 'b_완료일',
-    c: 'c_완료일',
-    'd-1': 'd_1_완료일',
-    'd-2': 'd_2_완료일',
-    e: 'e_완료일',
-    f: 'f_완료일',
+const 단계완료일컬럼: Record<string, string> = {
+    A: 'a_완료일',
+    B: 'b_완료일',
+    C: 'c_완료일',
+    'D-1': 'd_1_완료일',
+    'D-2': 'd_2_완료일',
+    E: 'e_완료일',
+    F: 'f_완료일',
 };
 
 export async function GET(request: NextRequest) {

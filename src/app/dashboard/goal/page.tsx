@@ -18,6 +18,7 @@ import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import isBetween from 'dayjs/plugin/isBetween';
 import { calculateAchievements, getWeekDateRange, initializeResults } from '@/app/lib/function';
+import html2canvas from 'html2canvas';
 
 dayjs.extend(isBetween);
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -44,6 +45,14 @@ const WeeklyGoalsTable = ({
     view: 'region' | 'month';
 }) => {
     const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'] as (keyof WeeklyPercentages)[];
+
+    const tableRefs = useMemo(() => {
+        return weeks.reduce((acc, week) => {
+            acc[week] = React.createRef<HTMLTableElement>();
+            return acc;
+        }, {} as Record<keyof WeeklyPercentages, React.RefObject<HTMLTableElement | null>>);
+    }, [weeks]);
+
     const totalAchievements = useMemo(() => {
         return weeks.reduce((weekAcc: Record<string, WeeklyGoals>, week) => {
             weekAcc[week] = data.reduce(
@@ -76,99 +85,168 @@ const WeeklyGoalsTable = ({
         }, {});
     }, [data, achievements, weeks]);
 
+    // Function to save table as image
+    const saveTableAsImage = useCallback(
+        async (week: keyof WeeklyPercentages, weekIndex: number) => {
+            const table = tableRefs[week].current;
+            if (!table) {
+                console.error('Table ref is null for week:', week);
+                return;
+            }
+
+            try {
+                const canvas = await html2canvas(table, {
+                    scale: 2, // Increase resolution
+                    useCORS: true,
+                    backgroundColor: '#ffffff', // HEX color for background
+                });
+
+                const link = document.createElement('a');
+                link.download = `${selectedMonth}월_${weekIndex + 1}주차_목표표.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch (error) {
+                console.error('Error saving table as image:', error);
+            }
+        },
+        [tableRefs, selectedMonth]
+    );
+
     return (
         <>
             {weeks.map((week, weekIndex) => {
                 const { display } = getWeekDateRange(selectedMonth, year, weekIndex);
                 return (
                     <div key={week} className="mb-6">
-                        <h3 className="text-md font-medium mb-2">
-                            {weekIndex + 1}주차 ({display})
-                        </h3>
-                        <table className="w-full border-collapse">
-                            <thead>
-                                <tr className="bg-gray-100">
-                                    <th className="border p-2">{view === 'region' ? '지역' : '지역/팀'}</th>
-                                    {['A', 'B', 'C', 'D', 'F'].map((step) => (
-                                        <th key={step} className="border p-2" colSpan={3}>
-                                            {step}
-                                        </th>
-                                    ))}
-                                </tr>
-                                <tr className="bg-gray-50">
-                                    <th className="border p-2"></th>
-                                    {['A', 'B', 'C', 'D', 'F'].map((step) => (
-                                        <React.Fragment key={step}>
-                                            <th className="border p-2">목표</th>
-                                            <th className="border p-2">달성</th>
-                                            <th className="border p-2">달성률</th>
-                                        </React.Fragment>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {data.flatMap(({ region, results }) =>
-                                    results.teams.map((team: TeamResult) => {
-                                        const teamAch = achievements[region]?.[`${team.team}`]?.[week] || {};
-                                        return (
-                                            <tr key={`${region}-${team.team}`}>
-                                                <td className="border p-2">
-                                                    {view === 'region'
-                                                        ? `${region} ${team.team}팀`
-                                                        : `${region} ${team.team}팀`}
-                                                </td>
-                                                {(['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).map((step) => (
-                                                    <React.Fragment key={step}>
-                                                        <td className="border p-2 text-center">
-                                                            {team.weeks[weekIndex][step]}
-                                                        </td>
-                                                        <td className="border p-2 text-center">{teamAch[step] || 0}</td>
-                                                        <td className="border p-2 text-center">
-                                                            {team.weeks[weekIndex][step] > 0
-                                                                ? (
-                                                                      ((teamAch[step] || 0) /
-                                                                          team.weeks[weekIndex][step]) *
-                                                                      100
-                                                                  ).toFixed(2) + '%'
-                                                                : '0.00%'}
-                                                        </td>
-                                                    </React.Fragment>
-                                                ))}
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                                <tr className="font-bold">
-                                    <td className="border p-2">계</td>
-                                    {(['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).map((step) => {
-                                        const totalGoal = data.reduce(
-                                            (sum, { results }) =>
-                                                sum +
-                                                results.teams.reduce(
-                                                    (teamSum, team) => teamSum + team.weeks[weekIndex][step],
-                                                    0
-                                                ),
-                                            0
-                                        );
-                                        return (
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="text-md font-medium">
+                                {weekIndex + 1}주차 ({display})
+                            </h3>
+                            <button
+                                onClick={() => saveTableAsImage(week, weekIndex)}
+                                className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            >
+                                이미지로 저장
+                            </button>
+                        </div>
+                        <div className="table-container">
+                            <style jsx>{`
+                                .table-container table {
+                                    width: 100%;
+                                    border-collapse: collapse;
+                                    font-family: Arial, sans-serif;
+                                    background-color: #ffffff; /* HEX for white */
+                                }
+                                .table-container th,
+                                .table-container td {
+                                    border: 1px solid #d1d5db; /* HEX for gray-300 */
+                                    padding: 8px;
+                                    text-align: center;
+                                    color: #000000; /* HEX for black text */
+                                }
+                                .table-container th {
+                                    background-color: #f3f4f6; /* HEX for gray-100 */
+                                }
+                                .table-container tr:nth-child(2) th {
+                                    background-color: #f9fafb; /* HEX for gray-50 */
+                                }
+                                .table-container .font-bold {
+                                    font-weight: 700;
+                                }
+                                .table-container td:first-child {
+                                    text-align: left;
+                                }
+                            `}</style>
+                            <table ref={tableRefs[week]} className="w-full border-collapse">
+                                <thead>
+                                    <tr>
+                                        <th className="border p-2">{view === 'region' ? '지역' : '지역/팀'}</th>
+                                        {['A', 'B', 'C', 'D', 'F'].map((step) => (
+                                            <th key={step} className="border p-2" colSpan={3}>
+                                                {step}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                    <tr>
+                                        <th className="border p-2"></th>
+                                        {['A', 'B', 'C', 'D', 'F'].map((step) => (
                                             <React.Fragment key={step}>
-                                                <td className="border p-2 text-center">{totalGoal}</td>
-                                                <td className="border p-2 text-center">
-                                                    {totalAchievements[week][step]}
-                                                </td>
-                                                <td className="border p-2 text-center">
-                                                    {totalGoal > 0
-                                                        ? ((totalAchievements[week][step] / totalGoal) * 100).toFixed(
-                                                              2
-                                                          ) + '%'
-                                                        : '0.00%'}
-                                                </td>
+                                                <th className="border p-2">목표</th>
+                                                <th className="border p-2">달성</th>
+                                                <th className="border p-2">달성률</th>
                                             </React.Fragment>
-                                        );
-                                    })}
-                                </tr>
-                            </tbody>
-                        </table>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {data.flatMap(({ region, results }) =>
+                                        results.teams.map((team: TeamResult) => {
+                                            const teamAch = achievements[region]?.[`${team.team}`]?.[week] || {};
+                                            return (
+                                                <tr key={`${region}-${team.team}`}>
+                                                    <td className="border p-2">
+                                                        {view === 'region'
+                                                            ? `${region} ${team.team}팀`
+                                                            : `${region} ${team.team}팀`}
+                                                    </td>
+                                                    {(['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).map(
+                                                        (step) => (
+                                                            <React.Fragment key={step}>
+                                                                <td className="border p-2 text-center">
+                                                                    {team.weeks[weekIndex][step]}
+                                                                </td>
+                                                                <td className="border p-2 text-center">
+                                                                    {teamAch[step] || 0}
+                                                                </td>
+                                                                <td className="border p-2 text-center">
+                                                                    {team.weeks[weekIndex][step] > 0
+                                                                        ? (
+                                                                              ((teamAch[step] || 0) /
+                                                                                  team.weeks[weekIndex][step]) *
+                                                                              100
+                                                                          ).toFixed(2) + '%'
+                                                                        : '0.00%'}
+                                                                </td>
+                                                            </React.Fragment>
+                                                        )
+                                                    )}
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                    <tr className="font-bold">
+                                        <td className="border p-2">계</td>
+                                        {(['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).map((step) => {
+                                            const totalGoal = data.reduce(
+                                                (sum, { results }) =>
+                                                    sum +
+                                                    results.teams.reduce(
+                                                        (teamSum, team) => teamSum + team.weeks[weekIndex][step],
+                                                        0
+                                                    ),
+                                                0
+                                            );
+                                            return (
+                                                <React.Fragment key={step}>
+                                                    <td className="border p-2 text-center">{totalGoal}</td>
+                                                    <td className="border p-2 text-center">
+                                                        {totalAchievements[week][step]}
+                                                    </td>
+                                                    <td className="border p-2 text-center">
+                                                        {totalGoal > 0
+                                                            ? (
+                                                                  (totalAchievements[week][step] / totalGoal) *
+                                                                  100
+                                                              ).toFixed(2) + '%'
+                                                            : '0.00%'}
+                                                    </td>
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 );
             })}
@@ -195,11 +273,61 @@ const RenderChart = ({
             ? data[0].results.teams.map((team) => `${data[0].region} ${team.team}팀`)
             : data.flatMap(({ region, results }) => results.teams.map((team) => `${region} ${team.team}팀`));
 
+    const chartRefs = useMemo(() => {
+        return weeks.reduce((acc, week) => {
+            acc[week] = React.createRef<HTMLDivElement>();
+            return acc;
+        }, {} as Record<keyof WeeklyPercentages, React.RefObject<HTMLDivElement | null>>);
+    }, [weeks]);
+
+    const saveChartAsImage = useCallback(
+        async (week: keyof WeeklyPercentages, weekIndex: number) => {
+            const chartContainer = chartRefs[week].current;
+            if (!chartContainer) {
+                console.error('Chart ref is null for week:', week);
+                return;
+            }
+
+            try {
+                const canvas = await html2canvas(chartContainer, {
+                    scale: 2, // Increase resolution
+                    useCORS: true,
+                    backgroundColor: '#ffffff', // HEX color for background
+                });
+
+                const link = document.createElement('a');
+                link.download = `${selectedMonth}월_${weekIndex + 1}주차_그래프.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch (error) {
+                console.error('Error saving chart as image:', error);
+            }
+        },
+        [chartRefs, selectedMonth]
+    );
+
     return weeks.map((week, weekIndex) => {
         const { display } = getWeekDateRange(selectedMonth, year, weekIndex);
+
+        const stepsToShow = (() => {
+            switch (weekIndex) {
+                case 0:
+                case 1:
+                    return ['A', 'B'];
+                case 2:
+                    return ['C'];
+                case 3:
+                    return ['D'];
+                case 4:
+                    return ['A', 'B', 'C', 'D', 'F'];
+                default:
+                    return ['A', 'B', 'C', 'D', 'F'];
+            }
+        })();
+
         const chartData = {
             labels,
-            datasets: ['A', 'B', 'C', 'D', 'F']
+            datasets: stepsToShow
                 .map((step, i) => [
                     {
                         label: `${step} 단계 목표`,
@@ -234,17 +362,27 @@ const RenderChart = ({
                     display: true,
                     text: `${selectedMonth}월 ${weekIndex + 1}주차 (${display}) ${
                         view === 'region' ? data[0].region : '전체 지역'
-                    } A, B, C, D, F 단계 목표 vs 달성`,
+                    } ${stepsToShow.join(', ')} 단계 목표 vs 달성`,
                 },
             },
         };
 
         return (
             <div key={week} className="mb-8">
-                <h3 className="text-md font-medium mb-4">
-                    {weekIndex + 1}주차 ({display})
-                </h3>
-                <Bar data={chartData} options={options} />
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-md font-medium">
+                        {weekIndex + 1}주차 ({display})
+                    </h3>
+                    <button
+                        onClick={() => saveChartAsImage(week, weekIndex)}
+                        className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                        이미지로 저장
+                    </button>
+                </div>
+                <div ref={chartRefs[week]} className="chart-container">
+                    <Bar data={chartData} options={options} />
+                </div>
             </div>
         );
     });
@@ -287,11 +425,12 @@ export default function GoalCalculatorTable() {
     const [error, setError] = useState<string>('');
     const [apiError, setApiError] = useState<string>('');
     const [successMessage, setSuccessMessage] = useState<string>('');
-    const [selectedMonth, setSelectedMonth] = useState<string>('6');
+    const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().month() + 1 + '');
+
     const [allRegionsResults, setAllRegionsResults] = useState<{ region: Region; results: Results }[]>([]);
 
     const { weekly: weeklyAchievements, monthly } = useMemo(
-        () => calculateAchievements(students, parseInt(selectedMonth), year, view === 'month' ? 'monthly' : 'weekly'),
+        () => calculateAchievements(students, parseInt(selectedMonth), year, 'weekly'),
         [students, selectedMonth, view]
     );
 
@@ -817,6 +956,7 @@ export default function GoalCalculatorTable() {
                                     year={year}
                                     view="month"
                                 />
+
                                 {monthly && (
                                     <div>
                                         <h2 className="text-lg font-semibold mb-2">{selectedMonth}월 월별 달성 현황</h2>

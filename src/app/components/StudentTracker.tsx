@@ -7,7 +7,7 @@ import AddRowButton from './table/AddRowButton';
 import { Card, CardContent } from '../components/ui/Card';
 import { Student } from '../lib/types';
 
-const INITIAL_ROWS = 30;
+const INITIAL_ROWS = 100;
 const ADDITIONAL_ROWS = 10;
 
 const initialRow: Student = {

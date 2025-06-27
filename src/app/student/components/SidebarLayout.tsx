@@ -19,6 +19,11 @@ const menuItems = [
         label: <Link href="/student/view">수강생 조회</Link>,
     },
     {
+        key: 'todayadd',
+        icon: <TeamOutlined />,
+        label: <Link href="/student/todayadd">금일등록</Link>,
+    },
+    {
         key: 'change',
         icon: <SettingOutlined />,
         label: <Link href="/student/change">행정 변경</Link>,
