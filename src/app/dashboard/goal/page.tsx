@@ -19,6 +19,8 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 import isBetween from 'dayjs/plugin/isBetween';
 import { calculateAchievements, getWeekDateRange, initializeResults } from '@/app/lib/function';
 import html2canvas from 'html2canvas';
+import { Button, Table, Typography } from 'antd';
+import { ColumnsType } from 'antd/es/table';
 
 dayjs.extend(isBetween);
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -30,6 +32,9 @@ interface TableRow {
     탈락: number;
     [key: string]: string | number;
 }
+const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'] as (keyof WeeklyPercentages)[];
+const steps = ['A', 'B', 'C', 'D', 'F'] as const;
+type Step = (typeof steps)[number];
 
 const WeeklyGoalsTable = ({
     data,
@@ -39,213 +44,250 @@ const WeeklyGoalsTable = ({
     view,
 }: {
     data: { region: string; results: Results }[];
-    achievements: Record<string, Record<string, Record<string, Record<string, number>>>>;
+    achievements: Record<string, Record<string, Record<string, Record<Step, number>>>>;
     selectedMonth: number;
     year: number;
     view: 'region' | 'month';
 }) => {
-    const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'] as (keyof WeeklyPercentages)[];
-
     const tableRefs = useMemo(() => {
         return weeks.reduce((acc, week) => {
-            acc[week] = React.createRef<HTMLTableElement>();
+            acc[week] = React.createRef<HTMLDivElement>();
             return acc;
-        }, {} as Record<keyof WeeklyPercentages, React.RefObject<HTMLTableElement | null>>);
-    }, [weeks]);
+        }, {} as Record<(typeof weeks)[number], React.RefObject<HTMLDivElement | null>>);
+    }, []);
 
-    const totalAchievements = useMemo(() => {
-        return weeks.reduce((weekAcc: Record<string, WeeklyGoals>, week) => {
-            weekAcc[week] = data.reduce(
-                (acc: WeeklyGoals, { region, results }) => {
-                    const regionTeams = results.teams;
-                    const teamSums = regionTeams.reduce(
-                        (teamAcc: WeeklyGoals, team: TeamResult) => {
-                            const teamAch = achievements[region]?.[`${team.team}`]?.[week] || {};
-                            return {
-                                A: teamAcc.A + (teamAch.A || 0),
-                                B: teamAcc.B + (teamAch.B || 0),
-                                C: teamAcc.C + (teamAch.C || 0),
-                                D: teamAcc.D + (teamAch.D || 0),
-                                F: teamAcc.F + (teamAch.F || 0),
-                            };
-                        },
-                        { A: 0, B: 0, C: 0, D: 0, F: 0 }
-                    );
-                    return {
-                        A: acc.A + teamSums.A,
-                        B: acc.B + teamSums.B,
-                        C: acc.C + teamSums.C,
-                        D: acc.D + teamSums.D,
-                        F: acc.F + teamSums.F,
-                    };
-                },
-                { A: 0, B: 0, C: 0, D: 0, F: 0 }
-            );
-            return weekAcc;
-        }, {});
-    }, [data, achievements, weeks]);
+    const weekTitleTextRefs = useMemo(() => {
+        return weeks.reduce((acc, week) => {
+            acc[week] = React.createRef<HTMLDivElement>();
+            return acc;
+        }, {} as Record<(typeof weeks)[number], React.RefObject<HTMLDivElement | null>>);
+    }, []);
 
-    // Function to save table as image
     const saveTableAsImage = useCallback(
-        async (week: keyof WeeklyPercentages, weekIndex: number) => {
-            const table = tableRefs[week].current;
-            if (!table) {
-                console.error('Table ref is null for week:', week);
-                return;
+        async (week: (typeof weeks)[number], weekIndex: number) => {
+            const tempContainer = document.createElement('div');
+            tempContainer.style.padding = '24px';
+            tempContainer.style.backgroundColor = '#f0f5ff';
+            tempContainer.style.maxWidth = '780px';
+            tempContainer.style.margin = '0 auto';
+            tempContainer.style.borderRadius = '8px';
+            tempContainer.style.fontSize = '30px';
+            // 그림자도 부드럽고 연하게
+            tempContainer.style.boxShadow = '0 0 10px rgba(100, 120, 160, 0.15)';
+
+            const titleEl = weekTitleTextRefs[week].current;
+            if (titleEl) {
+                const titleClone = titleEl.cloneNode(true) as HTMLElement;
+                titleClone.style.marginBottom = '8px';
+                titleClone.style.fontSize = '36px';
+                titleClone.style.color = '#1e3a8a';
+                tempContainer.appendChild(titleClone);
             }
 
-            try {
-                const canvas = await html2canvas(table, {
-                    scale: 2, // Increase resolution
-                    useCORS: true,
-                    backgroundColor: '#ffffff', // HEX color for background
+            const originalContainer = tableRefs[week].current;
+            if (!originalContainer) return;
+            const tableClone = originalContainer.cloneNode(true) as HTMLElement;
+
+            const table = tableClone.querySelector('table');
+            if (table) {
+                const tableEl = table as HTMLElement;
+                tableEl.style.maxWidth = '700px';
+                tableEl.style.width = '100%';
+                tableEl.style.borderCollapse = 'collapse';
+                // 테두리 색도 차분한 회색으로
+                tableEl.style.border = '1px solid #cbd5e1';
+
+                const cells = tableEl.querySelectorAll('td, th');
+                cells.forEach((cell) => {
+                    const row = cell.closest('tr');
+                    if (row?.classList.contains('ant-table-measure-row')) return;
+
+                    const cellEl = cell as HTMLElement;
+                    cellEl.style.padding = '2px 2px';
+                    cellEl.style.height = '28px';
+                    cellEl.style.lineHeight = '1.4';
+                    cellEl.style.fontSize = '28px';
+                    cellEl.style.verticalAlign = 'middle';
+                    // 배경색 기본은 아주 연한 회색, 홀수/짝수 행으로 구분 가능
+                    cellEl.style.backgroundColor = 'transparent';
+                    cellEl.style.color = '#374151'; // 짙은 회색 텍스트
                 });
 
+                // 홀수행 배경 살짝 다르게(테이블 행마다)
+                const rows = tableEl.querySelectorAll('tbody tr');
+                rows.forEach((row, idx) => {
+                    if (idx % 2 === 1) {
+                        (row as HTMLElement).style.backgroundColor = '#f9fafb'; // 매우 연한 회색
+                    }
+                });
+
+                const innerDivs = tableEl.querySelectorAll('td > div');
+                innerDivs.forEach((div) => {
+                    const row = div.closest('tr');
+                    if (row?.classList.contains('ant-table-measure-row')) return;
+
+                    const divEl = div as HTMLElement;
+                    divEl.style.minHeight = '48px';
+                    divEl.style.height = '28px';
+                    divEl.style.lineHeight = '28px';
+                    divEl.style.display = 'flex';
+                    divEl.style.alignItems = 'center';
+                    divEl.style.justifyContent = 'center';
+                    divEl.style.textAlign = 'center';
+                    divEl.style.fontSize = '24px';
+                });
+            }
+
+            tempContainer.appendChild(tableClone);
+            document.body.appendChild(tempContainer);
+
+            try {
+                const canvas = await html2canvas(tempContainer, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: '#f0f5ff',
+                });
                 const link = document.createElement('a');
                 link.download = `${selectedMonth}월_${weekIndex + 1}주차_목표표.png`;
                 link.href = canvas.toDataURL('image/png');
                 link.click();
             } catch (error) {
                 console.error('Error saving table as image:', error);
+            } finally {
+                document.body.removeChild(tempContainer);
             }
         },
-        [tableRefs, selectedMonth]
+        [tableRefs, weekTitleTextRefs, selectedMonth]
     );
 
     return (
         <>
             {weeks.map((week, weekIndex) => {
                 const { display } = getWeekDateRange(selectedMonth, year, weekIndex);
+                const stepFilter: Step[] =
+                    weekIndex === 0
+                        ? ['A']
+                        : weekIndex === 1
+                        ? ['A', 'B']
+                        : weekIndex === 2
+                        ? ['C']
+                        : weekIndex === 3
+                        ? ['D']
+                        : steps.slice();
+
+                const flatTeams = data.flatMap(({ region, results }) =>
+                    results.teams.map((team) => {
+                        const teamAch = achievements[region]?.[team.team]?.[week] || {};
+                        const goals = team.weeks[weekIndex];
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const record: Record<string, any> = {
+                            key: `${region}-${team.team}`,
+                            team: `${region} ${team.team}팀`,
+                        };
+                        stepFilter.forEach((step) => {
+                            const goal = goals[step] || 0;
+                            const ach = teamAch[step] || 0;
+                            const rate = goal > 0 ? (ach / goal) * 100 : 0;
+                            let colorStyle: React.CSSProperties = {};
+
+                            if ((weekIndex === 0 || weekIndex === 1) && step !== 'A') {
+                                colorStyle = {};
+                            } else {
+                                if (rate === 100) {
+                                    colorStyle = { backgroundColor: '#bfdbfe' };
+                                } else if (rate >= 70) {
+                                    colorStyle = { backgroundColor: '#fef9c3' };
+                                } else if (rate <= 30 && goal > 0) {
+                                    colorStyle = { backgroundColor: '#f87171', color: '#ffffff' };
+                                }
+                            }
+
+                            record[`${step}-goal`] = goal;
+                            record[`${step}-ach`] = ach;
+                            record[`${step}-rate`] = {
+                                text: rate.toFixed(2) + '%',
+                                style: colorStyle,
+                            };
+                        });
+                        return record;
+                    })
+                );
+
+                if (weekIndex <= 3) {
+                    const sortStep = stepFilter[0];
+                    flatTeams.sort(
+                        (a, b) => parseFloat(b[`${sortStep}-rate`].text) - parseFloat(a[`${sortStep}-rate`].text)
+                    );
+                }
+
+                flatTeams.forEach((team, index) => {
+                    team.no = index + 1;
+                });
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const columns: ColumnsType<any> = [
+                    {
+                        title: '순위',
+                        dataIndex: 'no',
+                        width: 70,
+                        align: 'center',
+                    },
+                    {
+                        title: view === 'region' ? '지역' : '지역/팀',
+                        dataIndex: 'team',
+                        align: 'center',
+                        width: 160,
+                    },
+                    ...stepFilter.flatMap((step) => [
+                        {
+                            title: `${step} 목표`,
+                            dataIndex: `${step}-goal`,
+                            align: 'center' as const,
+                        },
+                        {
+                            title: `${step} 달성`,
+                            dataIndex: `${step}-ach`,
+                            align: 'center' as const,
+                        },
+                        {
+                            title: `${step} 달성률`,
+                            dataIndex: `${step}-rate`,
+                            align: 'center' as const,
+                            render: (rate: { text: string; style: React.CSSProperties }) => (
+                                <div style={{ ...rate.style }}>{rate.text}</div>
+                            ),
+                        },
+                    ]),
+                ];
+
                 return (
-                    <div key={week} className="mb-6">
-                        <div className="flex justify-between items-center mb-2">
-                            <h3 className="text-md font-medium">
+                    <div key={week} className="mb-10">
+                        {/* 버튼 없는 제목 텍스트 */}
+                        <div ref={weekTitleTextRefs[week]} style={{ userSelect: 'none', marginBottom: 8 }}>
+                            <Typography.Title level={5}>
                                 {weekIndex + 1}주차 ({display})
-                            </h3>
-                            <button
-                                onClick={() => saveTableAsImage(week, weekIndex)}
-                                className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            >
-                                이미지로 저장
-                            </button>
+                            </Typography.Title>
                         </div>
-                        <div className="table-container">
-                            <style jsx>{`
-                                .table-container table {
-                                    width: 100%;
-                                    border-collapse: collapse;
-                                    font-family: Arial, sans-serif;
-                                    background-color: #ffffff; /* HEX for white */
-                                }
-                                .table-container th,
-                                .table-container td {
-                                    border: 1px solid #d1d5db; /* HEX for gray-300 */
-                                    padding: 8px;
-                                    text-align: center;
-                                    color: #000000; /* HEX for black text */
-                                }
-                                .table-container th {
-                                    background-color: #f3f4f6; /* HEX for gray-100 */
-                                }
-                                .table-container tr:nth-child(2) th {
-                                    background-color: #f9fafb; /* HEX for gray-50 */
-                                }
-                                .table-container .font-bold {
-                                    font-weight: 700;
-                                }
-                                .table-container td:first-child {
-                                    text-align: left;
-                                }
-                            `}</style>
-                            <table ref={tableRefs[week]} className="w-full border-collapse">
-                                <thead>
-                                    <tr>
-                                        <th className="border p-2">{view === 'region' ? '지역' : '지역/팀'}</th>
-                                        {['A', 'B', 'C', 'D', 'F'].map((step) => (
-                                            <th key={step} className="border p-2" colSpan={3}>
-                                                {step}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                    <tr>
-                                        <th className="border p-2"></th>
-                                        {['A', 'B', 'C', 'D', 'F'].map((step) => (
-                                            <React.Fragment key={step}>
-                                                <th className="border p-2">목표</th>
-                                                <th className="border p-2">달성</th>
-                                                <th className="border p-2">달성률</th>
-                                            </React.Fragment>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {data.flatMap(({ region, results }) =>
-                                        results.teams.map((team: TeamResult) => {
-                                            const teamAch = achievements[region]?.[`${team.team}`]?.[week] || {};
-                                            return (
-                                                <tr key={`${region}-${team.team}`}>
-                                                    <td className="border p-2">
-                                                        {view === 'region'
-                                                            ? `${region} ${team.team}팀`
-                                                            : `${region} ${team.team}팀`}
-                                                    </td>
-                                                    {(['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).map(
-                                                        (step) => (
-                                                            <React.Fragment key={step}>
-                                                                <td className="border p-2 text-center">
-                                                                    {team.weeks[weekIndex][step]}
-                                                                </td>
-                                                                <td className="border p-2 text-center">
-                                                                    {teamAch[step] || 0}
-                                                                </td>
-                                                                <td className="border p-2 text-center">
-                                                                    {team.weeks[weekIndex][step] > 0
-                                                                        ? (
-                                                                              ((teamAch[step] || 0) /
-                                                                                  team.weeks[weekIndex][step]) *
-                                                                              100
-                                                                          ).toFixed(2) + '%'
-                                                                        : '0.00%'}
-                                                                </td>
-                                                            </React.Fragment>
-                                                        )
-                                                    )}
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                    <tr className="font-bold">
-                                        <td className="border p-2">계</td>
-                                        {(['A', 'B', 'C', 'D', 'F'] as (keyof WeeklyGoals)[]).map((step) => {
-                                            const totalGoal = data.reduce(
-                                                (sum, { results }) =>
-                                                    sum +
-                                                    results.teams.reduce(
-                                                        (teamSum, team) => teamSum + team.weeks[weekIndex][step],
-                                                        0
-                                                    ),
-                                                0
-                                            );
-                                            return (
-                                                <React.Fragment key={step}>
-                                                    <td className="border p-2 text-center">{totalGoal}</td>
-                                                    <td className="border p-2 text-center">
-                                                        {totalAchievements[week][step]}
-                                                    </td>
-                                                    <td className="border p-2 text-center">
-                                                        {totalGoal > 0
-                                                            ? (
-                                                                  (totalAchievements[week][step] / totalGoal) *
-                                                                  100
-                                                              ).toFixed(2) + '%'
-                                                            : '0.00%'}
-                                                    </td>
-                                                </React.Fragment>
-                                            );
-                                        })}
-                                    </tr>
-                                </tbody>
-                            </table>
+
+                        {/* 버튼은 별도 영역 */}
+                        <div className="flex justify-end mb-2">
+                            <Button type="primary" onClick={() => saveTableAsImage(week, weekIndex)}>
+                                이미지로 저장
+                            </Button>
+                        </div>
+
+                        <div
+                            ref={tableRefs[week]}
+                            className="bg-white p-4 rounded-md shadow-md"
+                            style={{ userSelect: 'none' }}
+                        >
+                            <Table
+                                columns={columns}
+                                dataSource={flatTeams}
+                                pagination={false}
+                                bordered
+                                size="middle"
+                                scroll={{ x: 'max-content' }}
+                            />
                         </div>
                     </div>
                 );
@@ -312,6 +354,7 @@ const RenderChart = ({
         const stepsToShow = (() => {
             switch (weekIndex) {
                 case 0:
+                    return ['A'];
                 case 1:
                     return ['A', 'B'];
                 case 2:
