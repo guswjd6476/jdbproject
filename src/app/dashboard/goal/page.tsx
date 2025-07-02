@@ -262,7 +262,7 @@ const WeeklyGoalsTable = ({
                 return (
                     <div key={week} className="mb-10">
                         {/* 버튼 없는 제목 텍스트 */}
-                        <div ref={weekTitleTextRefs[week]} style={{ userSelect: 'none', marginBottom: 8 }}>
+                        <div ref={weekTitleTextRefs[week]} style={{ marginBottom: 8 }}>
                             <Typography.Title level={5}>
                                 {weekIndex + 1}주차 ({display})
                             </Typography.Title>
@@ -275,11 +275,7 @@ const WeeklyGoalsTable = ({
                             </Button>
                         </div>
 
-                        <div
-                            ref={tableRefs[week]}
-                            className="bg-white p-4 rounded-md shadow-md"
-                            style={{ userSelect: 'none' }}
-                        >
+                        <div ref={tableRefs[week]} className="bg-white p-4 rounded-md shadow-md">
                             <Table
                                 columns={columns}
                                 dataSource={flatTeams}
