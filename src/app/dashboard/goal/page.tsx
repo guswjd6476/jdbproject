@@ -68,7 +68,7 @@ const WeeklyGoalsTable = ({
             const tempContainer = document.createElement('div');
             tempContainer.style.padding = '24px';
             tempContainer.style.backgroundColor = '#f0f5ff';
-            tempContainer.style.maxWidth = '780px';
+            tempContainer.style.maxWidth = '820px';
             tempContainer.style.margin = '0 auto';
             tempContainer.style.borderRadius = '8px';
             tempContainer.style.fontSize = '30px';
@@ -91,7 +91,7 @@ const WeeklyGoalsTable = ({
             const table = tableClone.querySelector('table');
             if (table) {
                 const tableEl = table as HTMLElement;
-                tableEl.style.maxWidth = '700px';
+                tableEl.style.maxWidth = '800px';
                 tableEl.style.width = '100%';
                 tableEl.style.borderCollapse = 'collapse';
                 // 테두리 색도 차분한 회색으로
