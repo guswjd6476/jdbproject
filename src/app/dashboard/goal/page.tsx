@@ -19,7 +19,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 import isBetween from 'dayjs/plugin/isBetween';
 import { calculateAchievements, getWeekDateRange, initializeResults } from '@/app/lib/function';
 import html2canvas from 'html2canvas';
-import { Button, Table, Typography } from 'antd';
+import { Button, Table } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 
 dayjs.extend(isBetween);
