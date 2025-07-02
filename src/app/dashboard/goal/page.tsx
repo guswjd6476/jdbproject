@@ -263,9 +263,7 @@ const WeeklyGoalsTable = ({
                     <div key={week} className="mb-10">
                         {/* 버튼 없는 제목 텍스트 */}
                         <div ref={weekTitleTextRefs[week]} style={{ marginBottom: 8 }}>
-                            <Typography.Title level={5}>
-                                {weekIndex + 1}주차 ({display})
-                            </Typography.Title>
+                            {weekIndex + 1}주차 ({display})
                         </div>
 
                         {/* 버튼은 별도 영역 */}
