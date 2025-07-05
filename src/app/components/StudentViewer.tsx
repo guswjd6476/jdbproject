@@ -99,7 +99,17 @@ export default function StudentViewer() {
             },
         },
         { title: '연락처', dataIndex: '연락처', key: '연락처', width: 120 },
-        { title: '생년월일', dataIndex: '생년월일', key: '생년월일', width: 110 },
+        {
+            title: '생년월일',
+            dataIndex: '생년월일',
+            key: '생년월일',
+            width: 110,
+            render: (value: string) => {
+                if (!value) return '';
+                const padded = value.padStart(6, '0');
+                return padded.slice(0, 2);
+            },
+        },
         filterableColumn('인도자지역', '인도자지역'),
         filterableColumn('인도자팀', '인도자팀'),
         { title: '인도자이름', dataIndex: '인도자이름', key: '인도자이름', width: 100 },
