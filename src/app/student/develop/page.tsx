@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { Table, Input, Button, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
+import { Students, useStudentsQuery } from '@/app/hook/useStudentsQuery';
 
 const STEP_ORDER = ['a', 'b', 'c', 'd-1', 'd-2', 'e', 'f'];
 const MIN_STEP_INDEX = STEP_ORDER.indexOf('b');
@@ -40,7 +40,7 @@ export default function RegionWiseRemarks() {
         setRemarks((prev) => ({ ...prev, [id]: value }));
     };
 
-    const columns: ColumnsType<any> = [
+    const columns: ColumnsType<Students> = [
         {
             title: '이름',
             dataIndex: '이름',
