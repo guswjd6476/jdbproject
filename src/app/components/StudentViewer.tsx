@@ -84,7 +84,20 @@ export default function StudentViewer() {
     const columns: ColumnsType<Students> = [
         { title: '번호', dataIndex: 'id', key: 'id', fixed: 'left', width: 70 },
         filterableColumn('단계', '단계'),
-        { title: '이름', dataIndex: '이름', key: '이름', width: 100 },
+        {
+            title: '이름',
+            dataIndex: '이름',
+            key: '이름',
+            width: 100,
+            render: (name: string) => {
+                if (!name) return '';
+                const len = name.length;
+                if (len === 2) return name[0] + 'O';
+                if (len === 3) return name[0] + 'O' + name[2];
+                if (len >= 4) return name[0] + 'O'.repeat(len - 2) + name[len - 1];
+                return name;
+            },
+        },
         { title: '연락처', dataIndex: '연락처', key: '연락처', width: 120 },
         { title: '생년월일', dataIndex: '생년월일', key: '생년월일', width: 110 },
         filterableColumn('인도자지역', '인도자지역'),
@@ -115,7 +128,10 @@ export default function StudentViewer() {
                 <CardContent>
                     {/* 지역 필터 버튼 */}
                     <div className="mb-4 flex flex-wrap gap-2">
-                        <Button type={!selectedRegion ? 'primary' : 'default'} onClick={() => setSelectedRegion(null)}>
+                        <Button
+                            type={!selectedRegion ? 'primary' : 'default'}
+                            onClick={() => setSelectedRegion(null)}
+                        >
                             전체
                         </Button>
                         {allRegions.map((region) => (
