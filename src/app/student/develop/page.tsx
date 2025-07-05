@@ -36,7 +36,7 @@ export default function RegionWiseRemarks() {
         });
     }, [students, selectedRegion]);
 
-    const handleRemarkChange = (id: string, value: string) => {
+    const handleRemarkChange = (id: number, value: string) => {
         setRemarks((prev) => ({ ...prev, [id]: value }));
     };
 
