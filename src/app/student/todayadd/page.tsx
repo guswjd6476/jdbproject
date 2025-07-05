@@ -58,7 +58,15 @@ export default function TodayStudentList() {
             title: '이름',
             dataIndex: '이름',
             key: '이름',
-            sorter: (a, b) => a.이름.localeCompare(b.이름),
+            width: 100,
+            render: (name: string) => {
+                if (!name) return '';
+                const len = name.length;
+                if (len === 2) return name[0] + 'O';
+                if (len === 3) return name[0] + 'O' + name[2];
+                if (len >= 4) return name[0] + 'O'.repeat(len - 2) + name[len - 1];
+                return name;
+            },
         },
         {
             title: '단계',
@@ -96,7 +104,11 @@ export default function TodayStudentList() {
         <div className="mt-6 px-4 max-w-screen-lg mx-auto">
             <Title level={4}>📋 등록/수정된 명단</Title>
 
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Space
+                direction="vertical"
+                size="middle"
+                style={{ width: '100%' }}
+            >
                 <RangePicker
                     value={dateRange}
                     onChange={(range) => {
