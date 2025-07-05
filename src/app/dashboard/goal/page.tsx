@@ -152,7 +152,7 @@ const WeeklyGoalsTable = ({
                 link.href = canvas.toDataURL('image/png');
                 link.click();
             } catch (error) {
-                console.error('Error saving table as image:', error);
+                console.error('Eror saving table as image:', error);
             } finally {
                 document.body.removeChild(tempContainer);
             }
