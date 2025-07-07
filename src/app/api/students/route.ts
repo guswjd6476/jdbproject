@@ -1,11 +1,9 @@
+import { pool } from '@/app/lib/db';
 import { Student } from '@/app/lib/types';
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool, PoolClient } from 'pg'; // PoolClient 추가
-
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-});
+import { PoolClient } from 'pg';
+import { verifyToken } from '@/app/lib/auth'; // 토큰 검증 함수 import
+import type { JwtPayload } from 'jsonwebtoken';
 
 const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F'];
 
@@ -35,9 +33,23 @@ const 단계완료일컬럼: Record<string, string> = {
 export async function GET(request: NextRequest) {
     const client = await pool.connect();
     try {
+        const token = request.cookies.get('token')?.value;
+        let userEmail = '';
+        if (token) {
+            try {
+                const user = verifyToken(token);
+                if (typeof user === 'object' && user !== null && 'email' in user) {
+                    userEmail = (user as JwtPayload).email ?? '';
+                }
+            } catch {
+                // 토큰 검증 실패시 그냥 전체 조회 (또는 401 리턴도 가능)
+                userEmail = '';
+            }
+        }
+
         const search = request.nextUrl.searchParams.get('q')?.trim();
 
-        const baseQuery = `
+        let baseQuery = `
             SELECT 
                 s.id AS 번호, 
                 s.단계, 
@@ -63,26 +75,38 @@ export async function GET(request: NextRequest) {
             LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
         `;
 
-        let finalQuery = baseQuery;
         const values: string[] = [];
+        const whereConditions: string[] = [];
 
         if (search) {
-            finalQuery += `
-                WHERE 
-                    s.이름 ILIKE $1 OR
-                    m_ind.이름 ILIKE $1 OR
-                    m_tch.이름 ILIKE $1 OR
-                    m_ind.지역 ILIKE $1 OR
-                    m_tch.지역 ILIKE $1 OR
-                    m_ind.구역 ILIKE $1 OR
-                    m_tch.구역 ILIKE $1
-            `;
+            whereConditions.push(`(
+                s.이름 ILIKE $${values.length + 1} OR
+                m_ind.이름 ILIKE $${values.length + 1} OR
+                m_tch.이름 ILIKE $${values.length + 1} OR
+                m_ind.지역 ILIKE $${values.length + 1} OR
+                m_tch.지역 ILIKE $${values.length + 1} OR
+                m_ind.구역 ILIKE $${values.length + 1} OR
+                m_tch.구역 ILIKE $${values.length + 1}
+            )`);
             values.push(`%${search}%`);
         }
 
-        finalQuery += ` ORDER BY s.id ASC`;
+        // userEmail에 따른 지역 필터링
+        if (userEmail === 'nowon@nowon.com') {
+            whereConditions.push(`(m_ind.지역 = '노원' OR m_tch.지역 = '노원')`);
+        } else if (userEmail === 'dobong@dobong.com') {
+            whereConditions.push(`(m_ind.지역 = '도봉' OR m_tch.지역 = '도봉')`);
+        }
+        // jdb@jdb.com은 필터 없음
 
-        const res = await client.query(finalQuery, values);
+        if (whereConditions.length > 0) {
+            baseQuery += ' WHERE ' + whereConditions.join(' AND ');
+        }
+
+        baseQuery += ' ORDER BY s.id ASC';
+
+        const res = await client.query(baseQuery, values);
+
         return NextResponse.json(res.rows);
     } catch (err: unknown) {
         console.error('GET /api/students 에러:', err);
@@ -92,7 +116,6 @@ export async function GET(request: NextRequest) {
         client.release();
     }
 }
-
 export async function POST(request: NextRequest) {
     const client = await pool.connect();
     try {
@@ -124,6 +147,7 @@ export async function POST(request: NextRequest) {
             const existingRes = await client.query('SELECT * FROM students WHERE 이름 = $1 ORDER BY 단계 ASC', [
                 row.이름.trim(),
             ]);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const existing = existingRes.rows.find((r) => 단계순서.indexOf(r.단계) < 단계순서.indexOf(row.단계));
 
             if (existing) {

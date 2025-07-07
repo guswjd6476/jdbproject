@@ -1,12 +1,7 @@
+import { pool } from '@/app/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool, PoolClient } from 'pg';
+import type { PoolClient } from 'pg';
 
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-});
-
-// 팀 앞자리 추출 (예: '3-1' -> '3')
 function extractTeamNumber(team: string): string {
     const match = team.trim().match(/^\d+/);
     return match ? match[0] : '';

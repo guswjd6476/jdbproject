@@ -1,12 +1,5 @@
-import { Pool } from 'pg';
+import { pool } from '@/app/lib/db';
 import { NextResponse } from 'next/server';
-
-const pool = new Pool({
-    connectionString: process.env.POSTGRES_URL,
-    ssl: {
-        rejectUnauthorized: false, // Required for Vercel Neon
-    },
-});
 
 interface ConfigRequest {
     region: string;
