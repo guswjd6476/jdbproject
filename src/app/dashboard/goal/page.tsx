@@ -166,43 +166,45 @@ const WeeklyGoalsTable = ({
                         ? ['D']
                         : steps.slice();
 
-                const flatTeams = data.flatMap(({ region, results }) =>
-                    results.teams.map((team) => {
-                        const teamAch = achievements[region]?.[team.team]?.[week] || {};
-                        const goals = team.weeks[weekIndex];
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const record: Record<string, any> = {
-                            key: `${region}-${team.team}`,
-                            team: `${region} ${team.team}팀`,
-                        };
-                        stepFilter.forEach((step) => {
-                            const goal = goals[step] || 0;
-                            const ach = teamAch[step] || 0;
-                            const rate = goal > 0 ? (ach / goal) * 100 : 0;
-                            let colorStyle: React.CSSProperties = {};
-
-                            if ((weekIndex === 0 || weekIndex === 1) && step !== 'A') {
-                                colorStyle = {};
-                            } else {
-                                if (rate === 100) {
-                                    colorStyle = { backgroundColor: '#bfdbfe' };
-                                } else if (rate >= 70) {
-                                    colorStyle = { backgroundColor: '#fef9c3' };
-                                } else if (rate <= 30 && goal > 0) {
-                                    colorStyle = { backgroundColor: '#f87171', color: '#ffffff' };
-                                }
-                            }
-
-                            record[`${step}-goal`] = goal;
-                            record[`${step}-ach`] = ach;
-                            record[`${step}-rate`] = {
-                                text: rate.toFixed(2) + '%',
-                                style: colorStyle,
+                const flatTeams = data.flatMap(
+                    ({ region, results }) =>
+                        results?.teams?.map((team) => {
+                            const teamAch = achievements[region]?.[team.team]?.[week] || {};
+                            const goals = team.weeks[weekIndex];
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const record: Record<string, any> = {
+                                key: `${region}-${team.team}`,
+                                team: `${region} ${team.team}팀`,
                             };
-                        });
-                        return record;
-                    })
+                            stepFilter.forEach((step) => {
+                                const goal = goals[step] || 0;
+                                const ach = teamAch[step] || 0;
+                                const rate = goal > 0 ? (ach / goal) * 100 : 0;
+                                let colorStyle: React.CSSProperties = {};
+
+                                if ((weekIndex === 0 || weekIndex === 1) && step !== 'A') {
+                                    colorStyle = {};
+                                } else {
+                                    if (rate === 100) {
+                                        colorStyle = { backgroundColor: '#bfdbfe' };
+                                    } else if (rate >= 70) {
+                                        colorStyle = { backgroundColor: '#fef9c3' };
+                                    } else if (rate <= 30 && goal > 0) {
+                                        colorStyle = { backgroundColor: '#f87171', color: '#ffffff' };
+                                    }
+                                }
+
+                                record[`${step}-goal`] = goal;
+                                record[`${step}-ach`] = ach;
+                                record[`${step}-rate`] = {
+                                    text: rate.toFixed(2) + '%',
+                                    style: colorStyle,
+                                };
+                            });
+                            return record;
+                        }) ?? []
                 );
+
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const totalRecord: Record<string, any> = {
                     key: 'total',
