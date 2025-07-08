@@ -12,7 +12,7 @@ export async function comparePassword(password: string, hash: string) {
 }
 
 export function generateToken(email: string) {
-    return jwt.sign({ email }, JWT_SECRET, { expiresIn: '7d' });
+    return jwt.sign({ email }, JWT_SECRET, { expiresIn: '2h' });
 }
 
 export function verifyToken(token: string) {

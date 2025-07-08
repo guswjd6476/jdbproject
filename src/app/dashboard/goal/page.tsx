@@ -10,6 +10,7 @@ import {
     REGIONS,
     DEFAULT_F_GOALS,
     Region,
+    TableRow,
 } from '@/app/lib/types';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import dayjs from 'dayjs';
@@ -21,17 +22,11 @@ import { calculateAchievements, getWeekDateRange, initializeResults } from '@/ap
 import html2canvas from 'html2canvas';
 import { Button, Table } from 'antd';
 import { ColumnsType } from 'antd/es/table';
+import { useUser } from '@/app/hook/useUser';
 
 dayjs.extend(isBetween);
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-interface TableRow {
-    key: string;
-    지역: string;
-    팀: string;
-    탈락: number;
-    [key: string]: string | number;
-}
 const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'] as (keyof WeeklyPercentages)[];
 const steps = ['A', 'B', 'C', 'D', 'F'] as const;
 type Step = (typeof steps)[number];
@@ -72,7 +67,6 @@ const WeeklyGoalsTable = ({
             tempContainer.style.margin = '0 auto';
             tempContainer.style.borderRadius = '8px';
             tempContainer.style.fontSize = '30px';
-            // 그림자도 부드럽고 연하게
             tempContainer.style.boxShadow = '0 0 10px rgba(100, 120, 160, 0.15)';
 
             const titleEl = weekTitleTextRefs[week].current;
@@ -94,7 +88,6 @@ const WeeklyGoalsTable = ({
                 tableEl.style.maxWidth = '800px';
                 tableEl.style.width = '100%';
                 tableEl.style.borderCollapse = 'collapse';
-                // 테두리 색도 차분한 회색으로
                 tableEl.style.border = '1px solid #cbd5e1';
 
                 const cells = tableEl.querySelectorAll('td, th');
@@ -108,16 +101,14 @@ const WeeklyGoalsTable = ({
                     cellEl.style.lineHeight = '1.4';
                     cellEl.style.fontSize = '28px';
                     cellEl.style.verticalAlign = 'middle';
-                    // 배경색 기본은 아주 연한 회색, 홀수/짝수 행으로 구분 가능
                     cellEl.style.backgroundColor = 'transparent';
-                    cellEl.style.color = '#374151'; // 짙은 회색 텍스트
+                    cellEl.style.color = '#374151';
                 });
 
-                // 홀수행 배경 살짝 다르게(테이블 행마다)
                 const rows = tableEl.querySelectorAll('tbody tr');
                 rows.forEach((row, idx) => {
                     if (idx % 2 === 1) {
-                        (row as HTMLElement).style.backgroundColor = '#f9fafb'; // 매우 연한 회색
+                        (row as HTMLElement).style.backgroundColor = '#f9fafb';
                     }
                 });
 
@@ -152,7 +143,7 @@ const WeeklyGoalsTable = ({
                 link.href = canvas.toDataURL('image/png');
                 link.click();
             } catch (error) {
-                console.error('Eror saving table as image:', error);
+                console.error('Error saving table as image:', error);
             } finally {
                 document.body.removeChild(tempContainer);
             }
@@ -212,16 +203,48 @@ const WeeklyGoalsTable = ({
                         return record;
                     })
                 );
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const totalRecord: Record<string, any> = {
+                    key: 'total',
+                    team: '총합',
+                    no: '',
+                };
+
+                stepFilter.forEach((step) => {
+                    let totalGoal = 0;
+                    let totalAch = 0;
+                    flatTeams.forEach((team) => {
+                        totalGoal += team[`${step}-goal`] ?? 0;
+                        totalAch += team[`${step}-ach`] ?? 0;
+                    });
+                    const rate = totalGoal > 0 ? (totalAch / totalGoal) * 100 : 0;
+
+                    const colorStyle: React.CSSProperties = {
+                        fontWeight: 'bold',
+                        backgroundColor: '#d1fae5',
+                    };
+
+                    totalRecord[`${step}-goal`] = totalGoal;
+                    totalRecord[`${step}-ach`] = totalAch;
+                    totalRecord[`${step}-rate`] = {
+                        text: rate.toFixed(2) + '%',
+                        style: colorStyle,
+                    };
+                });
+
+                flatTeams.push(totalRecord);
 
                 if (weekIndex <= 3) {
                     const sortStep = stepFilter[0];
-                    flatTeams.sort(
-                        (a, b) => parseFloat(b[`${sortStep}-rate`].text) - parseFloat(a[`${sortStep}-rate`].text)
-                    );
+                    flatTeams.sort((a, b) => {
+                        if (a.key === 'total') return 1;
+                        if (b.key === 'total') return -1;
+                        return parseFloat(b[`${sortStep}-rate`].text) - parseFloat(a[`${sortStep}-rate`].text);
+                    });
                 }
 
                 flatTeams.forEach((team, index) => {
-                    team.no = index + 1;
+                    team.no = team.key === 'total' ? '' : index + 1;
                 });
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const columns: ColumnsType<any> = [
@@ -242,6 +265,11 @@ const WeeklyGoalsTable = ({
                             title: `${step} 목표`,
                             dataIndex: `${step}-goal`,
                             align: 'center' as const,
+                            render: (value: number) => (
+                                <div style={{ fontWeight: step === 'A' && value === 0 ? 'normal' : undefined }}>
+                                    {value}
+                                </div>
+                            ),
                         },
                         {
                             title: `${step} 달성`,
@@ -261,12 +289,10 @@ const WeeklyGoalsTable = ({
 
                 return (
                     <div key={week} className="mb-10">
-                        {/* 버튼 없는 제목 텍스트 */}
-                        <div ref={weekTitleTextRefs[week]} style={{ marginBottom: 8 }}>
+                        <div ref={weekTitleTextRefs[week]} style={{ marginBottom: 8, fontWeight: 'bold' }}>
                             {weekIndex + 1}주차 ({display})
                         </div>
 
-                        {/* 버튼은 별도 영역 */}
                         <div className="flex justify-end mb-2">
                             <Button type="primary" onClick={() => saveTableAsImage(week, weekIndex)}>
                                 이미지로 저장
@@ -281,6 +307,7 @@ const WeeklyGoalsTable = ({
                                 bordered
                                 size="middle"
                                 scroll={{ x: 'max-content' }}
+                                rowClassName={(record) => (record.key === 'total' ? 'font-bold bg-green-100' : '')}
                             />
                         </div>
                     </div>
@@ -314,7 +341,7 @@ const RenderChart = ({
             acc[week] = React.createRef<HTMLDivElement>();
             return acc;
         }, {} as Record<keyof WeeklyPercentages, React.RefObject<HTMLDivElement | null>>);
-    }, [weeks]);
+    }, []);
 
     const saveChartAsImage = useCallback(
         async (week: keyof WeeklyPercentages, weekIndex: number) => {
@@ -326,9 +353,9 @@ const RenderChart = ({
 
             try {
                 const canvas = await html2canvas(chartContainer, {
-                    scale: 2, // Increase resolution
+                    scale: 2,
                     useCORS: true,
-                    backgroundColor: '#ffffff', // HEX color for background
+                    backgroundColor: '#ffffff',
                 });
 
                 const link = document.createElement('a');
@@ -426,7 +453,8 @@ const RenderChart = ({
 };
 
 export default function GoalCalculatorTable() {
-    const { data: students = [], isLoading } = useStudentsQuery();
+    const { user, isLoading: isUserLoading, error: userError } = useUser();
+    const { data: students = [], isLoading: isStudentsLoading } = useStudentsQuery();
     const year = 2025;
 
     const defaultConversionRates = useMemo(
@@ -450,31 +478,47 @@ export default function GoalCalculatorTable() {
         []
     );
 
+    // Initialize states as null to avoid premature defaults
     const [view, setView] = useState<'region' | 'month'>('region');
     const [displayMode, setDisplayMode] = useState<'table' | 'graph'>('table');
-    const [region, setRegion] = useState<Region>('도봉');
-    const [fGoals, setFGoals] = useState<FGoals>(DEFAULT_F_GOALS['도봉']);
+    const [region, setRegion] = useState<Region | null>(null);
+    const [fGoals, setFGoals] = useState<FGoals | null>(null);
     const [conversionRates, setConversionRates] = useState<ConversionRates>(defaultConversionRates);
     const [weeklyPercentages, setWeeklyPercentages] = useState<WeeklyPercentages>(defaultWeeklyPercentages);
-    const [results, setResults] = useState<Results>(
-        initializeResults(DEFAULT_F_GOALS['도봉'], defaultConversionRates, defaultWeeklyPercentages)
-    );
+    const [results, setResults] = useState<Results | null>(null);
     const [error, setError] = useState<string>('');
     const [apiError, setApiError] = useState<string>('');
     const [successMessage, setSuccessMessage] = useState<string>('');
     const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().month() + 1 + '');
-
     const [allRegionsResults, setAllRegionsResults] = useState<{ region: Region; results: Results }[]>([]);
 
     const { weekly: weeklyAchievements, monthly } = useMemo(
         () => calculateAchievements(students, parseInt(selectedMonth), year, 'weekly'),
-        [students, selectedMonth, view]
+        [students, selectedMonth]
     );
 
+    // Initialize region, fGoals, and results once user data is available
     useEffect(() => {
+        if (!isUserLoading && user) {
+            const initialRegion = user === 'all' ? '도봉' : (user as Region);
+            setRegion(initialRegion);
+            setFGoals(DEFAULT_F_GOALS[initialRegion]);
+            setResults(
+                initializeResults(DEFAULT_F_GOALS[initialRegion], defaultConversionRates, defaultWeeklyPercentages)
+            );
+            setView(user === 'all' ? 'region' : 'region');
+        }
+    }, [isUserLoading, user, defaultConversionRates, defaultWeeklyPercentages]);
+
+    useEffect(() => {
+        if (!region || !fGoals) return;
+
         const fetchConfig = async () => {
             try {
                 const response = await fetch(`/api/goal?region=${region}&month=${selectedMonth}&year=${year}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch config: ${response.statusText}`);
+                }
                 const result = await response.json();
                 if (result.data) {
                     setFGoals(result.data.f_goals);
@@ -499,11 +543,19 @@ export default function GoalCalculatorTable() {
     }, [region, selectedMonth, defaultConversionRates, defaultWeeklyPercentages]);
 
     useEffect(() => {
+        if (!region || user === '노원') {
+            setAllRegionsResults([{ region: '노원', results: results! }]);
+            return;
+        }
+
         const fetchAllRegionsResults = async () => {
             const resultsByRegion: { region: Region; results: Results }[] = [];
             for (const reg of REGIONS) {
                 try {
                     const response = await fetch(`/api/goal?region=${reg}&month=${selectedMonth}&year=${year}`);
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch config for ${reg}: ${response.statusText}`);
+                    }
                     const result = await response.json();
                     const results = initializeResults(
                         result.data?.f_goals || DEFAULT_F_GOALS[reg],
@@ -524,7 +576,7 @@ export default function GoalCalculatorTable() {
             setAllRegionsResults(resultsByRegion);
         };
         fetchAllRegionsResults();
-    }, [selectedMonth, defaultConversionRates, defaultWeeklyPercentages]);
+    }, [region, selectedMonth, defaultConversionRates, defaultWeeklyPercentages, user, results]);
 
     const calculateGoals = useCallback(
         (
@@ -551,7 +603,7 @@ export default function GoalCalculatorTable() {
 
             const newResults = initializeResults(currentFGoals, currentConversionRates, currentWeeklyPercentages);
             setResults((prev) => {
-                if (JSON.stringify(prev) === JSON.stringify(newResults)) return prev;
+                if (!prev || JSON.stringify(prev) === JSON.stringify(newResults)) return prev;
                 return {
                     teams: newResults.teams.map((team) => ({
                         ...team,
@@ -567,6 +619,11 @@ export default function GoalCalculatorTable() {
     );
 
     const saveConfig = useCallback(async () => {
+        if (!region || !fGoals) {
+            setApiError('지역과 F 목표를 설정해야 저장할 수 있습니다.');
+            return;
+        }
+
         const goals = Object.values(fGoals).map(parseFloat);
         if (goals.some((f) => isNaN(f) || f < 0)) {
             setApiError('F 목표는 유효한 양수이어야 합니다.');
@@ -586,6 +643,9 @@ export default function GoalCalculatorTable() {
                     weeklyPercentages,
                 }),
             });
+            if (!response.ok) {
+                throw new Error(`Failed to save config: ${response.statusText}`);
+            }
             const result = await response.json();
             if (!result.success) {
                 setApiError(result.error || '설정을 저장하지 못했습니다.');
@@ -609,6 +669,8 @@ export default function GoalCalculatorTable() {
             value: string,
             week?: keyof WeeklyPercentages
         ) => {
+            if (!fGoals) return;
+
             if (type === 'fGoal') {
                 const regex = /^\d*\.?\d?$/;
                 if (!regex.test(value) && value !== '') {
@@ -621,6 +683,7 @@ export default function GoalCalculatorTable() {
                     return;
                 }
                 setFGoals((prev) => {
+                    if (!prev) return prev;
                     const newFGoals = { ...prev, [key]: value };
                     calculateGoals(newFGoals, conversionRates, weeklyPercentages);
                     return newFGoals;
@@ -666,9 +729,9 @@ export default function GoalCalculatorTable() {
             const newRegion = e.target.value as Region;
             setRegion(newRegion);
             setFGoals(DEFAULT_F_GOALS[newRegion]);
-            calculateGoals(DEFAULT_F_GOALS[newRegion], conversionRates, weeklyPercentages);
+            calculateGoals(DEFAULT_F_GOALS[newRegion], defaultConversionRates, defaultWeeklyPercentages);
         },
-        [conversionRates, weeklyPercentages, calculateGoals]
+        [defaultConversionRates, defaultWeeklyPercentages, calculateGoals]
     );
 
     const handleMonthChange = useCallback(
@@ -676,7 +739,7 @@ export default function GoalCalculatorTable() {
         []
     );
 
-    if (isLoading) {
+    if (isUserLoading || isStudentsLoading || !region || !fGoals || !results) {
         return (
             <div className="flex justify-center items-center h-screen">
                 <div className="text-center">
@@ -687,26 +750,37 @@ export default function GoalCalculatorTable() {
         );
     }
 
+    if (userError) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <p className="text-red-600">{userError}</p>
+            </div>
+        );
+    }
+
     return (
         <div className="w-full mx-auto p-6">
-            <div className="flex justify-center mb-4">
-                <button
-                    onClick={() => setView('region')}
-                    className={`px-4 py-2 mr-2 rounded-md ${
-                        view === 'region' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'
-                    }`}
-                >
-                    지역별 보기
-                </button>
-                <button
-                    onClick={() => setView('month')}
-                    className={`px-4 py-2 rounded-md ${
-                        view === 'month' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'
-                    }`}
-                >
-                    월별 보기
-                </button>
-            </div>
+            {/* Show view toggle buttons only for users with access to all regions */}
+            {user === 'all' && (
+                <div className="flex justify-center mb-4">
+                    <button
+                        onClick={() => setView('region')}
+                        className={`px-4 py-2 mr-2 rounded-md ${
+                            view === 'region' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'
+                        }`}
+                    >
+                        지역별 보기
+                    </button>
+                    <button
+                        onClick={() => setView('month')}
+                        className={`px-4 py-2 rounded-md ${
+                            view === 'month' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'
+                        }`}
+                    >
+                        월별 보기
+                    </button>
+                </div>
+            )}
 
             <div className="flex justify-center mb-4">
                 <button
@@ -730,29 +804,32 @@ export default function GoalCalculatorTable() {
             {apiError && <p className="mt-2 text-sm text-red-600 text-center">{apiError}</p>}
             {successMessage && <p className="mt-2 text-sm text-green-600 text-center">{successMessage}</p>}
 
-            {view === 'region' ? (
+            {user !== 'all' || view === 'region' ? (
                 <>
                     <h1 className="text-2xl font-bold mb-4 text-center">
                         청년회 {selectedMonth}월 {region} 그룹 복음방 개강 4주 플랜 목표 설정
                     </h1>
                     <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label htmlFor="region-select" className="block text-sm font-medium text-gray-700">
-                                지역 선택:
-                            </label>
-                            <select
-                                id="region-select"
-                                value={region}
-                                onChange={handleRegionChange}
-                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            >
-                                {REGIONS.map((reg) => (
-                                    <option key={reg} value={reg}>
-                                        {reg}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                        {/* Hide region select for users restricted to a specific region */}
+                        {user === 'all' && (
+                            <div>
+                                <label htmlFor="region-select" className="block text-sm font-medium text-gray-700">
+                                    지역 선택:
+                                </label>
+                                <select
+                                    id="region-select"
+                                    value={region}
+                                    onChange={handleRegionChange}
+                                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                >
+                                    {REGIONS.map((reg) => (
+                                        <option key={reg} value={reg}>
+                                            {reg}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                         <div>
                             <label htmlFor="month-select" className="block text-sm font-medium text-gray-700">
                                 월 선택:

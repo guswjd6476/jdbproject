@@ -2,10 +2,10 @@ import { pool } from '@/app/lib/db';
 import { Student } from '@/app/lib/types';
 import { NextRequest, NextResponse } from 'next/server';
 import { PoolClient } from 'pg';
-import { verifyToken } from '@/app/lib/auth'; // 토큰 검증 함수 import
+import { verifyToken } from '@/app/lib/auth';
 import type { JwtPayload } from 'jsonwebtoken';
 
-const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F'];
+const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F', '탈락'];
 
 async function getMemberUniqueId(client: PoolClient, 지역: string, 팀: string, 이름: string): Promise<string | null> {
     if (!지역 || !팀 || !이름) return null;
@@ -28,6 +28,7 @@ const 단계완료일컬럼: Record<string, string> = {
     'D-2': 'd_2_완료일',
     E: 'e_완료일',
     F: 'f_완료일',
+    탈락: 'g',
 };
 
 export async function GET(request: NextRequest) {
@@ -42,7 +43,6 @@ export async function GET(request: NextRequest) {
                     userEmail = (user as JwtPayload).email ?? '';
                 }
             } catch {
-                // 토큰 검증 실패시 그냥 전체 조회 (또는 401 리턴도 가능)
                 userEmail = '';
             }
         }
@@ -90,14 +90,21 @@ export async function GET(request: NextRequest) {
             )`);
             values.push(`%${search}%`);
         }
-
-        // userEmail에 따른 지역 필터링
-        if (userEmail === 'nowon@nowon.com') {
+        if (userEmail.includes('nowon')) {
             whereConditions.push(`(m_ind.지역 = '노원' OR m_tch.지역 = '노원')`);
-        } else if (userEmail === 'dobong@dobong.com') {
+        } else if (userEmail.includes('dobong')) {
             whereConditions.push(`(m_ind.지역 = '도봉' OR m_tch.지역 = '도봉')`);
+        } else if (userEmail.includes('sungbook')) {
+            whereConditions.push(`(m_ind.지역 = '성북' OR m_tch.지역 = '성북')`);
+        } else if (userEmail.includes('joongrang')) {
+            whereConditions.push(`(m_ind.지역 = '중랑' OR m_tch.지역 = '중랑')`);
+        } else if (userEmail.includes('gangbook')) {
+            whereConditions.push(`(m_ind.지역 = '강북' OR m_tch.지역 = '강북')`);
+        } else if (userEmail.includes('dae')) {
+            whereConditions.push(`(m_ind.지역 = '대학' OR m_tch.지역 = '대학')`);
+        } else if (userEmail.includes('sae')) {
+            whereConditions.push(`(m_ind.지역 = '새신자' OR m_tch.지역 = '새신자')`);
         }
-        // jdb@jdb.com은 필터 없음
 
         if (whereConditions.length > 0) {
             baseQuery += ' WHERE ' + whereConditions.join(' AND ');
@@ -116,6 +123,7 @@ export async function GET(request: NextRequest) {
         client.release();
     }
 }
+
 export async function POST(request: NextRequest) {
     const client = await pool.connect();
     try {
@@ -124,9 +132,11 @@ export async function POST(request: NextRequest) {
 
         for (const row of data) {
             row.단계 = row.단계.trim().toUpperCase();
+            const 단계 = row.단계;
+
             row.인도자_고유번호 = await getMemberUniqueId(client, row.인도자지역, row.인도자팀, row.인도자이름);
 
-            if (row.단계 === 'a' || row.단계 === 'b') {
+            if (단계 === 'A' || 단계 === 'B') {
                 row.교사_고유번호 = null;
             } else {
                 row.교사_고유번호 = await getMemberUniqueId(client, row.교사지역, row.교사팀, row.교사이름);
@@ -140,15 +150,16 @@ export async function POST(request: NextRequest) {
                 d_2_완료일: null,
                 e_완료일: null,
                 f_완료일: null,
+                g: null,
             };
-            const colName = 단계완료일컬럼[row.단계];
+
+            const colName = 단계완료일컬럼[단계];
             if (colName) 완료일[colName] = now;
 
             const existingRes = await client.query('SELECT * FROM students WHERE 이름 = $1 ORDER BY 단계 ASC', [
                 row.이름.trim(),
             ]);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const existing = existingRes.rows.find((r) => 단계순서.indexOf(r.단계) < 단계순서.indexOf(row.단계));
+            const existing = existingRes.rows.find((r) => 단계순서.indexOf(r.단계) < 단계순서.indexOf(단계));
 
             if (existing) {
                 await client.query(
@@ -164,10 +175,11 @@ export async function POST(request: NextRequest) {
                         d_1_완료일 = COALESCE($9, d_1_완료일),
                         d_2_완료일 = COALESCE($10, d_2_완료일),
                         e_완료일 = COALESCE($11, e_완료일),
-                        f_완료일 = COALESCE($12, f_완료일)
-                    WHERE id = $13`,
+                        f_완료일 = COALESCE($12, f_완료일),
+                        탈락 = COALESCE($13, 탈락)
+                    WHERE id = $14`,
                     [
-                        row.단계,
+                        단계,
                         row.연락처 || existing.연락처,
                         row.생년월일 || existing.생년월일,
                         row.인도자_고유번호 || existing.인도자_고유번호,
@@ -179,6 +191,7 @@ export async function POST(request: NextRequest) {
                         완료일.d_2_완료일,
                         완료일.e_완료일,
                         완료일.f_완료일,
+                        완료일.g,
                         existing.id,
                     ]
                 );
@@ -186,10 +199,12 @@ export async function POST(request: NextRequest) {
                 await client.query(
                     `INSERT INTO students
                         (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호,
-                         a_완료일, b_완료일, c_완료일, d_1_완료일, d_2_완료일, e_완료일, f_완료일)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                         a_완료일, b_완료일, c_완료일, d_1_완료일, d_2_완료일,
+                         e_완료일, f_완료일, 탈락)
+                     VALUES ($1, $2, $3, $4, $5, $6,
+                             $7, $8, $9, $10, $11, $12, $13, $14)`,
                     [
-                        row.단계,
+                        단계,
                         row.이름,
                         row.연락처,
                         row.생년월일,
@@ -202,6 +217,7 @@ export async function POST(request: NextRequest) {
                         완료일.d_2_완료일,
                         완료일.e_완료일,
                         완료일.f_완료일,
+                        완료일.g,
                     ]
                 );
             }
