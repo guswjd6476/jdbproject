@@ -25,7 +25,7 @@ export default function LoginPage() {
             const data = await res.json();
 
             if (res.ok) {
-                login(); // 상태 변경
+                login();
                 router.push('/dashboard');
             } else {
                 setError(data.error || '로그인 실패');

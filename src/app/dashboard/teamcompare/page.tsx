@@ -300,7 +300,6 @@ export default function DashboardPage() {
         isRegionalAccount,
     ]);
 
-    // 테이블 컬럼 정의
     const columns: ColumnsType<TableRow> = [
         { title: '월', dataIndex: '월', key: 'month', fixed: 'left' as const, width: 80 },
         ...(isRegionalAccount
@@ -330,9 +329,22 @@ export default function DashboardPage() {
                 dataIndex: `${step}_보유`,
                 key: `${step}_보유`,
                 width: 80,
+                onCell: () => ({
+                    style: {
+                        backgroundColor: '#d9f7be',
+                        textAlign: 'center' as const, // <- string literal type 지정
+                        padding: '8px',
+                    },
+                }),
             },
         ]),
-        { title: '탈락', dataIndex: '탈락', key: '탈락', align: 'center', width: 80 },
+        {
+            title: '탈락',
+            dataIndex: '탈락',
+            key: '탈락',
+            align: 'center' as const, // <- string literal type 지정
+            width: 80,
+        },
     ];
 
     const handleReset = () => {
@@ -348,8 +360,15 @@ export default function DashboardPage() {
         <div className="w-full mx-auto p-6">
             <Title level={2}>월별 · 지역별 · 팀별 대시보드</Title>
 
-            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
-                <Space wrap size="middle">
+            <Space
+                direction="vertical"
+                size="large"
+                style={{ marginBottom: 24, width: '100%' }}
+            >
+                <Space
+                    wrap
+                    size="middle"
+                >
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
