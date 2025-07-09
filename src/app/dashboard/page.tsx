@@ -224,13 +224,8 @@ export default function StudentProgressDashboard() {
                 </Space>
             </Space>
 
-            {isLoading ? (
-                <div style={{ textAlign: 'center', padding: 50 }}>
-                    <Spin size="large" tip="데이터를 불러오는 중입니다..." />
-                </div>
-            ) : (
-                <>
-                    {/* KPI Cards */}
+            <>
+                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                         <Card>
                             <Statistic title="총 학생 수" value={kpis.totalStudents} />
@@ -270,8 +265,8 @@ export default function StudentProgressDashboard() {
                         bordered
                         size="middle"
                     />
-                </>
-            )}
+                </Spin>
+            </>
         </div>
     );
 }

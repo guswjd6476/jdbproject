@@ -2,7 +2,14 @@
 
 import React from 'react';
 import { Layout, Menu } from 'antd';
-import { TeamOutlined, SettingOutlined } from '@ant-design/icons';
+import {
+    SettingOutlined,
+    UserAddOutlined,
+    UserSwitchOutlined,
+    FileAddOutlined,
+    AppstoreOutlined,
+    CalendarOutlined,
+} from '@ant-design/icons';
 import Link from 'next/link';
 
 const { Sider } = Layout;
@@ -10,23 +17,28 @@ const { Sider } = Layout;
 const menuItems = [
     {
         key: 'add',
-        icon: <TeamOutlined />,
+        icon: <UserAddOutlined />,
         label: <Link href="/student/add">수강생 등록</Link>,
     },
     {
         key: 'view',
-        icon: <TeamOutlined />,
+        icon: <UserSwitchOutlined />,
         label: <Link href="/student/view">수강생 조회</Link>,
     },
     {
         key: 'todayadd',
-        icon: <TeamOutlined />,
-        label: <Link href="/student/todayadd">금일등록</Link>,
+        icon: <FileAddOutlined />,
+        label: <Link href="/student/todayadd">금일 등록</Link>,
     },
     {
         key: 'develop',
-        icon: <TeamOutlined />,
-        label: <Link href="/student/develop">B이상관리</Link>,
+        icon: <AppstoreOutlined />,
+        label: <Link href="/student/develop">B 이상 관리</Link>,
+    },
+    {
+        key: 'target',
+        icon: <CalendarOutlined />,
+        label: <Link href="/student/target">개강별 관리</Link>,
     },
     {
         key: 'change',
@@ -38,16 +50,26 @@ const menuItems = [
 export default function SidebarLayout({ children }: { children: React.ReactNode }) {
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <Sider
-                breakpoint="lg"
-                collapsedWidth="0"
-            >
-                <div style={{ height: 32, margin: 16, color: 'white', fontWeight: 'bold' }}>🎯 대시보드</div>
+            <Sider breakpoint="lg" collapsedWidth="0">
+                <div
+                    style={{
+                        height: 48,
+                        margin: 16,
+                        color: 'white',
+                        fontWeight: 'bold',
+                        fontSize: 20,
+                        textAlign: 'center',
+                        userSelect: 'none',
+                    }}
+                >
+                    🎯 대시보드
+                </div>
                 <Menu
                     theme="dark"
                     mode="inline"
                     defaultSelectedKeys={['dashboard']}
                     items={menuItems}
+                    style={{ fontSize: 16 }}
                 />
             </Sider>
 

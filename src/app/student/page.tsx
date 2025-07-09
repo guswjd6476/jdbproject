@@ -1,3 +1,231 @@
-export default function dashboard() {
-    return <></>;
+'use client';
+
+import React, { useState, useMemo, useEffect } from 'react';
+import { Table, Select, Typography, Space, Spin, Button } from 'antd';
+
+import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
+import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
+import { REGIONS, TableRow } from '@/app/lib/types';
+
+import type { STEP2 } from '@/app/lib/types';
+import { STEPS2 } from '@/app/lib/types';
+
+const { Title } = Typography;
+
+export default function DashboardPage() {
+    const { data: students = [], isLoading } = useStudentsQuery();
+
+    const [selectedYear, setSelectedYear] = useState<number>(dayjs().year());
+    const [selectedTargetMonth, setSelectedTargetMonth] = useState<number | null>(null);
+
+    const monthOptions = Array.from({ length: 12 }, (_, i) => ({ label: `${i + 1}월`, value: i + 1 }));
+    const yearOptions = [dayjs().year() - 1, dayjs().year(), dayjs().year() + 1].map((y) => ({
+        value: y,
+        label: `${y}년`,
+    }));
+
+    // 지역별 팀 목록 (전체 학생 기준)
+    const regionTeamsMap = useMemo(() => {
+        const map: Record<string, Set<string>> = {};
+        students.forEach((s) => {
+            const 지역 = (s.인도자지역 ?? '').trim();
+            if (!REGIONS.includes(지역)) return;
+
+            const raw구역 = (s.인도자팀 ?? '').replace(/\s/g, ''); // 공백, 개행 제거
+            if (!raw구역) return;
+            const 팀 = raw구역.includes('-') ? raw구역.split('-')[0] : raw구역;
+
+            if (!map[지역]) map[지역] = new Set<string>();
+            map[지역].add(팀);
+        });
+        return map;
+    }, [students]);
+
+    // 점수 및 보유건 계산 (useMemo)
+    const { tableData, totalRow } = useMemo(() => {
+        const 보유건Map: Record<string, number> = {};
+        const 점수Map_AB: Record<string, number> = {}; // A,B 단계 점수 (전체 학생)
+        const 점수Map_CF: Record<string, { indo: number; teacher: number }> = {};
+
+        // 1. 보유건과 A,B 단계 점수 (전체 학생 대상)
+        students.forEach((s) => {
+            const 지역 = (s.인도자지역 ?? '').trim();
+            const raw구역 = (s.인도자팀 ?? '').replace(/\s/g, '');
+            if (!지역 || !raw구역) return;
+            if (!REGIONS.includes(지역)) return;
+
+            const 팀 = raw구역.includes('-') ? raw구역.split('-')[0] : raw구역;
+            const currentStep = (s.단계 ?? '').toUpperCase();
+
+            if (!STEPS2.includes(currentStep as STEP2)) return;
+
+            const 보유key = `${지역}-${팀}-${currentStep}`;
+            보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
+
+            if (['A', 'B'].includes(currentStep)) {
+                const 점수key = `${지역}-${팀}`;
+                점수Map_AB[점수key] = (점수Map_AB[점수key] ?? 0) + 1;
+            }
+        });
+
+        // 2. C~F 단계 점수 (월 필터 적용)
+        students.forEach((s) => {
+            const 지역 = (s.인도자지역 ?? '').trim();
+            const raw구역 = (s.인도자팀 ?? '').replace(/\s/g, '');
+            if (!지역 || !raw구역) return;
+            if (!REGIONS.includes(지역)) return;
+
+            const 팀 = raw구역.includes('-') ? raw구역.split('-')[0] : raw구역;
+            const currentStep = (s.단계 ?? '').toUpperCase();
+
+            if (!STEPS2.includes(currentStep as STEP2)) return;
+
+            if (['C', 'D-1', 'D-2', 'E', 'F'].includes(currentStep)) {
+                const cleanTarget = (s.target ?? '').replace(/\s/g, '');
+                const selectedMonthStr = selectedTargetMonth !== null ? `${selectedTargetMonth}월` : null;
+
+                if (selectedMonthStr !== null && cleanTarget !== selectedMonthStr) {
+                    return; // 필터링됨
+                }
+
+                const 점수key = `${지역}-${팀}`;
+                if (!점수Map_CF[점수key]) 점수Map_CF[점수key] = { indo: 0, teacher: 0 };
+
+                점수Map_CF[점수key].indo += 0.5;
+                점수Map_CF[점수key].teacher += 0.5;
+            }
+        });
+
+        // 테이블 행 생성
+        const tableData: TableRow[] = [];
+
+        REGIONS.forEach((region) => {
+            const teams = regionTeamsMap[region];
+            if (!teams) return;
+
+            teams.forEach((team) => {
+                const abScore = 점수Map_AB[`${region}-${team}`] ?? 0;
+                const cfScoreObj = 점수Map_CF[`${region}-${team}`] ?? { indo: 0, teacher: 0 };
+                const cfScore = cfScoreObj.indo + cfScoreObj.teacher;
+
+                const row: TableRow = {
+                    key: `${selectedTargetMonth !== null ? selectedTargetMonth : '전체'}-${region}-${team}`,
+                    월: selectedTargetMonth !== null ? `${selectedTargetMonth}월` : '전체',
+                    지역: region,
+                    팀: team,
+                    탈락: 0,
+                    ...STEPS2.reduce((acc, step) => {
+                        const 보유key = `${region}-${team}-${step}`;
+                        return {
+                            ...acc,
+                            [step]: ['A', 'B'].includes(step) ? abScore : cfScore,
+                            [`${step}_보유`]: 보유건Map[보유key] ?? 0,
+                        };
+                    }, {}),
+                };
+
+                tableData.push(row);
+            });
+        });
+
+        // 총합 행
+        const totalRow: TableRow = {
+            key: 'total',
+            월: '전체 합계',
+            지역: '',
+            팀: '',
+            탈락: 0,
+            ...STEPS2.reduce((acc, step) => ({ ...acc, [step]: 0, [`${step}_보유`]: 0 }), {}),
+        };
+
+        tableData.forEach((row) => {
+            STEPS2.forEach((step) => {
+                const totalStepValue = Number(totalRow[step] ?? 0);
+                const rowStepValue = Number(row[step] ?? 0);
+
+                const totalHoldValue = Number(totalRow[`${step}_보유`] ?? 0);
+                const rowHoldValue = Number(row[`${step}_보유`] ?? 0);
+
+                totalRow[step] = totalStepValue + rowStepValue;
+                totalRow[`${step}_보유`] = totalHoldValue + rowHoldValue;
+            });
+        });
+
+        return { tableData, totalRow };
+    }, [students, regionTeamsMap, selectedTargetMonth]);
+
+    // 상태로 데이터 강제 저장해 리렌더링 유도
+    const [renderData, setRenderData] = useState<TableRow[]>([]);
+
+    useEffect(() => {
+        setRenderData([...tableData, totalRow]);
+    }, [tableData, totalRow]);
+
+    return (
+        <div className="w-full mx-auto p-6">
+            <Title level={2}>개강 점검</Title>
+
+            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
+                <Space wrap size="middle">
+                    <Select
+                        value={selectedYear}
+                        onChange={(v) => {
+                            setSelectedYear(v);
+                        }}
+                        style={{ width: 100 }}
+                        options={yearOptions}
+                    />
+
+                    <Select
+                        placeholder="월 선택"
+                        allowClear
+                        style={{ width: 100 }}
+                        value={selectedTargetMonth ?? undefined}
+                        onChange={(v) => {
+                            setSelectedTargetMonth(v ?? null);
+                        }}
+                        options={monthOptions}
+                    />
+
+                    <Button
+                        onClick={() => {
+                            setSelectedYear(dayjs().year());
+                            setSelectedTargetMonth(null);
+                        }}
+                    >
+                        초기화
+                    </Button>
+                </Space>
+
+                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
+                    <Table<TableRow>
+                        columns={[
+                            { title: '지역', dataIndex: '지역', key: 'region', fixed: 'left', width: 100 },
+                            { title: '팀', dataIndex: '팀', key: 'team', fixed: 'left', width: 100 },
+                            ...STEPS2.flatMap((step) => [
+                                {
+                                    title: `${step}`,
+                                    dataIndex: `${step}_보유`,
+                                    key: `${step}_보유`,
+                                    width: 80,
+                                    onCell: () => ({
+                                        style: {
+                                            backgroundColor: '#d9f7be',
+                                            textAlign: 'center' as const,
+                                            padding: '8px',
+                                        },
+                                    }),
+                                },
+                            ]),
+                        ]}
+                        dataSource={renderData}
+                        scroll={{ x: 'max-content' }}
+                        pagination={{ pageSize: 50 }}
+                        sticky
+                    />
+                </Spin>
+            </Space>
+        </div>
+    );
 }

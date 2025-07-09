@@ -360,15 +360,8 @@ export default function DashboardPage() {
         <div className="w-full mx-auto p-6">
             <Title level={2}>월별 · 지역별 · 팀별 대시보드</Title>
 
-            <Space
-                direction="vertical"
-                size="large"
-                style={{ marginBottom: 24, width: '100%' }}
-            >
-                <Space
-                    wrap
-                    size="middle"
-                >
+            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
+                <Space wrap size="middle">
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
@@ -446,9 +439,7 @@ export default function DashboardPage() {
                     <Button onClick={handleReset}>초기화</Button>
                 </Space>
 
-                {isLoading ? (
-                    <Spin tip="로딩 중..." />
-                ) : (
+                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
                     <Table<TableRow>
                         columns={columns}
                         dataSource={[...tableData, totalRow]}
@@ -456,7 +447,7 @@ export default function DashboardPage() {
                         pagination={{ pageSize: 50 }}
                         sticky
                     />
-                )}
+                </Spin>
             </Space>
         </div>
     );

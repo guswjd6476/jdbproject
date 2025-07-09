@@ -28,7 +28,9 @@ export const headers = [
     '교사 이름',
 ];
 export const STEPS = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F', '탈락'] as const;
+export const STEPS2 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F'] as const;
 export type STEP = 'A' | 'B' | 'C' | 'D-1' | 'D-2' | 'E' | 'F' | '탈락';
+export type STEP2 = 'A' | 'B' | 'C' | 'D-1' | 'D-2' | 'E' | 'F';
 export const REGIONS = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자'];
 export const fixedTeams = ['1', '2', '3', '4', '5'] satisfies readonly string[];
 export interface WeeklyGoals {
@@ -98,5 +100,12 @@ export interface TableRow {
     지역: string;
     팀: string;
     탈락: number;
+    [key: string]: string | number | undefined;
+}
+
+export interface TableRow2 {
+    key: string;
+    지역: string;
+    팀: string;
     [key: string]: string | number | undefined;
 }

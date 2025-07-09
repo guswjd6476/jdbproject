@@ -7,6 +7,7 @@ export interface Students {
     인도자팀: string | null;
     교사지역: string | null;
     교사팀: string | null;
+    target: string | null;
     a?: string | null;
     b?: string | null;
     c?: string | null;
