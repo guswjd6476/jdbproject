@@ -5,7 +5,6 @@ import { Table, Select, Typography, Space, Spin, Button } from 'antd';
 import dayjs from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
 import { REGIONS, TableRow } from '@/app/lib/types';
-
 import type { STEP2 } from '@/app/lib/types';
 import { STEPS2 } from '@/app/lib/types';
 
@@ -23,69 +22,79 @@ export default function DashboardPage() {
         label: `${y}년`,
     }));
 
-    // 지역별 팀 목록 (전체 학생 기준)
     const regionTeamsMap = useMemo(() => {
         const map: Record<string, Set<string>> = {};
         students.forEach((s) => {
-            const 지역 = (s.인도자지역 ?? '').trim();
-            if (!REGIONS.includes(지역)) return;
+            const 지역들 = [(s.인도자지역 ?? '').trim(), (s.교사지역 ?? '').trim()];
+            const 팀들 = [(s.인도자팀 ?? '').replace(/\s/g, ''), (s.교사팀 ?? '').replace(/\s/g, '')];
 
-            const raw구역 = (s.인도자팀 ?? '').replace(/\s/g, ''); // 공백, 개행 제거
-            if (!raw구역) return;
-            const 팀 = raw구역.includes('-') ? raw구역.split('-')[0] : raw구역;
+            지역들.forEach((지역, i) => {
+                if (!REGIONS.includes(지역)) return;
+                const 팀원본 = 팀들[i];
+                if (!팀원본) return;
+                const 팀 = 팀원본.includes('-') ? 팀원본.split('-')[0] : 팀원본;
 
-            if (!map[지역]) map[지역] = new Set<string>();
-            map[지역].add(팀);
+                if (!map[지역]) map[지역] = new Set<string>();
+                map[지역].add(팀);
+            });
         });
         return map;
     }, [students]);
 
-    // 점수 및 보유건 계산 (useMemo)
     const { tableData, totalRow } = useMemo(() => {
         const 보유건Map: Record<string, number> = {};
         const 점수Map_AB: Record<string, number> = {};
         const 점수Map_CF: Record<string, { indo: number; teacher: number }> = {};
 
-        // Calculate 보유건 and 점수 for all steps, applying month filter for C, D-1, D-2, E, F
         students.forEach((s) => {
-            const 지역 = (s.인도자지역 ?? '').trim();
-            const raw구역 = (s.인도자팀 ?? '').replace(/\s/g, '');
-            if (!지역 || !raw구역) return;
-            if (!REGIONS.includes(지역)) return;
+            const 인도자지역 = (s.인도자지역 ?? '').trim();
+            const 교사지역 = (s.교사지역 ?? '').trim();
+            const 인도자팀 = (s.인도자팀 ?? '').replace(/\s/g, '');
+            const 교사팀 = (s.교사팀 ?? '').replace(/\s/g, '');
 
-            const 팀 = raw구역.includes('-') ? raw구역.split('-')[0] : raw구역;
             const currentStep = (s.단계 ?? '').toUpperCase();
-
             if (!STEPS2.includes(currentStep as STEP2)) return;
 
-            // Apply month filter for C, D-1, D-2, E, F
-            if (['C', 'D-1', 'D-2', 'E', 'F'].includes(currentStep)) {
-                const cleanTarget = (s.target ?? '').replace(/\s/g, '');
-                const selectedMonthStr = selectedTargetMonth !== null ? `${selectedTargetMonth}월` : null;
+            const cleanTarget = (s.target ?? '').replace(/\s/g, '');
+            const selectedMonthStr = selectedTargetMonth !== null ? `${selectedTargetMonth}월` : null;
+            const stepIsCF = ['C', 'D-1', 'D-2', 'E', 'F'].includes(currentStep);
 
-                if (selectedMonthStr !== null && cleanTarget !== selectedMonthStr) {
-                    return; // Skip if month doesn't match
+            if (stepIsCF && selectedMonthStr !== null && cleanTarget !== selectedMonthStr) return;
+
+            if (stepIsCF) {
+                // 인도자 기준
+                if (REGIONS.includes(인도자지역) && 인도자팀) {
+                    const 팀 = 인도자팀.includes('-') ? 인도자팀.split('-')[0] : 인도자팀;
+                    const 점수key = `${인도자지역}-${팀}`;
+                    if (!점수Map_CF[점수key]) 점수Map_CF[점수key] = { indo: 0, teacher: 0 };
+                    점수Map_CF[점수key].indo += 0.5;
+
+                    const 보유key = `${인도자지역}-${팀}-${currentStep}`;
+                    보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
                 }
 
-                const 점수key = `${지역}-${팀}`;
-                if (!점수Map_CF[점수key]) 점수Map_CF[점수key] = { indo: 0, teacher: 0 };
-                점수Map_CF[점수key].indo += 0.5;
-                점수Map_CF[점수key].teacher += 0.5;
+                // 교사 기준
+                if (REGIONS.includes(교사지역) && 교사팀) {
+                    const 팀 = 교사팀.includes('-') ? 교사팀.split('-')[0] : 교사팀;
+                    const 점수key = `${교사지역}-${팀}`;
+                    if (!점수Map_CF[점수key]) 점수Map_CF[점수key] = { indo: 0, teacher: 0 };
+                    점수Map_CF[점수key].teacher += 0.5;
 
-                // Calculate 보유건 for C, D-1, D-2, E, F
-                const 보유key = `${지역}-${팀}-${currentStep}`;
-                보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
+                    const 보유key = `${교사지역}-${팀}-${currentStep}`;
+                    보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
+                }
             } else if (['A', 'B'].includes(currentStep)) {
-                // Calculate 점수 and 보유건 for A, B (no month filter)
-                const 점수key = `${지역}-${팀}`;
-                점수Map_AB[점수key] = (점수Map_AB[점수key] ?? 0) + 1;
+                if (REGIONS.includes(인도자지역) && 인도자팀) {
+                    const 팀 = 인도자팀.includes('-') ? 인도자팀.split('-')[0] : 인도자팀;
+                    const 점수key = `${인도자지역}-${팀}`;
+                    점수Map_AB[점수key] = (점수Map_AB[점수key] ?? 0) + 1;
 
-                const 보유key = `${지역}-${팀}-${currentStep}`;
-                보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
+                    const 보유key = `${인도자지역}-${팀}-${currentStep}`;
+                    보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
+                }
             }
         });
 
-        // 테이블 행 생성
         const tableData: TableRow[] = [];
 
         REGIONS.forEach((region) => {
@@ -117,7 +126,6 @@ export default function DashboardPage() {
             });
         });
 
-        // 총합 행
         const totalRow: TableRow = {
             key: 'total',
             월: '전체 합계',
@@ -129,14 +137,8 @@ export default function DashboardPage() {
 
         tableData.forEach((row) => {
             STEPS2.forEach((step) => {
-                const totalStepValue = Number(totalRow[step] ?? 0);
-                const rowStepValue = Number(row[step] ?? 0);
-
-                const totalHoldValue = Number(totalRow[`${step}_보유`] ?? 0);
-                const rowHoldValue = Number(row[`${step}_보유`] ?? 0);
-
-                totalRow[step] = totalStepValue + rowStepValue;
-                totalRow[`${step}_보유`] = totalHoldValue + rowHoldValue;
+                totalRow[step] = Number(totalRow[step] ?? 0) + Number(row[step] ?? 0);
+                totalRow[`${step}_보유`] = Number(totalRow[`${step}_보유`] ?? 0) + Number(row[`${step}_보유`] ?? 0);
             });
         });
 
@@ -164,24 +166,18 @@ export default function DashboardPage() {
                 >
                     <Select
                         value={selectedYear}
-                        onChange={(v) => {
-                            setSelectedYear(v);
-                        }}
+                        onChange={(v) => setSelectedYear(v)}
                         style={{ width: 100 }}
                         options={yearOptions}
                     />
-
                     <Select
                         placeholder="월 선택"
                         allowClear
                         style={{ width: 100 }}
                         value={selectedTargetMonth ?? undefined}
-                        onChange={(v) => {
-                            setSelectedTargetMonth(v ?? null);
-                        }}
+                        onChange={(v) => setSelectedTargetMonth(v ?? null)}
                         options={monthOptions}
                     />
-
                     <Button
                         onClick={() => {
                             setSelectedYear(dayjs().year());

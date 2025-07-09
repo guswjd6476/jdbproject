@@ -26,7 +26,11 @@ const initialRow: Student = {
     교사_고유번호: null,
 };
 
-const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F'];
+const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F', '탈락'];
+
+function isSkipTeamCheck(team: string): boolean {
+    return ['타지파', '타부서', '수강생', '타지역'].some((kw) => team.includes(kw));
+}
 
 function validateRow(row: Student): string[] {
     const errors: string[] = [];
@@ -36,7 +40,8 @@ function validateRow(row: Student): string[] {
     if (stage === 'A' && !row.연락처.trim()) errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
     if (stage === 'B' && !row.생년월일.trim()) errors.push('B단계는 생년월일이 필요합니다.');
     if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
-        if (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim()) {
+        const skip = isSkipTeamCheck(row.교사팀);
+        if (!skip && (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim())) {
             errors.push('C~F단계는 교사 정보(지역, 팀, 이름)가 필요합니다.');
         }
     }
@@ -86,8 +91,10 @@ export default function StudentTracker() {
         const 교사Team = newData[index].교사팀.trim().split('-')[0];
         const 인도자Key = `인도자-${newData[index].인도자지역.trim()}-${indTeam}-${newData[index].인도자이름.trim()}`;
         const 교사Key = `교사-${newData[index].교사지역.trim()}-${교사Team}-${newData[index].교사이름.trim()}`;
-        if (memberCheckStatus[인도자Key] === false) baseErrors.push('인도자 정보가 멤버 목록과 일치하지 않습니다.');
-        if (memberCheckStatus[교사Key] === false) baseErrors.push('교사 정보가 멤버 목록과 일치하지 않습니다.');
+        if (!isSkipTeamCheck(indTeam) && memberCheckStatus[인도자Key] === false)
+            baseErrors.push('인도자 정보가 멤버 목록과 일치하지 않습니다.');
+        if (!isSkipTeamCheck(교사Team) && memberCheckStatus[교사Key] === false)
+            baseErrors.push('교사 정보가 멤버 목록과 일치하지 않습니다.');
         const newErrors = [...currentErrors];
         newErrors[index] = baseErrors;
         setErrorsData(newErrors);
@@ -108,7 +115,12 @@ export default function StudentTracker() {
             ].인도자이름.trim()}`;
             const 교사Key = `교사-${newData[index].교사지역.trim()}-${교사Team}-${newData[index].교사이름.trim()}`;
 
-            if (newData[index].인도자지역 && newData[index].인도자팀 && newData[index].인도자이름) {
+            if (
+                newData[index].인도자지역 &&
+                newData[index].인도자팀 &&
+                newData[index].인도자이름 &&
+                !isSkipTeamCheck(indTeam)
+            ) {
                 debouncedCheckMember(
                     인도자Key,
                     newData[index].인도자지역.trim(),
@@ -119,7 +131,13 @@ export default function StudentTracker() {
             } else {
                 setMemberCheckStatus((prev) => ({ ...prev, [인도자Key]: true }));
             }
-            if (newData[index].교사지역 && newData[index].교사팀 && newData[index].교사이름) {
+
+            if (
+                newData[index].교사지역 &&
+                newData[index].교사팀 &&
+                newData[index].교사이름 &&
+                !isSkipTeamCheck(교사Team)
+            ) {
                 debouncedCheckMember(
                     교사Key,
                     newData[index].교사지역.trim(),
@@ -130,11 +148,13 @@ export default function StudentTracker() {
             } else {
                 setMemberCheckStatus((prev) => ({ ...prev, [교사Key]: true }));
             }
+
             setErrorsData((prevErrors) => {
                 const newErrors = [...prevErrors];
                 newErrors[index] = validateRow(newData[index]);
                 return newErrors;
             });
+
             return newData;
         });
     };
@@ -146,6 +166,7 @@ export default function StudentTracker() {
             return [...prev, ...newRows];
         });
     };
+
     const safe = (arr: string[], index: number) => (index < arr.length ? arr[index].trim() : '');
 
     const handlePaste = (e: React.ClipboardEvent<HTMLTableElement>) => {
@@ -190,7 +211,7 @@ export default function StudentTracker() {
                     newRow.인도자지역 = safe(cols, 3);
                     newRow.인도자팀 = safe(cols, 4);
                     newRow.인도자이름 = safe(cols, 5);
-                } else if (['C', 'D', 'E', 'F'].includes(단계)) {
+                } else if (['C', 'D-1', 'D-2', 'E', 'F', '탈락'].includes(단계)) {
                     newRow.인도자지역 = safe(cols, 2);
                     newRow.인도자팀 = safe(cols, 3);
                     newRow.인도자이름 = safe(cols, 4);
@@ -251,49 +272,50 @@ export default function StudentTracker() {
     };
 
     return (
-        <>
-            <Card>
-                <CardContent>
-                    <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
-                        <TableHeader />
-                        <tbody>
-                            {data.map((row, i) => {
-                                const 인도자Key = `인도자-${row.인도자지역.trim()}-${
-                                    row.인도자팀.trim().split('-')[0]
-                                }-${row.인도자이름.trim()}`;
-                                const 교사Key = `교사-${row.교사지역.trim()}-${
-                                    row.교사팀.trim().split('-')[0]
-                                }-${row.교사이름.trim()}`;
-                                return (
-                                    <TableRow
-                                        key={i}
-                                        index={i}
-                                        row={row}
-                                        errors={errorsData[i]}
-                                        memberCheckStatus={{
-                                            인도자: memberCheckStatus[인도자Key],
-                                            교사: memberCheckStatus[교사Key],
-                                        }}
-                                        onChange={handleChange}
-                                        selectStages={단계순서}
-                                    />
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                    <AddRowButton onClick={addRows} />
-                    <button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
-                    >
-                        저장하기
-                    </button>
-                    {loading && <p>저장 중...</p>}
-                    {error && <p className="text-red-600">에러: {error}</p>}
-                    {success && <p className="text-green-600">{success}</p>}
-                </CardContent>
-            </Card>
-        </>
+        <Card>
+            <CardContent>
+                <table
+                    className="border-collapse border border-slate-400"
+                    onPaste={handlePaste}
+                >
+                    <TableHeader />
+                    <tbody>
+                        {data.map((row, i) => {
+                            const 인도자Key = `인도자-${row.인도자지역.trim()}-${
+                                row.인도자팀.trim().split('-')[0]
+                            }-${row.인도자이름.trim()}`;
+                            const 교사Key = `교사-${row.교사지역.trim()}-${
+                                row.교사팀.trim().split('-')[0]
+                            }-${row.교사이름.trim()}`;
+                            return (
+                                <TableRow
+                                    key={i}
+                                    index={i}
+                                    row={row}
+                                    errors={errorsData[i]}
+                                    memberCheckStatus={{
+                                        인도자: memberCheckStatus[인도자Key],
+                                        교사: memberCheckStatus[교사Key],
+                                    }}
+                                    onChange={handleChange}
+                                    selectStages={단계순서}
+                                />
+                            );
+                        })}
+                    </tbody>
+                </table>
+                <AddRowButton onClick={addRows} />
+                <button
+                    onClick={handleSubmit}
+                    disabled={loading}
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
+                >
+                    저장하기
+                </button>
+                {loading && <p>저장 중...</p>}
+                {error && <p className="text-red-600">에러: {error}</p>}
+                {success && <p className="text-green-600">{success}</p>}
+            </CardContent>
+        </Card>
     );
 }
