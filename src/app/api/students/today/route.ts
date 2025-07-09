@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
         const result = await client.query(
             `
             SELECT 
+            s.id,
                 s.이름,
                 s.단계,
                 m1.지역 AS 인도자지역,

@@ -1,4 +1,5 @@
 'use client';
+
 import React, { useState, useMemo } from 'react';
 import debounce from 'lodash.debounce';
 import TableHeader from './table/TableHeader';
@@ -6,6 +7,7 @@ import TableRow from './table/TableRow';
 import AddRowButton from './table/AddRowButton';
 import { Card, CardContent } from '../components/ui/Card';
 import { Student } from '../lib/types';
+import { Spin, Alert } from 'antd';
 
 const INITIAL_ROWS = 100;
 const ADDITIONAL_ROWS = 10;
@@ -159,6 +161,11 @@ export default function StudentTracker() {
         });
     };
 
+    const handleDeleteRow = (index: number) => {
+        setData((prev) => prev.filter((_, i) => i !== index));
+        setErrorsData((prev) => prev.filter((_, i) => i !== index));
+    };
+
     const addRows = () => {
         setData((prev) => {
             const newRows = Array.from({ length: ADDITIONAL_ROWS }, () => ({ ...initialRow }));
@@ -186,19 +193,9 @@ export default function StudentTracker() {
                 const 이름 = safe(cols, 1);
 
                 const newRow: Student = {
-                    id: '',
+                    ...initialRow,
                     단계,
                     이름,
-                    연락처: '',
-                    생년월일: '',
-                    인도자지역: '',
-                    인도자팀: '',
-                    인도자이름: '',
-                    인도자_고유번호: null,
-                    교사지역: '',
-                    교사팀: '',
-                    교사이름: '',
-                    교사_고유번호: null,
                 };
 
                 if (단계 === 'A') {
@@ -241,6 +238,8 @@ export default function StudentTracker() {
         setError(null);
         setSuccess(null);
         const filledRows = data.filter((row) => row.단계.trim() !== '');
+
+        console.log(filledRows, '?filledRowsfilledRowsfilledRows');
         for (let i = 0; i < filledRows.length; i++) {
             const errs = validateRow(filledRows[i]);
             if (errs.length > 0) {
@@ -261,11 +260,8 @@ export default function StudentTracker() {
             }
             setSuccess('저장이 완료되었습니다.');
         } catch (e: unknown) {
-            if (e instanceof Error) {
-                setError(e.message);
-            } else {
-                setError('알 수 없는 오류가 발생했습니다.');
-            }
+            if (e instanceof Error) setError(e.message);
+            else setError('알 수 없는 오류가 발생했습니다.');
         } finally {
             setLoading(false);
         }
@@ -274,47 +270,63 @@ export default function StudentTracker() {
     return (
         <Card>
             <CardContent>
-                <table
-                    className="border-collapse border border-slate-400"
-                    onPaste={handlePaste}
-                >
-                    <TableHeader />
-                    <tbody>
-                        {data.map((row, i) => {
-                            const 인도자Key = `인도자-${row.인도자지역.trim()}-${
-                                row.인도자팀.trim().split('-')[0]
-                            }-${row.인도자이름.trim()}`;
-                            const 교사Key = `교사-${row.교사지역.trim()}-${
-                                row.교사팀.trim().split('-')[0]
-                            }-${row.교사이름.trim()}`;
-                            return (
-                                <TableRow
-                                    key={i}
-                                    index={i}
-                                    row={row}
-                                    errors={errorsData[i]}
-                                    memberCheckStatus={{
-                                        인도자: memberCheckStatus[인도자Key],
-                                        교사: memberCheckStatus[교사Key],
-                                    }}
-                                    onChange={handleChange}
-                                    selectStages={단계순서}
-                                />
-                            );
-                        })}
-                    </tbody>
-                </table>
-                <AddRowButton onClick={addRows} />
-                <button
-                    onClick={handleSubmit}
-                    disabled={loading}
-                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
-                >
-                    저장하기
-                </button>
-                {loading && <p>저장 중...</p>}
-                {error && <p className="text-red-600">에러: {error}</p>}
-                {success && <p className="text-green-600">{success}</p>}
+                <Spin spinning={loading}>
+                    <table
+                        className="border-collapse border border-slate-400"
+                        onPaste={handlePaste}
+                    >
+                        <TableHeader />
+                        <tbody>
+                            {data.map((row, i) => {
+                                const 인도자Key = `인도자-${row.인도자지역.trim()}-${
+                                    row.인도자팀.trim().split('-')[0]
+                                }-${row.인도자이름.trim()}`;
+                                const 교사Key = `교사-${row.교사지역.trim()}-${
+                                    row.교사팀.trim().split('-')[0]
+                                }-${row.교사이름.trim()}`;
+                                return (
+                                    <TableRow
+                                        key={i}
+                                        index={i}
+                                        row={row}
+                                        errors={errorsData[i]}
+                                        memberCheckStatus={{
+                                            인도자: memberCheckStatus[인도자Key],
+                                            교사: memberCheckStatus[교사Key],
+                                        }}
+                                        onChange={handleChange}
+                                        onDelete={() => handleDeleteRow(i)}
+                                        selectStages={단계순서}
+                                    />
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                    <AddRowButton onClick={addRows} />
+                    <button
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
+                    >
+                        저장하기
+                    </button>
+                    <div className="mt-4">
+                        {error && (
+                            <Alert
+                                message={error}
+                                type="error"
+                                showIcon
+                            />
+                        )}
+                        {success && (
+                            <Alert
+                                message={success}
+                                type="success"
+                                showIcon
+                            />
+                        )}
+                    </div>
+                </Spin>
             </CardContent>
         </Card>
     );

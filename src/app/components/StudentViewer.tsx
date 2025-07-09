@@ -15,8 +15,7 @@ export default function StudentViewer() {
     const [searchText, setSearchText] = useState('');
     const [filters, setFilters] = useState<Record<string, FilterValue | null>>({});
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
-
-    // ✅ 지역 목록 추출 (타입 안정성 고려)
+    const [visibleId, setVisibleId] = useState<number | null>(null);
     const allRegions = useMemo(() => {
         const regions = new Set<string>();
         students.forEach((s) => {
@@ -26,7 +25,6 @@ export default function StudentViewer() {
         return Array.from(regions).sort();
     }, [students]);
 
-    // ✅ 전체 필터링
     const filteredStudents = useMemo(() => {
         return students
             .filter((student) => {
@@ -50,7 +48,6 @@ export default function StudentViewer() {
             });
     }, [students, searchText, filters, selectedRegion]);
 
-    // ✅ TS 오류 발생 부분 수정 (.map(String) → String(val))
     const getFilterOptions = (field: keyof Students) => {
         const values = students
             .map((s) => s[field])
@@ -82,20 +79,34 @@ export default function StudentViewer() {
     }));
 
     const columns: ColumnsType<Students> = [
-        { title: '번호', dataIndex: 'id', key: 'id', fixed: 'left', width: 70 },
+        { title: '번호', dataIndex: '번호', key: '번호', fixed: 'left', width: 70 },
         filterableColumn('단계', '단계'),
         {
             title: '이름',
             dataIndex: '이름',
             key: '이름',
-            width: 100,
-            render: (name: string) => {
-                if (!name) return '';
-                const len = name.length;
-                if (len === 2) return name[0] + 'O';
-                if (len === 3) return name[0] + 'O' + name[2];
-                if (len >= 4) return name[0] + 'O'.repeat(len - 2) + name[len - 1];
-                return name;
+            width: 80,
+            render: (name: string, record) => {
+                const isVisible = visibleId === record.번호;
+                const maskedName = (() => {
+                    const len = name.length;
+                    if (len === 2) return name[0] + 'O';
+                    if (len === 3) return name[0] + 'O' + name[2];
+                    if (len >= 4) return name[0] + 'O'.repeat(len - 2) + name[len - 1];
+                    return name;
+                })();
+                return (
+                    <div
+                        onClick={() => {
+                            if (typeof record.번호 === 'number') {
+                                setVisibleId(isVisible ? null : record.번호);
+                            }
+                        }}
+                        className="cursor-pointer flex items-center gap-1"
+                    >
+                        <span>{isVisible ? name : maskedName}</span>
+                    </div>
+                );
             },
         },
         { title: '연락처', dataIndex: '연락처', key: '연락처', width: 120 },

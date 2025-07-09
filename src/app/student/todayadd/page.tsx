@@ -10,6 +10,7 @@ const { Title } = Typography;
 const { RangePicker } = DatePicker;
 
 interface StudentBrief {
+    id: number;
     이름: string;
     단계: string;
     인도자지역: string | null;
@@ -25,7 +26,7 @@ export default function TodayStudentList() {
     const [loading, setLoading] = useState<boolean>(false);
     const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('day'), dayjs().endOf('day')]);
     const [searchText, setSearchText] = useState<string>('');
-
+    const [visibleId, setVisibleId] = useState<number | null>(null);
     const fetchStudents = async (start: string, end: string) => {
         setLoading(true);
         try {
@@ -58,14 +59,28 @@ export default function TodayStudentList() {
             title: '이름',
             dataIndex: '이름',
             key: '이름',
-            width: 100,
-            render: (name: string) => {
-                if (!name) return '';
-                const len = name.length;
-                if (len === 2) return name[0] + 'O';
-                if (len === 3) return name[0] + 'O' + name[2];
-                if (len >= 4) return name[0] + 'O'.repeat(len - 2) + name[len - 1];
-                return name;
+            width: 80,
+            render: (name: string, record) => {
+                const isVisible = visibleId === record.id;
+                const maskedName = (() => {
+                    const len = name.length;
+                    if (len === 2) return name[0] + 'O';
+                    if (len === 3) return name[0] + 'O' + name[2];
+                    if (len >= 4) return name[0] + 'O'.repeat(len - 2) + name[len - 1];
+                    return name;
+                })();
+                return (
+                    <div
+                        onClick={() => {
+                            if (typeof record.id === 'number') {
+                                setVisibleId(isVisible ? null : record.id);
+                            }
+                        }}
+                        className="cursor-pointer flex items-center gap-1"
+                    >
+                        <span>{isVisible ? name : maskedName}</span>
+                    </div>
+                );
             },
         },
         {
@@ -144,7 +159,7 @@ export default function TodayStudentList() {
                 <Table
                     dataSource={filteredStudents}
                     columns={columns}
-                    rowKey={(record, index) => `${record.이름}-${index}`}
+                    rowKey="id"
                     loading={loading}
                     bordered
                     locale={{ emptyText: '해당 기간에 등록/수정된 명단이 없습니다.' }}

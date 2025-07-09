@@ -6,6 +6,7 @@ interface TableRowProps {
     row: Student;
     index: number;
     onChange: (i: number, field: keyof Student, v: string) => void;
+    onDelete?: () => void; // ✅ 추가
     errors: string[];
     selectStages: string[];
     memberCheckStatus: {
@@ -14,7 +15,15 @@ interface TableRowProps {
     };
 }
 
-export default function TableRow({ row, index, onChange, errors, selectStages, memberCheckStatus }: TableRowProps) {
+export default function TableRow({
+    row,
+    index,
+    onChange,
+    onDelete, // ✅ 구조 분해에 포함
+    errors,
+    selectStages,
+    memberCheckStatus,
+}: TableRowProps) {
     const editableFields: (keyof Student)[] = [
         '단계',
         '이름',
@@ -40,12 +49,15 @@ export default function TableRow({ row, index, onChange, errors, selectStages, m
 
     return (
         <tr className={errors.length ? 'bg-red-50' : ''}>
-            {/* 번호 열 추가 */}
+            {/* 번호 열 */}
             <td className="border p-1 text-center text-sm font-medium">{index + 1}</td>
 
-            {/* 나머지 입력 필드 */}
+            {/* 입력 필드 */}
             {editableFields.map((field) => (
-                <td key={field} className="border p-1">
+                <td
+                    key={field}
+                    className="border p-1"
+                >
                     {field === '단계' ? (
                         <select
                             value={row.단계 || ''}
@@ -54,7 +66,10 @@ export default function TableRow({ row, index, onChange, errors, selectStages, m
                         >
                             <option value="">선택</option>
                             {selectStages.map((s) => (
-                                <option key={s} value={s}>
+                                <option
+                                    key={s}
+                                    value={s}
+                                >
                                     {s}
                                 </option>
                             ))}
@@ -73,12 +88,27 @@ export default function TableRow({ row, index, onChange, errors, selectStages, m
             {/* 오류 메시지 및 멤버 체크 */}
             <td className="border p-1">
                 {errors.map((e, i) => (
-                    <p key={i} className="text-xs text-red-600">
+                    <p
+                        key={i}
+                        className="text-xs text-red-600"
+                    >
                         {e}
                     </p>
                 ))}
                 {renderMemberCheckMessage('인도자')}
                 {renderMemberCheckMessage('교사')}
+            </td>
+
+            {/* 삭제 버튼 */}
+            <td className="border p-1 text-center">
+                {onDelete && (
+                    <button
+                        onClick={onDelete}
+                        className="px-2 py-1 text-xs text-white bg-red-500 rounded hover:bg-red-600"
+                    >
+                        삭제
+                    </button>
+                )}
             </td>
         </tr>
     );
