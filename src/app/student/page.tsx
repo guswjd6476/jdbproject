@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Table, Select, Typography, Space, Spin, Button } from 'antd';
-
 import dayjs from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
 import { REGIONS, TableRow } from '@/app/lib/types';
@@ -44,10 +43,10 @@ export default function DashboardPage() {
     // 점수 및 보유건 계산 (useMemo)
     const { tableData, totalRow } = useMemo(() => {
         const 보유건Map: Record<string, number> = {};
-        const 점수Map_AB: Record<string, number> = {}; // A,B 단계 점수 (전체 학생)
+        const 점수Map_AB: Record<string, number> = {};
         const 점수Map_CF: Record<string, { indo: number; teacher: number }> = {};
 
-        // 1. 보유건과 A,B 단계 점수 (전체 학생 대상)
+        // Calculate 보유건 and 점수 for all steps, applying month filter for C, D-1, D-2, E, F
         students.forEach((s) => {
             const 지역 = (s.인도자지역 ?? '').trim();
             const raw구역 = (s.인도자팀 ?? '').replace(/\s/g, '');
@@ -59,40 +58,30 @@ export default function DashboardPage() {
 
             if (!STEPS2.includes(currentStep as STEP2)) return;
 
-            const 보유key = `${지역}-${팀}-${currentStep}`;
-            보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
-
-            if (['A', 'B'].includes(currentStep)) {
-                const 점수key = `${지역}-${팀}`;
-                점수Map_AB[점수key] = (점수Map_AB[점수key] ?? 0) + 1;
-            }
-        });
-
-        // 2. C~F 단계 점수 (월 필터 적용)
-        students.forEach((s) => {
-            const 지역 = (s.인도자지역 ?? '').trim();
-            const raw구역 = (s.인도자팀 ?? '').replace(/\s/g, '');
-            if (!지역 || !raw구역) return;
-            if (!REGIONS.includes(지역)) return;
-
-            const 팀 = raw구역.includes('-') ? raw구역.split('-')[0] : raw구역;
-            const currentStep = (s.단계 ?? '').toUpperCase();
-
-            if (!STEPS2.includes(currentStep as STEP2)) return;
-
+            // Apply month filter for C, D-1, D-2, E, F
             if (['C', 'D-1', 'D-2', 'E', 'F'].includes(currentStep)) {
                 const cleanTarget = (s.target ?? '').replace(/\s/g, '');
                 const selectedMonthStr = selectedTargetMonth !== null ? `${selectedTargetMonth}월` : null;
 
                 if (selectedMonthStr !== null && cleanTarget !== selectedMonthStr) {
-                    return; // 필터링됨
+                    return; // Skip if month doesn't match
                 }
 
                 const 점수key = `${지역}-${팀}`;
                 if (!점수Map_CF[점수key]) 점수Map_CF[점수key] = { indo: 0, teacher: 0 };
-
                 점수Map_CF[점수key].indo += 0.5;
                 점수Map_CF[점수key].teacher += 0.5;
+
+                // Calculate 보유건 for C, D-1, D-2, E, F
+                const 보유key = `${지역}-${팀}-${currentStep}`;
+                보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
+            } else if (['A', 'B'].includes(currentStep)) {
+                // Calculate 점수 and 보유건 for A, B (no month filter)
+                const 점수key = `${지역}-${팀}`;
+                점수Map_AB[점수key] = (점수Map_AB[점수key] ?? 0) + 1;
+
+                const 보유key = `${지역}-${팀}-${currentStep}`;
+                보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
             }
         });
 
@@ -154,7 +143,6 @@ export default function DashboardPage() {
         return { tableData, totalRow };
     }, [students, regionTeamsMap, selectedTargetMonth]);
 
-    // 상태로 데이터 강제 저장해 리렌더링 유도
     const [renderData, setRenderData] = useState<TableRow[]>([]);
 
     useEffect(() => {
