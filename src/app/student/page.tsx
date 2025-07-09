@@ -3,7 +3,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Table, Select, Typography, Space, Spin, Button } from 'antd';
 
-import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
 import { REGIONS, TableRow } from '@/app/lib/types';
@@ -166,8 +165,15 @@ export default function DashboardPage() {
         <div className="w-full mx-auto p-6">
             <Title level={2}>개강 점검</Title>
 
-            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
-                <Space wrap size="middle">
+            <Space
+                direction="vertical"
+                size="large"
+                style={{ marginBottom: 24, width: '100%' }}
+            >
+                <Space
+                    wrap
+                    size="middle"
+                >
                     <Select
                         value={selectedYear}
                         onChange={(v) => {
@@ -198,7 +204,10 @@ export default function DashboardPage() {
                     </Button>
                 </Space>
 
-                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
+                <Spin
+                    spinning={isLoading}
+                    tip="데이터를 불러오는 중입니다..."
+                >
                     <Table<TableRow>
                         columns={[
                             { title: '지역', dataIndex: '지역', key: 'region', fixed: 'left', width: 100 },
