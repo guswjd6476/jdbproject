@@ -5,7 +5,7 @@ import debounce from 'lodash.debounce';
 import TableHeader from './table/TableHeader';
 import TableRow from './table/TableRow';
 import AddRowButton from './table/AddRowButton';
-import { Card, CardContent } from '../components/ui/Card';
+import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { Student } from '../lib/types';
 import { Spin, Alert } from 'antd';
 
@@ -34,19 +34,40 @@ function isSkipTeamCheck(team: string): boolean {
     return ['타지파', '타부서', '수강생', '타지역'].some((kw) => team.includes(kw));
 }
 
-function validateRow(row: Student): string[] {
+function validateRow(row: Student, index?: number, allRows?: Student[]): string[] {
     const errors: string[] = [];
-    const stage = row.단계.trim();
+    const stage = row.단계.trim().toUpperCase();
     if (!단계순서.includes(stage)) errors.push('유효한 단계가 아닙니다.');
     if (!row.이름.trim()) errors.push('이름이 필요합니다.');
-    if (stage === 'A' && !row.연락처.trim()) errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
-    if (stage === 'B' && !row.생년월일.trim()) errors.push('B단계는 생년월일이 필요합니다.');
+
+    // ✅ 이전 단계 확인
+    if (index !== undefined && allRows !== undefined) {
+        const currentStageIndex = 단계순서.indexOf(stage);
+        if (currentStageIndex > 0) {
+            const previousStage = 단계순서[currentStageIndex - 1];
+            const previousExists = allRows.some(
+                (r, i) =>
+                    i !== index && r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === previousStage
+            );
+            if (!previousExists) {
+                errors.push(`${previousStage} 단계가 먼저 등록되어야 합니다.`);
+            }
+        }
+    }
+
+    if (stage === 'A' && !row.연락처.trim()) {
+        errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
+    }
+    if (stage === 'B' && !row.생년월일.trim()) {
+        errors.push('B단계는 생년월일이 필요합니다.');
+    }
     if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
         const skip = isSkipTeamCheck(row.교사팀);
         if (!skip && (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim())) {
             errors.push('C~F단계는 교사 정보(지역, 팀, 이름)가 필요합니다.');
         }
     }
+
     return errors;
 }
 
@@ -241,7 +262,7 @@ export default function StudentTracker() {
 
         console.log(filledRows, '?filledRowsfilledRowsfilledRows');
         for (let i = 0; i < filledRows.length; i++) {
-            const errs = validateRow(filledRows[i]);
+            const errs = validateRow(filledRows[i], i, filledRows);
             if (errs.length > 0) {
                 setError(`유효성 검사 실패: ${i + 1}번째 행 - ${errs.join(', ')}`);
                 setLoading(false);
@@ -269,6 +290,34 @@ export default function StudentTracker() {
 
     return (
         <Card>
+            <CardHeader>
+                <div className="sticky top-0 z-10 bg-white pb-2 pt-4 flex gap-2 border-b border-gray-300">
+                    <AddRowButton onClick={addRows} />
+                    <button
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        className="px-4 py-2 bg-blue-600 text-white rounded"
+                    >
+                        저장하기
+                    </button>
+                    <div>
+                        {error && (
+                            <Alert
+                                message={error}
+                                type="error"
+                                showIcon
+                            />
+                        )}
+                        {success && (
+                            <Alert
+                                message={success}
+                                type="success"
+                                showIcon
+                            />
+                        )}
+                    </div>
+                </div>
+            </CardHeader>
             <CardContent>
                 <Spin spinning={loading}>
                     <table
@@ -302,30 +351,6 @@ export default function StudentTracker() {
                             })}
                         </tbody>
                     </table>
-                    <AddRowButton onClick={addRows} />
-                    <button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
-                    >
-                        저장하기
-                    </button>
-                    <div className="mt-4">
-                        {error && (
-                            <Alert
-                                message={error}
-                                type="error"
-                                showIcon
-                            />
-                        )}
-                        {success && (
-                            <Alert
-                                message={success}
-                                type="success"
-                                showIcon
-                            />
-                        )}
-                    </div>
                 </Spin>
             </CardContent>
         </Card>
