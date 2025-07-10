@@ -1,4 +1,3 @@
-// src/app/api/login/route.ts
 import { NextResponse } from 'next/server';
 import { pool } from '@/app/lib/db';
 import { comparePassword, generateToken } from '@/app/lib/auth';

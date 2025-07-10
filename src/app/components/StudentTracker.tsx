@@ -319,6 +319,14 @@ export default function StudentTracker() {
         setError(null);
         setSuccess(null);
 
+        const now = new Date();
+        const currentHour = now.getHours();
+        if (currentHour >= 21 && currentHour < 24) {
+            setError('일일보고시간이 막마되었습니다.');
+            setLoading(false);
+            return;
+        }
+
         const filledRows = data.filter((row) => row.단계.trim() !== '');
 
         for (let i = 0; i < filledRows.length; i++) {
