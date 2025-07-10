@@ -56,7 +56,6 @@ export async function GET(request: NextRequest) {
                 s.이름, 
                 s.연락처, 
                 s.생년월일,
-                s.target,
                 s.a_완료일 AS "a",
                 s.b_완료일 AS "b",
                 s.c_완료일 AS "c",

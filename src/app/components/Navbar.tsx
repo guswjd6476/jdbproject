@@ -11,6 +11,9 @@ export default function Navbar() {
     const router = useRouter();
 
     const handleLogout = async () => {
+        const confirmed = window.confirm('정말 로그아웃하시겠습니까?');
+        if (!confirmed) return;
+
         await fetch('/api/logout', { method: 'POST' });
         logout(); // 상태 변경
         router.push('/login');

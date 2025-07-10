@@ -62,7 +62,7 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
                         userSelect: 'none',
                     }}
                 >
-                    🎯 대시보드
+                    🎯 학생관리
                 </div>
                 <Menu
                     theme="dark"

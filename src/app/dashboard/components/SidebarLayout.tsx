@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Layout, Menu } from 'antd';
-import { TeamOutlined, SettingOutlined } from '@ant-design/icons';
+import { TeamOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 
 const { Sider } = Layout;
@@ -18,11 +18,11 @@ const menuItems = [
         icon: <TeamOutlined />,
         label: <Link href="/dashboard/goal">목표달성</Link>,
     },
-    {
-        key: 'settings',
-        icon: <SettingOutlined />,
-        label: <Link href="/settings">설정</Link>,
-    },
+    // {
+    //     key: 'settings',
+    //     icon: <SettingOutlined />,
+    //     label: <Link href="/settings">설정</Link>,
+    // },
 ];
 
 export default function SidebarLayout({ children }: { children: React.ReactNode }) {

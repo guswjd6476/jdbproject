@@ -34,24 +34,57 @@ function isSkipTeamCheck(team: string): boolean {
     return ['타지파', '타부서', '수강생', '타지역'].some((kw) => team.includes(kw));
 }
 
-function validateRow(row: Student, index?: number, allRows?: Student[]): string[] {
+async function checkPreviousStageExists(
+    name: string,
+    region: string,
+    team: string,
+    name2: string,
+    stage: string
+): Promise<boolean> {
+    try {
+        const query = new URLSearchParams({ name, region, team, name2, stage }).toString();
+        const res = await fetch(`/api/students/checkPreviousStage?${query}`);
+        if (!res.ok) return false;
+        const json = await res.json();
+        console.log(json, '?joson');
+        return json.exists === true;
+    } catch {
+        return false;
+    }
+}
+
+async function validatePreviousStageForSubmit(row: Student, allRows: Student[]): Promise<string[]> {
     const errors: string[] = [];
     const stage = row.단계.trim().toUpperCase();
-    if (!단계순서.includes(stage)) errors.push('유효한 단계가 아닙니다.');
-    if (!row.이름.trim()) errors.push('이름이 필요합니다.');
+    if (!단계순서.includes(stage)) {
+        errors.push('유효한 단계가 아닙니다.');
+        return errors;
+    }
+    if (!row.이름.trim()) {
+        errors.push('이름이 필요합니다.');
+        return errors;
+    }
 
-    // ✅ 이전 단계 확인
-    if (index !== undefined && allRows !== undefined) {
-        const currentStageIndex = 단계순서.indexOf(stage);
-        if (currentStageIndex > 0) {
-            const previousStage = 단계순서[currentStageIndex - 1];
-            const previousExists = allRows.some(
-                (r, i) =>
-                    i !== index && r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === previousStage
-            );
-            if (!previousExists) {
-                errors.push(`${previousStage} 단계가 먼저 등록되어야 합니다.`);
-            }
+    const currentStageIndex = 단계순서.indexOf(stage);
+    if (currentStageIndex > 0) {
+        const previousStage = 단계순서[currentStageIndex - 1];
+
+        // UI 내 존재 여부 확인
+        const previousExistsInUI = allRows.some(
+            (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === previousStage
+        );
+
+        // DB 확인
+        const previousExistsInDB = await checkPreviousStageExists(
+            row.이름.trim(),
+            row.인도자지역.trim(),
+            row.인도자팀.trim(),
+            row.인도자이름.trim(),
+            previousStage
+        );
+
+        if (!previousExistsInUI && !previousExistsInDB) {
+            errors.push(`${previousStage} 단계가 먼저 등록되어야 합니다.`);
         }
     }
 
@@ -68,6 +101,27 @@ function validateRow(row: Student, index?: number, allRows?: Student[]): string[
         }
     }
 
+    return errors;
+}
+
+function validateRow(row: Student): string[] {
+    const errors: string[] = [];
+    const stage = row.단계.trim().toUpperCase();
+    if (!단계순서.includes(stage)) errors.push('유효한 단계가 아닙니다.');
+    if (!row.이름.trim()) errors.push('이름이 필요합니다.');
+
+    if (stage === 'A' && !row.연락처.trim()) {
+        errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
+    }
+    if (stage === 'B' && !row.생년월일.trim()) {
+        errors.push('B단계는 생년월일이 필요합니다.');
+    }
+    if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
+        const skip = isSkipTeamCheck(row.교사팀);
+        if (!skip && (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim())) {
+            errors.push('C~F단계는 교사 정보(지역, 팀, 이름)가 필요합니다.');
+        }
+    }
     return errors;
 }
 
@@ -258,17 +312,18 @@ export default function StudentTracker() {
         setLoading(true);
         setError(null);
         setSuccess(null);
+
         const filledRows = data.filter((row) => row.단계.trim() !== '');
 
-        console.log(filledRows, '?filledRowsfilledRowsfilledRows');
         for (let i = 0; i < filledRows.length; i++) {
-            const errs = validateRow(filledRows[i], i, filledRows);
+            const errs = await validatePreviousStageForSubmit(filledRows[i], filledRows);
             if (errs.length > 0) {
                 setError(`유효성 검사 실패: ${i + 1}번째 행 - ${errs.join(', ')}`);
                 setLoading(false);
                 return;
             }
         }
+
         try {
             const res = await fetch('/api/students', {
                 method: 'POST',
@@ -301,54 +356,27 @@ export default function StudentTracker() {
                         저장하기
                     </button>
                     <div>
-                        {error && (
-                            <Alert
-                                message={error}
-                                type="error"
-                                showIcon
-                            />
-                        )}
-                        {success && (
-                            <Alert
-                                message={success}
-                                type="success"
-                                showIcon
-                            />
-                        )}
+                        {error && <Alert message={error} type="error" showIcon />}
+                        {success && <Alert message={success} type="success" showIcon />}
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
                 <Spin spinning={loading}>
-                    <table
-                        className="border-collapse border border-slate-400"
-                        onPaste={handlePaste}
-                    >
+                    <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
                         <TableHeader />
                         <tbody>
-                            {data.map((row, i) => {
-                                const 인도자Key = `인도자-${row.인도자지역.trim()}-${
-                                    row.인도자팀.trim().split('-')[0]
-                                }-${row.인도자이름.trim()}`;
-                                const 교사Key = `교사-${row.교사지역.trim()}-${
-                                    row.교사팀.trim().split('-')[0]
-                                }-${row.교사이름.trim()}`;
-                                return (
-                                    <TableRow
-                                        key={i}
-                                        index={i}
-                                        row={row}
-                                        errors={errorsData[i]}
-                                        memberCheckStatus={{
-                                            인도자: memberCheckStatus[인도자Key],
-                                            교사: memberCheckStatus[교사Key],
-                                        }}
-                                        onChange={handleChange}
-                                        onDelete={() => handleDeleteRow(i)}
-                                        selectStages={단계순서}
-                                    />
-                                );
-                            })}
+                            {data.map((row, i) => (
+                                <TableRow
+                                    key={i}
+                                    index={i}
+                                    row={row}
+                                    errors={errorsData[i]}
+                                    onChange={handleChange}
+                                    onDelete={() => handleDeleteRow(i)}
+                                    selectStages={단계순서}
+                                />
+                            ))}
                         </tbody>
                     </table>
                 </Spin>

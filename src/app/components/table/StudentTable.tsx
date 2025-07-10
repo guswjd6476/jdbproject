@@ -7,23 +7,6 @@ import TableRow from './TableRow';
 import AddRowButton from './AddRowButton';
 import { Card, CardContent } from '../ui/Card';
 
-// Student 타입 (예시, 실제로는 '@/app/lib/types'에서 가져옵니다)
-// export interface Student {
-//   단계: string;
-//   이름: string;
-//   연락처: string;
-//   생년월일: string;
-//   인도자지역: string;
-//   인도자팀: string;
-//   인도자이름: string;
-//   교사지역: string;
-//   교사팀: string;
-//   교사이름: string;
-//   번호: string;
-//   인도자_고유번호: number | null;
-//   교사_고유번호: number | null;
-// }
-
 const initialRow: Student = {
     단계: '',
     이름: '',
@@ -106,10 +89,6 @@ export default function StudentTable() {
                                         onChange={handleChange}
                                         errors={[]}
                                         selectStages={[]}
-                                        memberCheckStatus={{
-                                            인도자: null,
-                                            교사: null,
-                                        }}
                                     />
                                 ))}
                             </tbody>

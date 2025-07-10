@@ -62,14 +62,17 @@ export default function TargetFilterPage() {
         { title: '교사팀', dataIndex: '교사팀', key: '교사팀', width: 100 },
         { title: '교사이름', dataIndex: '교사이름', key: '교사이름', width: 100 }, // 추가됨
         { title: 'Target', dataIndex: 'target', key: 'target', width: 100 },
-        { title: 'Try Date', dataIndex: 'trydate', key: 'trydate', width: 120 },
+        {
+            title: 'Try Date',
+            dataIndex: 'trydate',
+            key: 'trydate',
+            width: 120,
+            render: (value: string) => (value ? value.slice(0, 10) : ''),
+        },
     ];
 
     return (
-        <Spin
-            spinning={isLoading}
-            tip="데이터 불러오는 중..."
-        >
+        <Spin spinning={isLoading} tip="데이터 불러오는 중...">
             <div className="p-6">
                 <h2 className="text-xl font-bold mb-4">개강별 기준 학생 필터링</h2>
 
@@ -82,10 +85,7 @@ export default function TargetFilterPage() {
                         onChange={(value) => setSelectedTarget(value ?? null)}
                     >
                         {targetOptions.map((t) => (
-                            <Option
-                                key={t}
-                                value={t}
-                            >
+                            <Option key={t} value={t}>
                                 {t}
                             </Option>
                         ))}

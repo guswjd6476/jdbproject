@@ -26,7 +26,8 @@ export default function LoginPage() {
 
             if (res.ok) {
                 login();
-                router.push('/dashboard');
+                alert('로그인되었습니다');
+                router.push('/');
             } else {
                 setError(data.error || '로그인 실패');
             }
