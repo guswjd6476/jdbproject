@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export default function LoginPage() {
@@ -7,7 +6,6 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const router = useRouter();
     const login = useAuthStore((state) => state.login);
 
     const handleLogin = async () => {
