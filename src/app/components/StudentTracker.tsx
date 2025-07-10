@@ -55,6 +55,12 @@ async function checkPreviousStageExists(
 async function validatePreviousStageForSubmit(row: Student, allRows: Student[]): Promise<string[]> {
     const errors: string[] = [];
     const stage = row.단계.trim().toUpperCase();
+
+    if (stage === '탈락') {
+        // 탈락 단계는 유효성 검사 제외
+        return errors;
+    }
+
     if (!단계순서.includes(stage)) {
         errors.push('유효한 단계가 아닙니다.');
         return errors;
