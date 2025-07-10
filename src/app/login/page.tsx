@@ -25,8 +25,7 @@ export default function LoginPage() {
             if (res.ok) {
                 login();
 
-                // ✅ 쿠키가 설정되었음을 보장하기 위해 새로고침 or replace 사용
-                window.location.href = '/'; // 또는 router.replace('/');
+                window.location.href = '/';
             } else {
                 setError(data.error || '로그인 실패');
             }

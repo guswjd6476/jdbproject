@@ -25,7 +25,7 @@ export default function RegionWiseRemarks() {
             }
         });
         setTargets(initialTargets);
-    }, []);
+    }, [students]);
 
     const currentMonth = dayjs().month();
     const monthOptions = useMemo(() => {
