@@ -1,5 +1,3 @@
-'use client';
-
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -26,8 +24,9 @@ export default function LoginPage() {
 
             if (res.ok) {
                 login();
-                alert('로그인되었습니다');
-                router.push('/');
+
+                // ✅ 쿠키가 설정되었음을 보장하기 위해 새로고침 or replace 사용
+                window.location.href = '/'; // 또는 router.replace('/');
             } else {
                 setError(data.error || '로그인 실패');
             }
