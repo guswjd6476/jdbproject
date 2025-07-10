@@ -46,7 +46,6 @@ async function checkPreviousStageExists(
         const res = await fetch(`/api/students/checkPreviousStage?${query}`);
         if (!res.ok) return false;
         const json = await res.json();
-        console.log(json, '?joson');
         return json.exists === true;
     } catch {
         return false;
@@ -69,12 +68,10 @@ async function validatePreviousStageForSubmit(row: Student, allRows: Student[]):
     if (currentStageIndex > 0) {
         const previousStage = 단계순서[currentStageIndex - 1];
 
-        // UI 내 존재 여부 확인
         const previousExistsInUI = allRows.some(
             (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === previousStage
         );
 
-        // DB 확인
         const previousExistsInDB = await checkPreviousStageExists(
             row.이름.trim(),
             row.인도자지역.trim(),
@@ -107,21 +104,20 @@ async function validatePreviousStageForSubmit(row: Student, allRows: Student[]):
 function validateRow(row: Student): string[] {
     const errors: string[] = [];
     const stage = row.단계.trim().toUpperCase();
-    if (!단계순서.includes(stage)) errors.push('유효한 단계가 아닙니다.');
-    if (!row.이름.trim()) errors.push('이름이 필요합니다.');
 
-    if (stage === 'A' && !row.연락처.trim()) {
-        errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
-    }
-    if (stage === 'B' && !row.생년월일.trim()) {
-        errors.push('B단계는 생년월일이 필요합니다.');
-    }
+    if (!단계순서.includes(stage)) errors.push('유효한 단계가 아닙니다.');
+    if (stage === '탈락') return errors; // 탈락이면 추가 검사 skip
+
+    if (!row.이름.trim()) errors.push('이름이 필요합니다.');
+    if (stage === 'A' && !row.연락처.trim()) errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
+    if (stage === 'B' && !row.생년월일.trim()) errors.push('B단계는 생년월일이 필요합니다.');
     if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
         const skip = isSkipTeamCheck(row.교사팀);
         if (!skip && (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim())) {
             errors.push('C~F단계는 교사 정보(지역, 팀, 이름)가 필요합니다.');
         }
     }
+
     return errors;
 }
 
@@ -146,6 +142,10 @@ export default function StudentTracker() {
     const [success, setSuccess] = useState<string | null>(null);
     const [memberCheckCache, setMemberCheckCache] = useState<Record<string, boolean>>({});
     const [memberCheckStatus, setMemberCheckStatus] = useState<Record<string, boolean | null>>({});
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const isSaveDisabledByTime = currentHour >= 21 && currentHour < 24;
 
     const debouncedCheckMember = useMemo(() => {
         return debounce(async (key: string, region: string, team: string, name: string, updateErrors: () => void) => {
@@ -350,20 +350,37 @@ export default function StudentTracker() {
                     <AddRowButton onClick={addRows} />
                     <button
                         onClick={handleSubmit}
-                        disabled={loading}
-                        className="px-4 py-2 bg-blue-600 text-white rounded"
+                        disabled={loading || isSaveDisabledByTime}
+                        className={`px-4 py-2 rounded text-white ${
+                            loading || isSaveDisabledByTime ? 'bg-gray-400' : 'bg-blue-600'
+                        }`}
                     >
                         저장하기
                     </button>
                     <div>
-                        {error && <Alert message={error} type="error" showIcon />}
-                        {success && <Alert message={success} type="success" showIcon />}
+                        {error && (
+                            <Alert
+                                message={error}
+                                type="error"
+                                showIcon
+                            />
+                        )}
+                        {success && (
+                            <Alert
+                                message={success}
+                                type="success"
+                                showIcon
+                            />
+                        )}
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
                 <Spin spinning={loading}>
-                    <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
+                    <table
+                        className="border-collapse border border-slate-400"
+                        onPaste={handlePaste}
+                    >
                         <TableHeader />
                         <tbody>
                             {data.map((row, i) => (

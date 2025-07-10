@@ -62,7 +62,6 @@ export default function DashboardPage() {
             if (stepIsCF && selectedMonthStr !== null && cleanTarget !== selectedMonthStr) return;
 
             if (stepIsCF) {
-                // 인도자 기준
                 if (REGIONS.includes(인도자지역) && 인도자팀) {
                     const 팀 = 인도자팀.includes('-') ? 인도자팀.split('-')[0] : 인도자팀;
                     const 점수key = `${인도자지역}-${팀}`;
@@ -73,7 +72,6 @@ export default function DashboardPage() {
                     보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
                 }
 
-                // 교사 기준
                 if (REGIONS.includes(교사지역) && 교사팀) {
                     const 팀 = 교사팀.includes('-') ? 교사팀.split('-')[0] : 교사팀;
                     const 점수key = `${교사지역}-${팀}`;
