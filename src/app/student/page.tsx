@@ -43,7 +43,6 @@ export default function DashboardPage() {
                 });
 
                 setEnrollmentMap(map);
-                console.log(map, '← 재적 맵');
             } catch (error) {
                 console.error('재적 불러오기 실패:', error);
             }

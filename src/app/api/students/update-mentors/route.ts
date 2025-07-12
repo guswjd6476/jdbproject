@@ -31,8 +31,6 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { 번호, 단계, 인도자이름, 인도자지역, 인도자팀, 교사이름, 교사지역, 교사팀 } = body;
 
-        console.log(번호, 단계, 인도자이름, 인도자지역, 인도자팀, 교사이름, 교사지역, 교사팀, '?');
-
         if (!번호 || !인도자이름 || !인도자지역 || !인도자팀) {
             return NextResponse.json({ success: false, message: '필수 정보 누락' }, { status: 400 });
         }

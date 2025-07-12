@@ -115,7 +115,6 @@ export default function MentorChanger() {
                 body: JSON.stringify(updated),
             });
             const result = await res.json();
-            console.log('서버 응답:', result);
             if (!res.ok || !result.success) {
                 throw new Error(result.message || '업데이트 실패');
             }
@@ -145,7 +144,11 @@ export default function MentorChanger() {
                     onChange={(e) => setSearchKeyword(e.target.value)}
                     allowClear
                 />
-                <Button type="primary" onClick={fetchStudents} style={{ marginTop: 8 }}>
+                <Button
+                    type="primary"
+                    onClick={fetchStudents}
+                    style={{ marginTop: 8 }}
+                >
                     검색
                 </Button>
 
@@ -232,7 +235,10 @@ export default function MentorChanger() {
                     </div>
 
                     <div style={{ textAlign: 'right', marginTop: 16 }}>
-                        <Button type="primary" onClick={handleSave}>
+                        <Button
+                            type="primary"
+                            onClick={handleSave}
+                        >
                             저장
                         </Button>
                     </div>
