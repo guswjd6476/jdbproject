@@ -216,6 +216,7 @@ export default function DashboardPage() {
                             지역: '',
                             팀: team,
                             구역,
+                            재적: 0,
                             탈락: stepData['탈락'] ?? 0,
                             ...STEPS.reduce((acc, step) => {
                                 const 보유key = `${team}-${구역}-${step}`;
@@ -243,6 +244,7 @@ export default function DashboardPage() {
                             월: month === '전체' ? '전체 합계' : `${month}월`,
                             지역: region,
                             팀: team,
+                            재적: 0,
                             탈락: stepData['탈락'] ?? 0,
                             ...STEPS.reduce((acc, step) => {
                                 const 보유key = `${region}-${team}-${step}`;
@@ -264,6 +266,7 @@ export default function DashboardPage() {
         const totalRow: TableRow = {
             key: 'total',
             월: '전체 합계',
+            재적: 0,
             지역: '',
             팀: '',
             구역: '',
@@ -360,8 +363,15 @@ export default function DashboardPage() {
         <div className="w-full mx-auto p-6">
             <Title level={2}>월별 · 지역별 · 팀별 대시보드</Title>
 
-            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
-                <Space wrap size="middle">
+            <Space
+                direction="vertical"
+                size="large"
+                style={{ marginBottom: 24, width: '100%' }}
+            >
+                <Space
+                    wrap
+                    size="middle"
+                >
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
@@ -439,7 +449,10 @@ export default function DashboardPage() {
                     <Button onClick={handleReset}>초기화</Button>
                 </Space>
 
-                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
+                <Spin
+                    spinning={isLoading}
+                    tip="데이터를 불러오는 중입니다..."
+                >
                     <Table<TableRow>
                         columns={columns}
                         dataSource={[...tableData, totalRow]}

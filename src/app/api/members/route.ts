@@ -1,4 +1,5 @@
 import { pool } from '@/app/lib/db';
+import { REGIONS } from '@/app/lib/types';
 import { NextResponse } from 'next/server';
 
 interface Member {
@@ -11,7 +12,30 @@ interface Member {
     지역: string;
     구역: string;
 }
+export async function GET() {
+    const client = await pool.connect();
+    try {
+        const query = `
+            SELECT
+                지역,
+                split_part(구역, '-', 1) AS 팀,
+                COUNT(*) AS 재적
+            FROM members
+            WHERE 지역 = ANY($1)
+            GROUP BY 지역, 팀
+        `;
+        const values = [REGIONS];
 
+        const { rows } = await client.query(query, values);
+
+        return NextResponse.json(rows);
+    } catch (error) {
+        console.error(error);
+        return NextResponse.json({ error: '서버 오류' }, { status: 500 });
+    } finally {
+        client.release();
+    }
+}
 export async function POST(request: Request) {
     const members: Member[] = await request.json();
 

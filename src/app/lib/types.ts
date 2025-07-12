@@ -102,7 +102,14 @@ export interface TableRow {
     탈락: number;
     [key: string]: string | number | undefined;
 }
-
+export interface TableRow3 {
+    key: string;
+    지역: string;
+    팀: string;
+    탈락: number;
+    재적: number;
+    [key: string]: string | number | undefined;
+}
 export interface TableRow2 {
     key: string;
     지역: string;

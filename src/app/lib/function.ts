@@ -97,6 +97,7 @@ export const calculateAchievements = (
         key: 'total',
         지역: '',
         팀: '',
+
         탈락: 0,
         ...['A', 'B', 'C', 'D', 'F'].reduce(
             (acc, step) => ({

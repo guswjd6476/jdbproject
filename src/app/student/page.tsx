@@ -1,26 +1,56 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Table, Select, Typography, Space, Spin, Button } from 'antd';
 import dayjs from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
-import { REGIONS, TableRow } from '@/app/lib/types';
-import type { STEP2 } from '@/app/lib/types';
+import { REGIONS } from '@/app/lib/types';
+import type { STEP2, TableRow3 } from '@/app/lib/types';
 import { STEPS2 } from '@/app/lib/types';
 
 const { Title } = Typography;
+
+interface Enrollment {
+    지역: string;
+    팀: string;
+    재적: number;
+}
 
 export default function DashboardPage() {
     const { data: students = [], isLoading } = useStudentsQuery();
 
     const [selectedYear, setSelectedYear] = useState<number>(dayjs().year());
     const [selectedTargetMonth, setSelectedTargetMonth] = useState<number | null>(null);
+    const [enrollmentMap, setEnrollmentMap] = useState<Record<string, number>>({});
 
     const monthOptions = Array.from({ length: 12 }, (_, i) => ({ label: `${i + 1}월`, value: i + 1 }));
     const yearOptions = [dayjs().year() - 1, dayjs().year(), dayjs().year() + 1].map((y) => ({
         value: y,
         label: `${y}년`,
     }));
+
+    useEffect(() => {
+        const fetchEnrollment = async () => {
+            try {
+                const res = await fetch('/api/members'); // GET 요청
+                if (!res.ok) throw new Error('서버 응답 오류');
+
+                const data: Enrollment[] = await res.json();
+                const map: Record<string, number> = {};
+
+                data.forEach(({ 지역, 팀, 재적 }) => {
+                    map[`${지역}-${팀}`] = 재적;
+                });
+
+                setEnrollmentMap(map);
+                console.log(map, '← 재적 맵');
+            } catch (error) {
+                console.error('재적 불러오기 실패:', error);
+            }
+        };
+
+        fetchEnrollment();
+    }, []);
 
     const regionTeamsMap = useMemo(() => {
         const map: Record<string, string[]> = {};
@@ -38,7 +68,6 @@ export default function DashboardPage() {
             if (!map[지역].includes(팀)) map[지역].push(팀);
         });
 
-        // 각 지역별 팀 정렬
         Object.keys(map).forEach((region) => {
             map[region].sort((a, b) => {
                 const numA = parseInt(a, 10);
@@ -51,7 +80,7 @@ export default function DashboardPage() {
         return map;
     }, [students]);
 
-    const renderData: TableRow[] = useMemo(() => {
+    const renderData: TableRow3[] = useMemo(() => {
         const 보유건Map: Record<string, number> = {};
         const 점수Map: Record<string, number> = {};
 
@@ -98,7 +127,7 @@ export default function DashboardPage() {
             }
         });
 
-        const rows: TableRow[] = [];
+        const rows: TableRow3[] = [];
 
         REGIONS.forEach((region) => {
             const teams = regionTeamsMap[region];
@@ -106,11 +135,12 @@ export default function DashboardPage() {
 
             teams.forEach((team) => {
                 const keyBase = `${region}-${team}`;
-                const row: TableRow = {
+                const row: TableRow3 = {
                     key: `${selectedTargetMonth ?? '전체'}-${region}-${team}`,
                     월: selectedTargetMonth ? `${selectedTargetMonth}월` : '전체',
                     지역: region,
                     팀: team,
+                    재적: enrollmentMap[keyBase] ?? 0,
                     탈락: 0,
                 };
 
@@ -125,11 +155,12 @@ export default function DashboardPage() {
             });
         });
 
-        const totalRow: TableRow = {
+        const totalRow: TableRow3 = {
             key: 'total',
             월: '전체 합계',
             지역: '',
             팀: '',
+            재적: 0,
             탈락: 0,
             ...Object.fromEntries(
                 STEPS2.flatMap((s) => [
@@ -140,6 +171,8 @@ export default function DashboardPage() {
         };
 
         rows.forEach((row) => {
+            totalRow['재적'] = Number(totalRow['재적'] ?? 0) + Number(row['재적'] ?? 0); // ✅ 꼭 Number로 감싸기
+
             STEPS2.forEach((step) => {
                 totalRow[step] = Number(totalRow[step] ?? 0) + Number(row[step] ?? 0);
                 totalRow[`${step}_보유`] = Number(totalRow[`${step}_보유`] ?? 0) + Number(row[`${step}_보유`] ?? 0);
@@ -147,14 +180,21 @@ export default function DashboardPage() {
         });
 
         return [...rows, totalRow];
-    }, [students, selectedTargetMonth, regionTeamsMap]);
+    }, [students, selectedTargetMonth, regionTeamsMap, enrollmentMap]);
 
     return (
         <div className="w-full mx-auto p-6">
             <Title level={2}>개강 점검</Title>
 
-            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
-                <Space wrap size="middle">
+            <Space
+                direction="vertical"
+                size="large"
+                style={{ marginBottom: 24, width: '100%' }}
+            >
+                <Space
+                    wrap
+                    size="middle"
+                >
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
@@ -181,11 +221,15 @@ export default function DashboardPage() {
                     </Button>
                 </Space>
 
-                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
-                    <Table<TableRow>
+                <Spin
+                    spinning={isLoading}
+                    tip="데이터를 불러오는 중입니다..."
+                >
+                    <Table<TableRow3>
                         columns={[
                             { title: '지역', dataIndex: '지역', key: 'region', fixed: 'left', width: 100 },
                             { title: '팀', dataIndex: '팀', key: 'team', fixed: 'left', width: 100 },
+                            { title: '재적', dataIndex: '재적', key: '재적', width: 80 },
                             ...STEPS2.flatMap((step) => [
                                 {
                                     title: `${step}`,

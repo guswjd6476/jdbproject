@@ -1,5 +1,5 @@
 'use client';
-
+import { useUser } from '@/app/hook/useUser';
 import React, { useState, useMemo } from 'react';
 import debounce from 'lodash.debounce';
 import TableHeader from './table/TableHeader';
@@ -148,10 +148,10 @@ export default function StudentTracker() {
     const [success, setSuccess] = useState<string | null>(null);
     const [memberCheckCache, setMemberCheckCache] = useState<Record<string, boolean>>({});
     const [memberCheckStatus, setMemberCheckStatus] = useState<Record<string, boolean | null>>({});
-
+    const { isAdmin } = useUser();
     const now = new Date();
     const currentHour = now.getHours();
-    const isSaveDisabledByTime = currentHour >= 21 && currentHour < 24;
+    const isSaveDisabledByTime = !isAdmin && currentHour >= 21 && currentHour < 24;
 
     const debouncedCheckMember = useMemo(() => {
         return debounce(async (key: string, region: string, team: string, name: string, updateErrors: () => void) => {
@@ -321,7 +321,7 @@ export default function StudentTracker() {
 
         const now = new Date();
         const currentHour = now.getHours();
-        if (currentHour >= 21 && currentHour < 24) {
+        if (!isAdmin && currentHour >= 21 && currentHour < 24) {
             setError('일일보고시간이 마감되었습니다.');
             setLoading(false);
             return;
@@ -373,14 +373,29 @@ export default function StudentTracker() {
                         저장하기
                     </button>
                     <div>
-                        {error && <Alert message={error} type="error" showIcon />}
-                        {success && <Alert message={success} type="success" showIcon />}
+                        {error && (
+                            <Alert
+                                message={error}
+                                type="error"
+                                showIcon
+                            />
+                        )}
+                        {success && (
+                            <Alert
+                                message={success}
+                                type="success"
+                                showIcon
+                            />
+                        )}
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
                 <Spin spinning={loading}>
-                    <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
+                    <table
+                        className="border-collapse border border-slate-400"
+                        onPaste={handlePaste}
+                    >
                         <TableHeader />
                         <tbody>
                             {data.map((row, i) => (
