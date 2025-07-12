@@ -6,17 +6,20 @@ import type { ColumnsType } from 'antd/es/table';
 import type { FilterValue } from 'antd/es/table/interface';
 import { useStudentsQuery, Students } from '../hook/useStudentsQuery';
 import dayjs from 'dayjs';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 const { Search } = Input;
 const COMPLETION_KEYS = ['a', 'b', 'c', 'd-1', 'd-2', 'e', 'f', 'g'] as const;
 
 export default function StudentViewer() {
     const { data: students = [], isLoading } = useStudentsQuery();
-    console.log(students, '?stu');
+
     const [searchText, setSearchText] = useState('');
     const [filters, setFilters] = useState<Record<string, FilterValue | null>>({});
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
     const [visibleId, setVisibleId] = useState<number | null>(null);
+
     const allRegions = useMemo(() => {
         const regions = new Set<string>();
         students.forEach((s) => {
@@ -64,7 +67,6 @@ export default function StudentViewer() {
         title,
         dataIndex,
         key: dataIndex,
-
         width: 120,
         filters: getFilterOptions(dataIndex),
         filteredValue: filters[dataIndex as string] || null,
@@ -133,6 +135,48 @@ export default function StudentViewer() {
         ...completionColumns,
     ];
 
+    const handleExportToExcel = () => {
+        const exportData = filteredStudents.map((student) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const row: Record<string, any> = {
+                번호: student.번호,
+                단계: student.단계,
+                이름: student.이름,
+                연락처: student.연락처,
+                생년월일: student.생년월일,
+
+                // 인도자 정보 분리
+                인도자지역: student.인도자지역 ?? '',
+                인도자구역: student.인도자팀 ?? '',
+                인도자이름: student.인도자이름 ?? '',
+
+                // 교사 정보 분리
+                교사지역: student.교사지역 ?? '',
+                교사구역: student.교사팀 ?? '',
+                교사이름: student.교사이름 ?? '',
+            };
+
+            // 완료일 추가
+            COMPLETION_KEYS.forEach((key) => {
+                const label = key === 'g' ? '탈락 완료일' : `${key.toUpperCase()} 완료일`;
+                row[label] = student[key] ? dayjs(student[key]).format('YYYY-MM-DD') : '';
+            });
+
+            return row;
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, '수강생 목록');
+
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([excelBuffer], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+
+        saveAs(blob, `수강생목록_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`);
+    };
+
     return (
         <div className="p-4 md:p-6 max-w-full">
             <h1 className="text-xl md:text-2xl font-bold mb-4">수강생 조회</h1>
@@ -153,6 +197,11 @@ export default function StudentViewer() {
                             </Button>
                         ))}
                     </div>
+
+                    {/* 엑셀 추출 버튼 */}
+                    <Button onClick={handleExportToExcel} type="default" className="mb-4">
+                        엑셀로 내보내기
+                    </Button>
 
                     {/* 검색창 */}
                     <Search

@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
                 s.연락처, 
 				s.target,
 				s.trydate,
+                s.numberofweek,
                 s.생년월일,
                 s.a_완료일 AS "a",
                 s.b_완료일 AS "b",

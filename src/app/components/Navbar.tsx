@@ -1,25 +1,27 @@
+// Navbar.tsx
 'use client';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useEffect } from 'react';
+import { useUser } from '@/app/hook/useUser';
 
 export default function Navbar() {
     const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
     const logout = useAuthStore((state) => state.logout);
     const router = useRouter();
+    const { isAdmin } = useUser(); // 관리자 여부 가져오기
 
     const handleLogout = async () => {
         const confirmed = window.confirm('정말 로그아웃하시겠습니까?');
         if (!confirmed) return;
 
         await fetch('/api/logout', { method: 'POST' });
-        logout(); // 상태 변경
+        logout();
         router.push('/login');
     };
 
-    // 초기 쿠키 검사 (선택)
     useEffect(() => {
         if (document.cookie.includes('token')) {
             useAuthStore.setState({ isLoggedIn: true });
@@ -45,6 +47,13 @@ export default function Navbar() {
                             수강생 관리
                         </Link>
                     </li>
+                    {isAdmin && (
+                        <li>
+                            <Link href="/admin" className="hover:underline">
+                                관리자
+                            </Link>
+                        </li>
+                    )}
                     <li>
                         {isLoggedIn ? (
                             <button onClick={handleLogout} className="text-red-500 hover:underline">

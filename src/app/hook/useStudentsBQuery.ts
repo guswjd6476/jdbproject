@@ -12,6 +12,7 @@ export type Students = {
     교사이름?: string;
     target?: string;
     trydate?: string;
+    numberofweek?: string;
 };
 
 async function fetchStudentsB(): Promise<Students[]> {

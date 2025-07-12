@@ -23,7 +23,8 @@ export default function DashboardPage() {
     }));
 
     const regionTeamsMap = useMemo(() => {
-        const map: Record<string, Set<string>> = {};
+        const map: Record<string, string[]> = {};
+
         students.forEach((s) => {
             const 지역 = (s.인도자지역 ?? '').trim();
             if (!REGIONS.includes(지역)) return;
@@ -33,9 +34,20 @@ export default function DashboardPage() {
 
             const 팀 = raw구역.includes('-') ? raw구역.split('-')[0] : raw구역;
 
-            if (!map[지역]) map[지역] = new Set<string>();
-            map[지역].add(팀);
+            if (!map[지역]) map[지역] = [];
+            if (!map[지역].includes(팀)) map[지역].push(팀);
         });
+
+        // 각 지역별 팀 정렬
+        Object.keys(map).forEach((region) => {
+            map[region].sort((a, b) => {
+                const numA = parseInt(a, 10);
+                const numB = parseInt(b, 10);
+                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                return a.localeCompare(b);
+            });
+        });
+
         return map;
     }, [students]);
 
@@ -50,7 +62,6 @@ export default function DashboardPage() {
             const isCF단계 = ['C', 'D-1', 'D-2', 'E', 'F'].includes(단계);
             const isAB단계 = ['A', 'B'].includes(단계);
 
-            // 🔸 월 필터: C~F만 적용
             if (isCF단계 && selectedTargetMonth) {
                 const targetMonth = `${selectedTargetMonth}월`;
                 if (s.target?.trim() !== targetMonth) return;
