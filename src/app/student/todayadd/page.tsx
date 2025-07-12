@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Table, Typography, DatePicker, Input, message, Space } from 'antd';
+import { Table, Typography, DatePicker, Input, message, Space, Button, Popconfirm } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { SearchOutlined } from '@ant-design/icons';
+import { useUser } from '@/app/hook/useUser';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -23,10 +24,13 @@ interface StudentBrief {
 
 export default function TodayStudentList() {
     const [students, setStudents] = useState<StudentBrief[]>([]);
-    const [loading, setLoading] = useState<boolean>(false);
+    const [loading, setLoading] = useState(false);
+    const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
     const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('day'), dayjs().endOf('day')]);
-    const [searchText, setSearchText] = useState<string>('');
+    const [searchText, setSearchText] = useState('');
     const [visibleId, setVisibleId] = useState<number | null>(null);
+    const { isAdmin } = useUser();
+
     const fetchStudents = async (start: string, end: string) => {
         setLoading(true);
         try {
@@ -41,9 +45,42 @@ export default function TodayStudentList() {
         }
     };
 
-    useEffect(() => {
+    const handleDelete = async (id: number) => {
+        try {
+            const res = await fetch('/api/students/delete', {
+                method: 'DELETE',
+                body: JSON.stringify({ ids: [id] }),
+            });
+            if (!res.ok) throw new Error('삭제 실패');
+            message.success('삭제 완료');
+            refreshList();
+        } catch {
+            message.error('삭제 중 오류 발생');
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        try {
+            const res = await fetch('/api/students/delete', {
+                method: 'DELETE',
+                body: JSON.stringify({ ids: selectedRowKeys }),
+            });
+            if (!res.ok) throw new Error('일괄 삭제 실패');
+            message.success('일괄 삭제 완료');
+            setSelectedRowKeys([]);
+            refreshList();
+        } catch {
+            message.error('삭제 중 오류 발생');
+        }
+    };
+
+    const refreshList = () => {
         const [start, end] = dateRange;
         fetchStudents(start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD'));
+    };
+
+    useEffect(() => {
+        refreshList();
     }, [dateRange]);
 
     const filteredStudents = useMemo(() => {
@@ -56,10 +93,16 @@ export default function TodayStudentList() {
 
     const columns: ColumnsType<StudentBrief> = [
         {
+            title: '번호',
+            dataIndex: 'id',
+            key: 'id',
+        },
+        {
             title: '이름',
             dataIndex: '이름',
             key: '이름',
             width: 80,
+            sorter: (a, b) => a.이름.localeCompare(b.이름),
             render: (name: string, record) => {
                 const isVisible = visibleId === record.id;
                 const maskedName = (() => {
@@ -72,9 +115,7 @@ export default function TodayStudentList() {
                 return (
                     <div
                         onClick={() => {
-                            if (typeof record.id === 'number') {
-                                setVisibleId(isVisible ? null : record.id);
-                            }
+                            setVisibleId(isVisible ? null : record.id);
                         }}
                         className="cursor-pointer flex items-center gap-1"
                     >
@@ -92,7 +133,7 @@ export default function TodayStudentList() {
         {
             title: '인도자',
             key: '인도자',
-            render: (_unused: unknown, record: StudentBrief) =>
+            render: (_, record) =>
                 record.인도자지역 && record.인도자구역 && record.인도자이름
                     ? `${record.인도자지역} / ${record.인도자구역} / ${record.인도자이름}`
                     : '-',
@@ -104,7 +145,7 @@ export default function TodayStudentList() {
         {
             title: '교사',
             key: '교사',
-            render: (_unused: unknown, record: StudentBrief) =>
+            render: (_, record) =>
                 record.교사지역 && record.교사구역 && record.교사이름
                     ? `${record.교사지역} / ${record.교사구역} / ${record.교사이름}`
                     : '-',
@@ -114,6 +155,28 @@ export default function TodayStudentList() {
                 ),
         },
     ];
+
+    if (isAdmin) {
+        columns.push({
+            title: '삭제',
+            key: '삭제',
+            render: (_, record) => (
+                <Popconfirm
+                    title="정말 삭제하시겠습니까?"
+                    onConfirm={() => handleDelete(record.id)}
+                    okText="삭제"
+                    cancelText="취소"
+                >
+                    <Button
+                        danger
+                        size="small"
+                    >
+                        삭제
+                    </Button>
+                </Popconfirm>
+            ),
+        });
+    }
 
     return (
         <div className="mt-6 px-4 max-w-screen-lg mx-auto">
@@ -133,18 +196,9 @@ export default function TodayStudentList() {
                     }}
                     allowClear={false}
                     presets={[
-                        {
-                            label: '오늘',
-                            value: [dayjs().startOf('day'), dayjs().endOf('day')],
-                        },
-                        {
-                            label: '이번 주',
-                            value: [dayjs().startOf('week'), dayjs().endOf('week')],
-                        },
-                        {
-                            label: '이번 달',
-                            value: [dayjs().startOf('month'), dayjs().endOf('month')],
-                        },
+                        { label: '오늘', value: [dayjs().startOf('day'), dayjs().endOf('day')] },
+                        { label: '이번 주', value: [dayjs().startOf('week'), dayjs().endOf('week')] },
+                        { label: '이번 달', value: [dayjs().startOf('month'), dayjs().endOf('month')] },
                     ]}
                 />
 
@@ -156,10 +210,29 @@ export default function TodayStudentList() {
                     allowClear
                 />
 
+                {isAdmin && selectedRowKeys.length > 0 && (
+                    <Popconfirm
+                        title="선택한 명단을 삭제하시겠습니까?"
+                        onConfirm={handleBulkDelete}
+                        okText="삭제"
+                        cancelText="취소"
+                    >
+                        <Button danger>선택 삭제 ({selectedRowKeys.length}명)</Button>
+                    </Popconfirm>
+                )}
+
                 <Table
                     dataSource={filteredStudents}
                     columns={columns}
                     rowKey="id"
+                    rowSelection={
+                        isAdmin
+                            ? {
+                                  selectedRowKeys,
+                                  onChange: (keys) => setSelectedRowKeys(keys as number[]),
+                              }
+                            : undefined
+                    }
                     loading={loading}
                     bordered
                     locale={{ emptyText: '해당 기간에 등록/수정된 명단이 없습니다.' }}

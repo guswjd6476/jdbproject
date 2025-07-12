@@ -6,14 +6,22 @@ export async function DELETE(req: NextRequest) {
     const client = await pool.connect();
 
     try {
-        const { id } = await req.json();
+        const body = await req.json();
+        const { id, ids } = body;
 
-        if (typeof id !== 'number' || isNaN(id)) {
-            return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+        // 단일 삭제
+        if (typeof id === 'number') {
+            await client.query('DELETE FROM students WHERE id = $1', [id]);
+            return NextResponse.json({ success: true, deleted: [id] });
         }
 
-        await client.query('DELETE FROM students WHERE id = $1', [id]);
-        return NextResponse.json({ success: true });
+        // 복수 삭제
+        if (Array.isArray(ids) && ids.every((i) => typeof i === 'number')) {
+            await client.query(`DELETE FROM students WHERE id = ANY($1::int[])`, [ids]);
+            return NextResponse.json({ success: true, deleted: ids });
+        }
+
+        return NextResponse.json({ error: 'Invalid id(s)' }, { status: 400 });
     } catch (error) {
         console.error('삭제 실패:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
