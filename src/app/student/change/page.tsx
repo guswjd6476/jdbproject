@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Input, List, Typography, Card, Button } from 'antd';
 
 interface MentorInfo {
-    id: number;
+    번호: number;
     이름: string;
     인도자지역: string;
     인도자팀: string;
@@ -98,7 +98,7 @@ export default function MentorChanger() {
         }
 
         const updated = {
-            id: Number(selectedStudent.id),
+            번호: Number(selectedStudent.번호),
             단계: selectedStudent.단계 ?? '',
             인도자이름,
             인도자지역,
@@ -157,17 +157,17 @@ export default function MentorChanger() {
                     style={{ marginTop: 12, maxHeight: 300, overflowY: 'auto' }}
                     renderItem={(item) => (
                         <List.Item
-                            key={item.id}
+                            key={item.번호}
                             onClick={() => handleSelectStudent(item)}
                             style={{
                                 cursor: 'pointer',
-                                backgroundColor: selectedStudent?.id === item.id ? '#e6f7ff' : undefined,
+                                backgroundColor: selectedStudent?.번호 === item.번호 ? '#e6f7ff' : undefined,
                                 whiteSpace: 'nowrap',
                             }}
                         >
                             <div style={{ display: 'flex', gap: 12, width: '100%', fontSize: 14 }}>
                                 <div style={{ minWidth: 80 }}>
-                                    {item.이름} (번호: {item.id})
+                                    {item.이름} (번호: {item.번호})
                                 </div>
                                 <div style={{ minWidth: 120 }}>
                                     인도자: {item.인도자이름} ({item.인도자지역} {extractTeamNumber(item.인도자팀)})

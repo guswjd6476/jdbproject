@@ -7,7 +7,6 @@ function extractTeamNumber(team: string): string {
     return match ? match[0] : '';
 }
 
-// members 테이블에서 id 조회 (지역, 팀번호, 이름 기준)
 async function getMemberUniqueId(client: PoolClient, 지역: string, 팀: string, 이름: string): Promise<number | null> {
     const teamNumber = extractTeamNumber(팀);
     if (!teamNumber) return null;
@@ -30,10 +29,11 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { id, 단계, 인도자이름, 인도자지역, 인도자팀, 교사이름, 교사지역, 교사팀 } = body;
+        const { 번호, 단계, 인도자이름, 인도자지역, 인도자팀, 교사이름, 교사지역, 교사팀 } = body;
 
-        // 필수 입력값 검사
-        if (!id || !인도자이름 || !인도자지역 || !인도자팀) {
+        console.log(번호, 단계, 인도자이름, 인도자지역, 인도자팀, 교사이름, 교사지역, 교사팀, '?');
+
+        if (!번호 || !인도자이름 || !인도자지역 || !인도자팀) {
             return NextResponse.json({ success: false, message: '필수 정보 누락' }, { status: 400 });
         }
 
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
         await client.query(`UPDATE students SET 인도자_고유번호 = $1, 교사_고유번호 = $2 WHERE id = $3`, [
             인도자_고유번호,
             교사필요 ? 교사_고유번호 : null,
-            id,
+            번호,
         ]);
 
         await client.query('COMMIT');

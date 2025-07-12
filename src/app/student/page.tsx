@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Table, Select, Typography, Space, Spin, Button } from 'antd';
 import dayjs from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
@@ -25,102 +25,92 @@ export default function DashboardPage() {
     const regionTeamsMap = useMemo(() => {
         const map: Record<string, Set<string>> = {};
         students.forEach((s) => {
-            const 지역들 = [(s.인도자지역 ?? '').trim(), (s.교사지역 ?? '').trim()];
-            const 팀들 = [(s.인도자팀 ?? '').replace(/\s/g, ''), (s.교사팀 ?? '').replace(/\s/g, '')];
+            const 지역 = (s.인도자지역 ?? '').trim();
+            if (!REGIONS.includes(지역)) return;
 
-            지역들.forEach((지역, i) => {
-                if (!REGIONS.includes(지역)) return;
-                const 팀원본 = 팀들[i];
-                if (!팀원본) return;
-                const 팀 = 팀원본.includes('-') ? 팀원본.split('-')[0] : 팀원본;
+            const raw구역 = (s.인도자팀 ?? '').replace(/\s/g, '');
+            if (!raw구역) return;
 
-                if (!map[지역]) map[지역] = new Set<string>();
-                map[지역].add(팀);
-            });
+            const 팀 = raw구역.includes('-') ? raw구역.split('-')[0] : raw구역;
+
+            if (!map[지역]) map[지역] = new Set<string>();
+            map[지역].add(팀);
         });
         return map;
     }, [students]);
 
-    const { tableData, totalRow } = useMemo(() => {
+    const renderData: TableRow[] = useMemo(() => {
         const 보유건Map: Record<string, number> = {};
-        const 점수Map_AB: Record<string, number> = {};
-        const 점수Map_CF: Record<string, { indo: number; teacher: number }> = {};
+        const 점수Map: Record<string, number> = {};
 
         students.forEach((s) => {
+            const 단계 = (s.단계 ?? '').toUpperCase();
+            if (!STEPS2.includes(단계 as STEP2)) return;
+
+            const isCF단계 = ['C', 'D-1', 'D-2', 'E', 'F'].includes(단계);
+            const isAB단계 = ['A', 'B'].includes(단계);
+
+            // 🔸 월 필터: C~F만 적용
+            if (isCF단계 && selectedTargetMonth) {
+                const targetMonth = `${selectedTargetMonth}월`;
+                if (s.target?.trim() !== targetMonth) return;
+            }
+
             const 인도자지역 = (s.인도자지역 ?? '').trim();
-            const 교사지역 = (s.교사지역 ?? '').trim();
             const 인도자팀 = (s.인도자팀 ?? '').replace(/\s/g, '');
-            const 교사팀 = (s.교사팀 ?? '').replace(/\s/g, '');
+            const 인도자팀앞 = 인도자팀.includes('-') ? 인도자팀.split('-')[0] : 인도자팀;
 
-            const currentStep = (s.단계 ?? '').toUpperCase();
-            if (!STEPS2.includes(currentStep as STEP2)) return;
+            if (인도자지역 && 인도자팀앞 && REGIONS.includes(인도자지역)) {
+                const key = `${인도자지역}-${인도자팀앞}-${단계}`;
+                보유건Map[key] = (보유건Map[key] ?? 0) + 1;
+            }
 
-            const cleanTarget = (s.target ?? '').replace(/\s/g, '');
-            const selectedMonthStr = selectedTargetMonth !== null ? `${selectedTargetMonth}월` : null;
-            const stepIsCF = ['C', 'D-1', 'D-2', 'E', 'F'].includes(currentStep);
+            if (isAB단계) {
+                const 점수key = `${인도자지역}-${인도자팀앞}`;
+                점수Map[점수key] = (점수Map[점수key] ?? 0) + 1;
+            }
 
-            if (stepIsCF && selectedMonthStr !== null && cleanTarget !== selectedMonthStr) return;
+            if (isCF단계) {
+                const 교사지역 = (s.교사지역 ?? '').trim();
+                const 교사팀 = (s.교사팀 ?? '').replace(/\s/g, '');
+                const 교사팀앞 = 교사팀.includes('-') ? 교사팀.split('-')[0] : 교사팀;
 
-            if (stepIsCF) {
-                if (REGIONS.includes(인도자지역) && 인도자팀) {
-                    const 팀 = 인도자팀.includes('-') ? 인도자팀.split('-')[0] : 인도자팀;
-                    const 점수key = `${인도자지역}-${팀}`;
-                    if (!점수Map_CF[점수key]) 점수Map_CF[점수key] = { indo: 0, teacher: 0 };
-                    점수Map_CF[점수key].indo += 0.5;
+                const 인도자key = `${인도자지역}-${인도자팀앞}`;
+                const 교사key = `${교사지역}-${교사팀앞}`;
 
-                    const 보유key = `${인도자지역}-${팀}-${currentStep}`;
-                    보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
+                if (인도자지역 && 인도자팀앞 && REGIONS.includes(인도자지역)) {
+                    점수Map[인도자key] = (점수Map[인도자key] ?? 0) + 0.5;
                 }
-
-                if (REGIONS.includes(교사지역) && 교사팀) {
-                    const 팀 = 교사팀.includes('-') ? 교사팀.split('-')[0] : 교사팀;
-                    const 점수key = `${교사지역}-${팀}`;
-                    if (!점수Map_CF[점수key]) 점수Map_CF[점수key] = { indo: 0, teacher: 0 };
-                    점수Map_CF[점수key].teacher += 0.5;
-
-                    const 보유key = `${교사지역}-${팀}-${currentStep}`;
-                    보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
-                }
-            } else if (['A', 'B'].includes(currentStep)) {
-                if (REGIONS.includes(인도자지역) && 인도자팀) {
-                    const 팀 = 인도자팀.includes('-') ? 인도자팀.split('-')[0] : 인도자팀;
-                    const 점수key = `${인도자지역}-${팀}`;
-                    점수Map_AB[점수key] = (점수Map_AB[점수key] ?? 0) + 1;
-
-                    const 보유key = `${인도자지역}-${팀}-${currentStep}`;
-                    보유건Map[보유key] = (보유건Map[보유key] ?? 0) + 1;
+                if (교사지역 && 교사팀앞 && REGIONS.includes(교사지역)) {
+                    점수Map[교사key] = (점수Map[교사key] ?? 0) + 0.5;
                 }
             }
         });
 
-        const tableData: TableRow[] = [];
+        const rows: TableRow[] = [];
 
         REGIONS.forEach((region) => {
             const teams = regionTeamsMap[region];
             if (!teams) return;
 
             teams.forEach((team) => {
-                const abScore = 점수Map_AB[`${region}-${team}`] ?? 0;
-                const cfScoreObj = 점수Map_CF[`${region}-${team}`] ?? { indo: 0, teacher: 0 };
-                const cfScore = cfScoreObj.indo + cfScoreObj.teacher;
-
+                const keyBase = `${region}-${team}`;
                 const row: TableRow = {
-                    key: `${selectedTargetMonth !== null ? selectedTargetMonth : '전체'}-${region}-${team}`,
-                    월: selectedTargetMonth !== null ? `${selectedTargetMonth}월` : '전체',
+                    key: `${selectedTargetMonth ?? '전체'}-${region}-${team}`,
+                    월: selectedTargetMonth ? `${selectedTargetMonth}월` : '전체',
                     지역: region,
                     팀: team,
                     탈락: 0,
-                    ...STEPS2.reduce((acc, step) => {
-                        const 보유key = `${region}-${team}-${step}`;
-                        return {
-                            ...acc,
-                            [step]: ['A', 'B'].includes(step) ? abScore : cfScore,
-                            [`${step}_보유`]: 보유건Map[보유key] ?? 0,
-                        };
-                    }, {}),
                 };
 
-                tableData.push(row);
+                STEPS2.forEach((step) => {
+                    const 보유key = `${region}-${team}-${step}`;
+                    const 점수 = 점수Map[keyBase] ?? 0;
+                    row[step] = ['A', 'B'].includes(step) ? 점수 : 점수;
+                    row[`${step}_보유`] = 보유건Map[보유key] ?? 0;
+                });
+
+                rows.push(row);
             });
         });
 
@@ -130,44 +120,37 @@ export default function DashboardPage() {
             지역: '',
             팀: '',
             탈락: 0,
-            ...STEPS2.reduce((acc, step) => ({ ...acc, [step]: 0, [`${step}_보유`]: 0 }), {}),
+            ...Object.fromEntries(
+                STEPS2.flatMap((s) => [
+                    [s, 0],
+                    [`${s}_보유`, 0],
+                ])
+            ),
         };
 
-        tableData.forEach((row) => {
+        rows.forEach((row) => {
             STEPS2.forEach((step) => {
                 totalRow[step] = Number(totalRow[step] ?? 0) + Number(row[step] ?? 0);
                 totalRow[`${step}_보유`] = Number(totalRow[`${step}_보유`] ?? 0) + Number(row[`${step}_보유`] ?? 0);
             });
         });
 
-        return { tableData, totalRow };
-    }, [students, regionTeamsMap, selectedTargetMonth]);
-
-    const [renderData, setRenderData] = useState<TableRow[]>([]);
-
-    useEffect(() => {
-        setRenderData([...tableData, totalRow]);
-    }, [tableData, totalRow]);
+        return [...rows, totalRow];
+    }, [students, selectedTargetMonth, regionTeamsMap]);
 
     return (
         <div className="w-full mx-auto p-6">
             <Title level={2}>개강 점검</Title>
 
-            <Space
-                direction="vertical"
-                size="large"
-                style={{ marginBottom: 24, width: '100%' }}
-            >
-                <Space
-                    wrap
-                    size="middle"
-                >
+            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
+                <Space wrap size="middle">
                     <Select
                         value={selectedYear}
-                        onChange={(v) => setSelectedYear(v)}
+                        onChange={setSelectedYear}
                         style={{ width: 100 }}
                         options={yearOptions}
                     />
+
                     <Select
                         placeholder="월 선택"
                         allowClear
@@ -176,6 +159,7 @@ export default function DashboardPage() {
                         onChange={(v) => setSelectedTargetMonth(v ?? null)}
                         options={monthOptions}
                     />
+
                     <Button
                         onClick={() => {
                             setSelectedYear(dayjs().year());
@@ -186,10 +170,7 @@ export default function DashboardPage() {
                     </Button>
                 </Space>
 
-                <Spin
-                    spinning={isLoading}
-                    tip="데이터를 불러오는 중입니다..."
-                >
+                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
                     <Table<TableRow>
                         columns={[
                             { title: '지역', dataIndex: '지역', key: 'region', fixed: 'left', width: 100 },

@@ -8,10 +8,11 @@ import { useStudentsQuery, Students } from '../hook/useStudentsQuery';
 import dayjs from 'dayjs';
 
 const { Search } = Input;
-const COMPLETION_KEYS = ['a', 'b', 'c', 'd-1', 'd-2', 'e', 'f'] as const;
+const COMPLETION_KEYS = ['a', 'b', 'c', 'd-1', 'd-2', 'e', 'f', 'g'] as const;
 
 export default function StudentViewer() {
     const { data: students = [], isLoading } = useStudentsQuery();
+    console.log(students, '?stu');
     const [searchText, setSearchText] = useState('');
     const [filters, setFilters] = useState<Record<string, FilterValue | null>>({});
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
@@ -63,6 +64,7 @@ export default function StudentViewer() {
         title,
         dataIndex,
         key: dataIndex,
+
         width: 120,
         filters: getFilterOptions(dataIndex),
         filteredValue: filters[dataIndex as string] || null,
@@ -70,7 +72,7 @@ export default function StudentViewer() {
     });
 
     const completionColumns = COMPLETION_KEYS.map((key): ColumnsType<Students>[number] => ({
-        title: `${key.toUpperCase()} 완료일`,
+        title: key === 'g' ? '탈락 완료일' : `${key.toUpperCase()} 완료일`,
         dataIndex: key,
         key,
         width: 110,
@@ -85,6 +87,7 @@ export default function StudentViewer() {
             title: '이름',
             dataIndex: '이름',
             key: '이름',
+            fixed: 'left',
             width: 80,
             render: (name: string, record) => {
                 const isVisible = visibleId === record.번호;
@@ -128,18 +131,6 @@ export default function StudentViewer() {
         filterableColumn('교사팀', '교사팀'),
         { title: '교사이름', dataIndex: '교사이름', key: '교사이름', width: 100 },
         ...completionColumns,
-        {
-            title: '탈락',
-            dataIndex: 'dropOut',
-            key: 'dropOut',
-            width: 90,
-            filters: [
-                { text: 'true', value: true },
-                { text: 'false', value: false },
-            ],
-            filteredValue: filters['dropOut'] || null,
-            onFilter: (value, record) => record.dropOut === value,
-        },
     ];
 
     return (
@@ -149,10 +140,7 @@ export default function StudentViewer() {
                 <CardContent>
                     {/* 지역 필터 버튼 */}
                     <div className="mb-4 flex flex-wrap gap-2">
-                        <Button
-                            type={!selectedRegion ? 'primary' : 'default'}
-                            onClick={() => setSelectedRegion(null)}
-                        >
+                        <Button type={!selectedRegion ? 'primary' : 'default'} onClick={() => setSelectedRegion(null)}>
                             전체
                         </Button>
                         {allRegions.map((region) => (

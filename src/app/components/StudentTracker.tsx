@@ -322,7 +322,7 @@ export default function StudentTracker() {
         const now = new Date();
         const currentHour = now.getHours();
         if (currentHour >= 21 && currentHour < 24) {
-            setError('일일보고시간이 막마되었습니다.');
+            setError('일일보고시간이 마감되었습니다.');
             setLoading(false);
             return;
         }
@@ -349,6 +349,7 @@ export default function StudentTracker() {
                 throw new Error(json.message || '서버 오류가 발생했습니다.');
             }
             setSuccess('저장이 완료되었습니다.');
+            alert('저장이 완료되었습니다. 등록이 잘 되었는지 확인 해 주세요 ');
         } catch (e: unknown) {
             if (e instanceof Error) setError(e.message);
             else setError('알 수 없는 오류가 발생했습니다.');
@@ -372,29 +373,14 @@ export default function StudentTracker() {
                         저장하기
                     </button>
                     <div>
-                        {error && (
-                            <Alert
-                                message={error}
-                                type="error"
-                                showIcon
-                            />
-                        )}
-                        {success && (
-                            <Alert
-                                message={success}
-                                type="success"
-                                showIcon
-                            />
-                        )}
+                        {error && <Alert message={error} type="error" showIcon />}
+                        {success && <Alert message={success} type="success" showIcon />}
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
                 <Spin spinning={loading}>
-                    <table
-                        className="border-collapse border border-slate-400"
-                        onPaste={handlePaste}
-                    >
+                    <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
                         <TableHeader />
                         <tbody>
                             {data.map((row, i) => (
