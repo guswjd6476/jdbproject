@@ -255,7 +255,7 @@ export default function DashboardPage() {
                 '개강 목표': row.f_goal,
                 '지난달 결과': row.last_month_result,
                 '복음방 점수': row.gospel_score,
-                '복음방 달성률(%)': row.gospel_rate,
+                '목표 달성률(%)': row.gospel_rate,
             };
             return result;
         });
@@ -340,7 +340,7 @@ export default function DashboardPage() {
                                 align: 'center',
                             },
                             {
-                                title: '복음방 달성률',
+                                title: '목표 달성률',
                                 dataIndex: 'gospel_rate',
                                 key: 'gospel_rate',
                                 width: 120,
