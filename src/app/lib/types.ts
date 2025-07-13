@@ -104,10 +104,15 @@ export interface TableRow {
 }
 export interface TableRow3 {
     key: string;
+    월: string;
     지역: string;
     팀: string;
-    탈락: number;
     재적: number;
+    f_goal: number;
+    last_month_result: number;
+    탈락?: number;
+    gospel_score: number;
+    gospel_rate: number;
     [key: string]: string | number | undefined;
 }
 export interface TableRow2 {

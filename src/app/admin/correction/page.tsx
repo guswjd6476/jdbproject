@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Table, Input, Button, DatePicker, Popconfirm, message } from 'antd';
+import { Table, Input, Button, DatePicker, Popconfirm, message, Select } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useUser } from '@/app/hook/useUser';
@@ -16,7 +16,24 @@ const COMPLETION_FIELDS = [
     'd_2_완료일',
     'e_완료일',
     'f_완료일',
+    '탈락',
 ] as const;
+
+// ✅ 기본 단계 + 최근 3개월 전 ~ 3개월 후의 월센등 옵션 자동 생성
+const STAGE_OPTIONS = [
+    'A',
+    'B',
+    'C',
+    'D',
+    'E',
+    'F',
+    'D-1',
+    'D-2',
+    ...Array.from({ length: 7 }, (_, i) => {
+        const date = dayjs().subtract(3, 'month').add(i, 'month');
+        return `${date.year()}년 ${date.month() + 1}월센등`;
+    }),
+];
 
 type Student = {
     id: number;
@@ -27,7 +44,6 @@ type Student = {
     인도자_고유번호?: string;
     교사_고유번호?: string;
     단계?: string;
-    탈락?: string;
     [key: string]: string | number | undefined;
 };
 
@@ -40,6 +56,7 @@ export default function AdminStudentManager() {
     const [loading, setLoading] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editingDates, setEditingDates] = useState<Partial<Record<string, Dayjs | null>>>({});
+    const [editingStages, setEditingStages] = useState<Partial<Record<number, string>>>({});
 
     const fetchStudents = async () => {
         setLoading(true);
@@ -60,7 +77,9 @@ export default function AdminStudentManager() {
     }, []);
 
     const handleEdit = (record: Student) => {
-        setEditingId(record.번호);
+        setEditingId(record.id);
+        setEditingStages((prev) => ({ ...prev, [record.id]: record.단계 ?? '' }));
+
         const newDates: Partial<Record<string, Dayjs | null>> = {};
         COMPLETION_FIELDS.forEach((field) => {
             newDates[field] = record[field] ? dayjs(record[field]) : null;
@@ -72,12 +91,17 @@ export default function AdminStudentManager() {
         setEditingDates((prev) => ({ ...prev, [field]: date }));
     };
 
+    const handleStageChange = (id: number, value: string) => {
+        setEditingStages((prev) => ({ ...prev, [id]: value }));
+    };
+
     const handleSave = async (번호: number) => {
         try {
             const payload: Record<string, string | null> = {};
             for (const key of COMPLETION_FIELDS) {
                 payload[key] = editingDates[key]?.format('YYYY-MM-DD') ?? null;
             }
+            payload['단계'] = editingStages[번호] ?? null;
 
             const res = await fetch(`/api/students/update-date`, {
                 method: 'POST',
@@ -108,6 +132,7 @@ export default function AdminStudentManager() {
             message.error('삭제 실패');
         }
     };
+
     const filteredStudents = useMemo(() => {
         if (!searchText) return students;
         return students.filter((student) => student.이름.toLowerCase().includes(searchText.toLowerCase()));
@@ -115,6 +140,26 @@ export default function AdminStudentManager() {
 
     const columns: ColumnsType<Student> = [
         { title: 'id', dataIndex: 'id', key: 'id', width: 70 },
+        {
+            title: '단계',
+            dataIndex: '단계',
+            key: '단계',
+            width: 160,
+            render: (value: string | undefined, record: Student) => {
+                const isEditing = editingId === record.id;
+                if (!isEditing) return value || '';
+                return (
+                    <Select
+                        value={editingStages[record.id] ?? value ?? ''}
+                        onChange={(val) => handleStageChange(record.id, val)}
+                        style={{ width: 150 }}
+                        options={STAGE_OPTIONS.map((stage) => ({ label: stage, value: stage }))}
+                        showSearch
+                        optionFilterProp="label"
+                    />
+                );
+            },
+        },
         { title: '이름', dataIndex: '이름', key: '이름', width: 100 },
         { title: '연락처', dataIndex: '연락처', key: '연락처', width: 120 },
         ...COMPLETION_FIELDS.map((key) => ({
@@ -123,7 +168,7 @@ export default function AdminStudentManager() {
             key,
             width: 150,
             render: (value: string | null, record: Student) => {
-                const isEditing = editingId === record.번호;
+                const isEditing = editingId === record.id;
                 if (!isEditing) {
                     return value ? dayjs(value).format('YYYY.MM.DD') : '';
                 }
@@ -143,13 +188,13 @@ export default function AdminStudentManager() {
             key: 'actions',
             width: 180,
             render: (_: unknown, record: Student) => {
-                const isEditing = editingId === record.번호;
+                const isEditing = editingId === record.id;
                 return isEditing ? (
                     <span className="flex gap-2">
                         <Button
                             size="small"
                             type="primary"
-                            onClick={() => handleSave(record.번호)}
+                            onClick={() => handleSave(record.id)}
                         >
                             저장
                         </Button>
@@ -200,6 +245,7 @@ export default function AdminStudentManager() {
                     allowClear
                     onChange={(e) => setSearchText(e.target.value)}
                     style={{ width: 300 }}
+                    value={searchText}
                 />
             </div>
             <Table
