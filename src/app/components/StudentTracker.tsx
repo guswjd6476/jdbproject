@@ -289,13 +289,17 @@ export default function StudentTracker() {
                     newRow.인도자지역 = safe(cols, 3);
                     newRow.인도자팀 = safe(cols, 4);
                     newRow.인도자이름 = safe(cols, 5);
-                } else if (['C', 'D-1', 'D-2', 'E', 'F', '탈락'].includes(단계)) {
+                } else if (['C', 'D-1', 'D-2', 'E', 'F'].includes(단계)) {
                     newRow.인도자지역 = safe(cols, 2);
                     newRow.인도자팀 = safe(cols, 3);
                     newRow.인도자이름 = safe(cols, 4);
                     newRow.교사지역 = safe(cols, 5);
                     newRow.교사팀 = safe(cols, 6);
                     newRow.교사이름 = safe(cols, 7);
+                } else if (단계 === '탈락') {
+                    newRow.인도자지역 = safe(cols, 3);
+                    newRow.인도자팀 = safe(cols, 4);
+                    newRow.인도자이름 = safe(cols, 5);
                 }
 
                 newData[writeIndex] = newRow;
