@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
             FROM students s
             LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
             LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
-            WHERE s.단계 IN ('B', 'C', 'D-1', 'D-2', 'E')
+            WHERE s.단계 IN ('B', 'C', 'D-1', 'D-2', 'E','F')
         `;
 
         if (userEmail.includes('nowon')) {
