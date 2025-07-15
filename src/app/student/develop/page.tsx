@@ -5,6 +5,8 @@ import { Table, Button, DatePicker, Select, Spin, message, Typography, Input } f
 import type { ColumnsType } from 'antd/es/table';
 import { Students, useStudentsBQuery } from '@/app/hook/useStudentsBQuery';
 import dayjs from 'dayjs';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -19,7 +21,6 @@ export default function RegionWiseRemarks() {
     const [savedMessage, setSavedMessage] = useState(false);
     const [searchText, setSearchText] = useState('');
 
-    // 초기 targets 세팅
     useEffect(() => {
         const initialTargets: Record<number, { month?: string; date?: string; week?: string }> = {};
         students.forEach((s) => {
@@ -46,7 +47,6 @@ export default function RegionWiseRemarks() {
         return options;
     }, [currentMonth]);
 
-    // 전체 지역 목록 생성 (인도자지역, 교사지역 합산)
     const allRegions = useMemo(() => {
         const regions = new Set<string>();
         students.forEach((s) => {
@@ -56,7 +56,6 @@ export default function RegionWiseRemarks() {
         return Array.from(regions).sort();
     }, [students]);
 
-    // 필터용 고유값 모음 생성
     const uniqueFilters = useMemo(() => {
         const 단계Set = new Set<string>();
         const 인도자지역Set = new Set<string>();
@@ -93,10 +92,8 @@ export default function RegionWiseRemarks() {
         };
     }, [students]);
 
-    // 필터링 + 검색 + 지역 필터 적용
     const filtered = useMemo(() => {
         return students.filter((s) => {
-            // 단계 B인 경우 인도자지역 기준, 그 외 교사지역 기준 필터링
             const 기준지역 = s.단계?.toLowerCase() === 'b' ? String(s.인도자지역 ?? '') : String(s.교사지역 ?? '');
             const matchesRegion = !selectedRegion || 기준지역 === selectedRegion;
             const matchesSearch = !searchText || (s.이름?.includes(searchText) ?? false);
@@ -104,7 +101,6 @@ export default function RegionWiseRemarks() {
         });
     }, [students, selectedRegion, searchText]);
 
-    // 각 필드 변경 핸들러
     const handleMonthChange = (번호: number, value: string) => {
         setTargets((prev) => ({
             ...prev,
@@ -126,6 +122,31 @@ export default function RegionWiseRemarks() {
         }));
     };
 
+    const handleExportExcel = () => {
+        const exportData = filtered.map((s) => ({
+            단계: s.단계,
+            이름: s.이름,
+            인도자지역: s.인도자지역 ?? '',
+            인도자팀: String(s.인도자팀 ?? ''),
+            인도자이름: s.인도자이름 ?? '',
+            교사지역: s.교사지역 ?? '',
+            교사팀: String(s.교사팀 ?? ''),
+            교사이름: s.교사이름 ?? '',
+            목표월: s.번호 && targets[s.번호]?.month ? targets[s.번호].month : '',
+            실행일자: s.번호 && targets[s.번호]?.date ? targets[s.번호].date : '',
+            주횟수: s.번호 && targets[s.번호]?.week ? targets[s.번호].week : '',
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '특이사항목록');
+
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+
+        saveAs(blob, '특이사항목록.xlsx');
+    };
+
     const columns: ColumnsType<Students> = [
         {
             title: '단계',
@@ -141,7 +162,6 @@ export default function RegionWiseRemarks() {
             dataIndex: '이름',
             key: '이름',
             width: 50,
-            sorter: (a, b) => (a.이름 || '').localeCompare(b.이름 || ''),
             render: (name: string, record) => {
                 const isVisible = visibleId === record.번호;
                 const maskedName = (() => {
@@ -172,7 +192,6 @@ export default function RegionWiseRemarks() {
             width: 60,
             filters: uniqueFilters.인도자지역,
             onFilter: (value, record) => String(record.인도자지역) === value,
-            sorter: (a, b) => String(a.인도자지역).localeCompare(String(b.인도자지역)),
         },
         {
             title: '인도자팀',
@@ -181,7 +200,6 @@ export default function RegionWiseRemarks() {
             width: 60,
             filters: uniqueFilters.인도자팀,
             onFilter: (value, record) => String(record.인도자팀) === value,
-            sorter: (a, b) => String(a.인도자팀).localeCompare(String(b.인도자팀)),
         },
         {
             title: '인도자이름',
@@ -190,7 +208,6 @@ export default function RegionWiseRemarks() {
             width: 60,
             filters: uniqueFilters.인도자이름,
             onFilter: (value, record) => String(record.인도자이름) === value,
-            sorter: (a, b) => String(a.인도자이름).localeCompare(String(b.인도자이름)),
         },
         {
             title: '교사지역',
@@ -199,7 +216,6 @@ export default function RegionWiseRemarks() {
             width: 60,
             filters: uniqueFilters.교사지역,
             onFilter: (value, record) => String(record.교사지역) === value,
-            sorter: (a, b) => String(a.교사지역).localeCompare(String(b.교사지역)),
         },
         {
             title: '교사팀',
@@ -208,7 +224,6 @@ export default function RegionWiseRemarks() {
             width: 60,
             filters: uniqueFilters.교사팀,
             onFilter: (value, record) => String(record.교사팀) === value,
-            sorter: (a, b) => String(a.교사팀).localeCompare(String(b.교사팀)),
         },
         {
             title: '교사이름',
@@ -217,7 +232,6 @@ export default function RegionWiseRemarks() {
             width: 60,
             filters: uniqueFilters.교사이름,
             onFilter: (value, record) => String(record.교사이름) === value,
-            sorter: (a, b) => String(a.교사이름).localeCompare(String(b.교사이름)),
         },
         {
             title: '목표 월',
@@ -279,7 +293,6 @@ export default function RegionWiseRemarks() {
         },
     ];
 
-    // 저장 함수
     const handleSave = async () => {
         if (saving) return;
 
@@ -352,6 +365,7 @@ export default function RegionWiseRemarks() {
                             value={searchText}
                         />
                         {savedMessage && <Text type="success">✅ 저장 완료</Text>}
+                        <Button onClick={handleExportExcel}>엑셀 다운로드</Button>
                         <Button
                             type="primary"
                             onClick={handleSave}

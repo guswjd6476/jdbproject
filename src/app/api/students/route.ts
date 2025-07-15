@@ -157,9 +157,11 @@ export async function POST(request: NextRequest) {
             const colName = 단계완료일컬럼[단계];
             if (colName) 완료일[colName] = now;
 
+            // 기존 데이터 조회 (단계 기준으로 비교)
             const existingRes = await client.query('SELECT * FROM students WHERE 이름 = $1 ORDER BY 단계 ASC', [
                 row.이름.trim(),
             ]);
+            // 기존 중 이전 단계가 존재하는지 확인 (예: 현재 단계가 C면 A 또는 B가 있는지)
             const existing = existingRes.rows.find((r) => 단계순서.indexOf(r.단계) < 단계순서.indexOf(단계));
 
             if (existing) {

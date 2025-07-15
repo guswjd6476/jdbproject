@@ -36,37 +36,85 @@ function isSkipTeamCheck(team: string): boolean {
 
 async function checkPreviousStageExists(
     name: string,
+    stage: string,
     region: string,
     team: string,
     name2: string,
-    stage: string
+    teacherRegion: string,
+    teacherTeam: string,
+    teacherName: string
 ): Promise<boolean> {
     try {
-        const query = new URLSearchParams({ name, region, team, name2, stage }).toString();
-        const res = await fetch(`/api/students/checkPreviousStage?${query}`);
+        const query = new URLSearchParams({
+            name,
+            stage,
+            region,
+            team,
+            name2,
+            teacherRegion,
+            teacherTeam,
+            teacherName,
+        });
+        const res = await fetch(`/api/students/checkPreviousStage?${query.toString()}`);
         if (!res.ok) return false;
         const json = await res.json();
+        console.log(json, '?json');
         return json.exists === true;
     } catch {
         return false;
     }
 }
-
 async function validatePreviousStageForSubmit(row: Student, allRows: Student[]): Promise<string[]> {
     const errors: string[] = [];
     const stage = row.단계.trim().toUpperCase();
-
-    if (stage === '탈락') {
-        // 탈락 단계는 유효성 검사 제외
-        return errors;
-    }
 
     if (!단계순서.includes(stage)) {
         errors.push('유효한 단계가 아닙니다.');
         return errors;
     }
+
     if (!row.이름.trim()) {
         errors.push('이름이 필요합니다.');
+        return errors;
+    }
+
+    if (stage === '탈락') {
+        let alreadyExistsInDB = false;
+        if (row.인도자지역.trim() && row.인도자팀.trim() && row.인도자이름.trim()) {
+            alreadyExistsInDB = await checkPreviousStageExists(
+                row.이름.trim(),
+                '탈락',
+                row.인도자지역,
+                row.인도자팀,
+                row.인도자이름,
+                '',
+                '',
+                ''
+            );
+        } else if (row.교사지역.trim() && row.교사팀.trim() && row.교사이름.trim()) {
+            alreadyExistsInDB = await checkPreviousStageExists(
+                row.이름.trim(),
+                '탈락',
+                '',
+                '',
+                '',
+                row.교사지역,
+                row.교사팀,
+                row.교사이름
+            );
+        }
+
+        if (alreadyExistsInDB) {
+            errors.push('이미 탈락으로 등록된 학생입니다.');
+        }
+
+        const hasFullIndo = row.인도자지역.trim() && row.인도자팀.trim() && row.인도자이름.trim();
+        const hasFullTeacher = row.교사지역.trim() && row.교사팀.trim() && row.교사이름.trim();
+
+        if (!hasFullIndo && !hasFullTeacher) {
+            errors.push('탈락 시 인도자 정보 또는 교사 정보(지역, 팀, 이름)가 모두 필요합니다.');
+        }
+
         return errors;
     }
 
@@ -80,10 +128,13 @@ async function validatePreviousStageForSubmit(row: Student, allRows: Student[]):
 
         const previousExistsInDB = await checkPreviousStageExists(
             row.이름.trim(),
-            row.인도자지역.trim(),
-            row.인도자팀.trim(),
-            row.인도자이름.trim(),
-            previousStage
+            previousStage,
+            row.인도자지역,
+            row.인도자팀,
+            row.인도자이름,
+            row.교사지역,
+            row.교사팀,
+            row.교사이름
         );
 
         if (!previousExistsInUI && !previousExistsInDB) {
@@ -107,12 +158,21 @@ async function validatePreviousStageForSubmit(row: Student, allRows: Student[]):
     return errors;
 }
 
-function validateRow(row: Student): string[] {
+function validateRow(row: Student, allRows: Student[]): string[] {
     const errors: string[] = [];
     const stage = row.단계.trim().toUpperCase();
 
     if (!단계순서.includes(stage)) errors.push('유효한 단계가 아닙니다.');
-    if (stage === '탈락') return errors; // 탈락이면 추가 검사 skip
+
+    if (stage === '탈락') {
+        const duplicate = allRows.filter(
+            (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === '탈락'
+        );
+        if (duplicate.length > 1) {
+            errors.push('이미 탈락 처리된 수강생입니다.');
+        }
+        return errors;
+    }
 
     if (!row.이름.trim()) errors.push('이름이 필요합니다.');
     if (stage === 'A' && !row.연락처.trim()) errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
@@ -126,7 +186,6 @@ function validateRow(row: Student): string[] {
 
     return errors;
 }
-
 async function checkMember(region: string, team: string, name: string): Promise<boolean> {
     if (!region || !team || !name) return true;
     const query = new URLSearchParams({ region, team, name }).toString();
@@ -169,7 +228,7 @@ export default function StudentTracker() {
     }, [memberCheckCache]);
 
     const updateRowErrors = (newData: Student[], currentErrors: string[][], index: number) => {
-        const baseErrors = validateRow(newData[index]);
+        const baseErrors = validateRow(newData[index], newData);
         const indTeam = newData[index].인도자팀.trim().split('-')[0];
         const 교사Team = newData[index].교사팀.trim().split('-')[0];
         const 인도자Key = `인도자-${newData[index].인도자지역.trim()}-${indTeam}-${newData[index].인도자이름.trim()}`;
@@ -234,7 +293,7 @@ export default function StudentTracker() {
 
             setErrorsData((prevErrors) => {
                 const newErrors = [...prevErrors];
-                newErrors[index] = validateRow(newData[index]);
+                newErrors[index] = validateRow(newData[index], newData);
                 return newErrors;
             });
 
@@ -266,7 +325,7 @@ export default function StudentTracker() {
         setData((prev) => {
             const newData = [...prev];
             let writeIndex = newData.findIndex((r) => r.단계 === '');
-
+            console.log(newData, 'dd');
             parsed.forEach((cols) => {
                 if (writeIndex < 0 || writeIndex >= newData.length) return;
 
@@ -297,11 +356,16 @@ export default function StudentTracker() {
                     newRow.교사팀 = safe(cols, 6);
                     newRow.교사이름 = safe(cols, 7);
                 } else if (단계 === '탈락') {
-                    newRow.인도자지역 = safe(cols, 3);
-                    newRow.인도자팀 = safe(cols, 4);
-                    newRow.인도자이름 = safe(cols, 5);
-                }
+                    newRow.인도자지역 = safe(cols, 2);
+                    newRow.인도자팀 = safe(cols, 3);
+                    newRow.인도자이름 = safe(cols, 4);
 
+                    if (cols.length >= 8) {
+                        newRow.교사지역 = safe(cols, 5);
+                        newRow.교사팀 = safe(cols, 6);
+                        newRow.교사이름 = safe(cols, 7);
+                    }
+                }
                 newData[writeIndex] = newRow;
                 writeIndex++;
             });
@@ -309,7 +373,7 @@ export default function StudentTracker() {
             setErrorsData((prevErrors) => {
                 const newErrors = [...prevErrors];
                 for (let i = 0; i < newData.length; i++) {
-                    newErrors[i] = validateRow(newData[i]);
+                    newErrors[i] = validateRow(newData[i], newData);
                 }
                 return newErrors;
             });
