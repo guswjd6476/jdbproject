@@ -29,8 +29,8 @@ const STAGE_OPTIONS = [
     'F',
     'D-1',
     'D-2',
-    ...Array.from({ length: 7 }, (_, i) => {
-        const date = dayjs().subtract(3, 'month').add(i, 'month');
+    ...Array.from({ length: 25 }, (_, i) => {
+        const date = dayjs().subtract(12, 'month').add(i, 'month');
         return `${date.year()}년 ${date.month() + 1}월센등`;
     }),
 ];
@@ -191,26 +191,16 @@ export default function AdminStudentManager() {
                 const isEditing = editingId === record.id;
                 return isEditing ? (
                     <span className="flex gap-2">
-                        <Button
-                            size="small"
-                            type="primary"
-                            onClick={() => handleSave(record.id)}
-                        >
+                        <Button size="small" type="primary" onClick={() => handleSave(record.id)}>
                             저장
                         </Button>
-                        <Button
-                            size="small"
-                            onClick={() => setEditingId(null)}
-                        >
+                        <Button size="small" onClick={() => setEditingId(null)}>
                             취소
                         </Button>
                     </span>
                 ) : (
                     <span className="flex gap-2">
-                        <Button
-                            size="small"
-                            onClick={() => handleEdit(record)}
-                        >
+                        <Button size="small" onClick={() => handleEdit(record)}>
                             수정
                         </Button>
                         <Popconfirm
@@ -219,10 +209,7 @@ export default function AdminStudentManager() {
                             okText="삭제"
                             cancelText="취소"
                         >
-                            <Button
-                                danger
-                                size="small"
-                            >
+                            <Button danger size="small">
                                 삭제
                             </Button>
                         </Popconfirm>
