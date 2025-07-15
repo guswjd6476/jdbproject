@@ -91,7 +91,6 @@ export default function DashboardPage() {
                     return;
 
                 const month = (date.month() + 1).toString();
-                const mappedStep = step === 'D-1' || step === 'D-2' ? 'D' : step;
 
                 const targets =
                     step === 'A' || step === 'B'
@@ -126,21 +125,21 @@ export default function DashboardPage() {
                     if (isRegionalAccount) {
                         grouped[month][팀] = grouped[month][팀] ?? {};
                         grouped[month][팀][구역] = grouped[month][팀][구역] ?? {};
-                        grouped[month][팀][구역][mappedStep] = (grouped[month][팀][구역][mappedStep] ?? 0) + 점수;
+                        grouped[month][팀][구역][step] = (grouped[month][팀][구역][step] ?? 0) + 점수;
 
                         grouped['전체'] = grouped['전체'] ?? {};
                         grouped['전체'][팀] = grouped['전체'][팀] ?? {};
                         grouped['전체'][팀][구역] = grouped['전체'][팀][구역] ?? {};
-                        grouped['전체'][팀][구역][mappedStep] = (grouped['전체'][팀][구역][mappedStep] ?? 0) + 점수;
+                        grouped['전체'][팀][구역][step] = (grouped['전체'][팀][구역][step] ?? 0) + 점수;
                     } else {
                         grouped[month][지역] = grouped[month][지역] ?? {};
                         grouped[month][지역][팀] = grouped[month][지역][팀] ?? {};
-                        grouped[month][지역][팀][mappedStep] = (grouped[month][지역][팀][mappedStep] ?? 0) + 점수;
+                        grouped[month][지역][팀][step] = (grouped[month][지역][팀][step] ?? 0) + 점수;
 
                         grouped['전체'] = grouped['전체'] ?? {};
                         grouped['전체'][지역] = grouped['전체'][지역] ?? {};
                         grouped['전체'][지역][팀] = grouped['전체'][지역][팀] ?? {};
-                        grouped['전체'][지역][팀][mappedStep] = (grouped['전체'][지역][팀][mappedStep] ?? 0) + 점수;
+                        grouped['전체'][지역][팀][step] = (grouped['전체'][지역][팀][step] ?? 0) + 점수;
                     }
                 });
             });
