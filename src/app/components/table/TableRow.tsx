@@ -1,5 +1,5 @@
 // src/app/components/table/TableRow.tsx
-import { Input } from '../ui/Input';
+import { Input as AntInput } from 'antd';
 import { Student } from '@/app/lib/types';
 
 interface TableRowProps {
@@ -25,6 +25,9 @@ export default function TableRow({ row, index, onChange, onDelete, errors, selec
         '교사이름',
     ];
 
+    const allowedStages = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F', '탈락'];
+    const isInvalidStage = row.단계 && !allowedStages.includes(row.단계.trim().toUpperCase());
+
     return (
         <tr className={errors.length ? 'bg-red-50' : ''}>
             {/* 번호 열 */}
@@ -32,22 +35,19 @@ export default function TableRow({ row, index, onChange, onDelete, errors, selec
 
             {/* 입력 필드 */}
             {editableFields.map((field) => (
-                <td key={field} className="border p-1">
+                <td
+                    key={field}
+                    className="border p-1"
+                >
                     {field === '단계' ? (
-                        <select
+                        <AntInput
+                            className={`text-sm ${isInvalidStage ? 'border-red-500 border' : ''}`}
                             value={row.단계 || ''}
                             onChange={(e) => onChange(index, field, e.target.value)}
-                            className="w-full text-sm"
-                        >
-                            <option value="">선택</option>
-                            {selectStages.map((s) => (
-                                <option key={s} value={s}>
-                                    {s}
-                                </option>
-                            ))}
-                        </select>
+                            placeholder="A, B, C 등"
+                        />
                     ) : (
-                        <Input
+                        <AntInput
                             className="text-sm"
                             value={row[field] || ''}
                             onChange={(e) => onChange(index, field, e.target.value)}
