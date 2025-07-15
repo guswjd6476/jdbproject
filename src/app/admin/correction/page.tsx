@@ -24,11 +24,11 @@ const STAGE_OPTIONS = [
     'A',
     'B',
     'C',
-    'D',
-    'E',
-    'F',
     'D-1',
     'D-2',
+    'E',
+    'F',
+    '탈락',
     ...Array.from({ length: 25 }, (_, i) => {
         const date = dayjs().subtract(12, 'month').add(i, 'month');
         return `${date.year()}년 ${date.month() + 1}월센등`;
