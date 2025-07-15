@@ -10,7 +10,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
 const { Search } = Input;
-const COMPLETION_KEYS = ['a', 'b', 'c', 'd-1', 'd-2', 'e', 'f', 'g'] as const;
+const COMPLETION_KEYS = ['a', 'b', 'c', 'd-1', 'd-2', 'e', 'f', 'g', '센확'] as const;
 
 export default function StudentViewer() {
     const { data: students = [], isLoading } = useStudentsQuery();

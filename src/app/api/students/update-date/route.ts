@@ -8,7 +8,16 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { 번호, 단계, ...dateFields } = body;
 
-        const allowedFields = ['a_완료일', 'b_완료일', 'c_완료일', 'd_1_완료일', 'd_2_완료일', 'e_완료일', 'f_완료일'];
+        const allowedFields = [
+            'a_완료일',
+            'b_완료일',
+            'c_완료일',
+            'd_1_완료일',
+            'd_2_완료일',
+            'e_완료일',
+            'f_완료일',
+            '센확_완료일',
+        ];
 
         const fields = Object.entries(dateFields)
             .filter(([key]) => allowedFields.includes(key))

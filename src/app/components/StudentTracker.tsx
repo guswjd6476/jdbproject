@@ -186,18 +186,6 @@ function validateRow(row: Student, allRows: Student[]): string[] {
 
     return errors;
 }
-async function checkMember(region: string, team: string, name: string): Promise<boolean> {
-    if (!region || !team || !name) return true;
-    const query = new URLSearchParams({ region, team, name }).toString();
-    try {
-        const res = await fetch(`/api/members/check?${query}`);
-        if (!res.ok) return false;
-        const json = await res.json();
-        return json.exists === true;
-    } catch {
-        return false;
-    }
-}
 
 export default function StudentTracker() {
     const [data, setData] = useState<Student[]>(Array.from({ length: INITIAL_ROWS }, () => ({ ...initialRow })));
@@ -205,42 +193,10 @@ export default function StudentTracker() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    const [memberCheckCache, setMemberCheckCache] = useState<Record<string, boolean>>({});
-    const [memberCheckStatus, setMemberCheckStatus] = useState<Record<string, boolean | null>>({});
     const { isAdmin } = useUser();
     const now = new Date();
     const currentHour = now.getHours();
     const isSaveDisabledByTime = !isAdmin && currentHour >= 21 && currentHour < 24;
-
-    const debouncedCheckMember = useMemo(() => {
-        return debounce(async (key: string, region: string, team: string, name: string, updateErrors: () => void) => {
-            if (memberCheckCache[key] !== undefined) {
-                setMemberCheckStatus((prev) => ({ ...prev, [key]: memberCheckCache[key] }));
-                updateErrors();
-                return;
-            }
-            setMemberCheckStatus((prev) => ({ ...prev, [key]: null }));
-            const exists = await checkMember(region, team, name);
-            setMemberCheckCache((prev) => ({ ...prev, [key]: exists }));
-            setMemberCheckStatus((prev) => ({ ...prev, [key]: exists }));
-            updateErrors();
-        }, 500);
-    }, [memberCheckCache]);
-
-    const updateRowErrors = (newData: Student[], currentErrors: string[][], index: number) => {
-        const baseErrors = validateRow(newData[index], newData);
-        const indTeam = newData[index].인도자팀.trim().split('-')[0];
-        const 교사Team = newData[index].교사팀.trim().split('-')[0];
-        const 인도자Key = `인도자-${newData[index].인도자지역.trim()}-${indTeam}-${newData[index].인도자이름.trim()}`;
-        const 교사Key = `교사-${newData[index].교사지역.trim()}-${교사Team}-${newData[index].교사이름.trim()}`;
-        if (!isSkipTeamCheck(indTeam) && memberCheckStatus[인도자Key] === false)
-            baseErrors.push('인도자 정보가 멤버 목록과 일치하지 않습니다.');
-        if (!isSkipTeamCheck(교사Team) && memberCheckStatus[교사Key] === false)
-            baseErrors.push('교사 정보가 멤버 목록과 일치하지 않습니다.');
-        const newErrors = [...currentErrors];
-        newErrors[index] = baseErrors;
-        setErrorsData(newErrors);
-    };
 
     const handleChange = (index: number, field: keyof Student, value: string) => {
         setData((prev) => {
@@ -256,40 +212,6 @@ export default function StudentTracker() {
                 index
             ].인도자이름.trim()}`;
             const 교사Key = `교사-${newData[index].교사지역.trim()}-${교사Team}-${newData[index].교사이름.trim()}`;
-
-            if (
-                newData[index].인도자지역 &&
-                newData[index].인도자팀 &&
-                newData[index].인도자이름 &&
-                !isSkipTeamCheck(indTeam)
-            ) {
-                debouncedCheckMember(
-                    인도자Key,
-                    newData[index].인도자지역.trim(),
-                    indTeam,
-                    newData[index].인도자이름.trim(),
-                    () => updateRowErrors(newData, errorsData, index)
-                );
-            } else {
-                setMemberCheckStatus((prev) => ({ ...prev, [인도자Key]: true }));
-            }
-
-            if (
-                newData[index].교사지역 &&
-                newData[index].교사팀 &&
-                newData[index].교사이름 &&
-                !isSkipTeamCheck(교사Team)
-            ) {
-                debouncedCheckMember(
-                    교사Key,
-                    newData[index].교사지역.trim(),
-                    교사Team,
-                    newData[index].교사이름.trim(),
-                    () => updateRowErrors(newData, errorsData, index)
-                );
-            } else {
-                setMemberCheckStatus((prev) => ({ ...prev, [교사Key]: true }));
-            }
 
             setErrorsData((prevErrors) => {
                 const newErrors = [...prevErrors];
@@ -441,29 +363,14 @@ export default function StudentTracker() {
                         저장하기
                     </button>
                     <div>
-                        {error && (
-                            <Alert
-                                message={error}
-                                type="error"
-                                showIcon
-                            />
-                        )}
-                        {success && (
-                            <Alert
-                                message={success}
-                                type="success"
-                                showIcon
-                            />
-                        )}
+                        {error && <Alert message={error} type="error" showIcon />}
+                        {success && <Alert message={success} type="success" showIcon />}
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
                 <Spin spinning={loading}>
-                    <table
-                        className="border-collapse border border-slate-400"
-                        onPaste={handlePaste}
-                    >
+                    <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
                         <TableHeader />
                         <tbody>
                             {data.map((row, i) => (
