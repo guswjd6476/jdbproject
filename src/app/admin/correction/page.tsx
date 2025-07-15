@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Table, Input, Button, DatePicker, Popconfirm, message, Select } from 'antd';
+import { Table, Input, Button, DatePicker, Popconfirm, message, Select, Space } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useUser } from '@/app/hook/useUser';
@@ -16,21 +16,21 @@ const COMPLETION_FIELDS = [
     'd_2_완료일',
     'e_완료일',
     'f_완료일',
+    '센확_완료일',
     '탈락',
 ] as const;
 
-// ✅ 기본 단계 + 최근 3개월 전 ~ 3개월 후의 월센등 옵션 자동 생성
 const STAGE_OPTIONS = [
     'A',
     'B',
     'C',
-    'D',
-    'E',
-    'F',
     'D-1',
     'D-2',
-    ...Array.from({ length: 7 }, (_, i) => {
-        const date = dayjs().subtract(3, 'month').add(i, 'month');
+    'E',
+    'F',
+    '탈락',
+    ...Array.from({ length: 25 }, (_, i) => {
+        const date = dayjs().subtract(12, 'month').add(i, 'month');
         return `${date.year()}년 ${date.month() + 1}월센등`;
     }),
 ];
@@ -52,11 +52,14 @@ export default function AdminStudentManager() {
     const isAdmin = user === 'all';
 
     const [students, setStudents] = useState<Student[]>([]);
-    const [searchText, setSearchText] = useState('');
     const [loading, setLoading] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editingDates, setEditingDates] = useState<Partial<Record<string, Dayjs | null>>>({});
     const [editingStages, setEditingStages] = useState<Partial<Record<number, string>>>({});
+
+    const [searchName, setSearchName] = useState('');
+    const [searchStage, setSearchStage] = useState<string | null>(null);
+    const [filteredKeyword, setFilteredKeyword] = useState({ name: '', stage: '' });
 
     const fetchStudents = async () => {
         setLoading(true);
@@ -134,17 +137,35 @@ export default function AdminStudentManager() {
     };
 
     const filteredStudents = useMemo(() => {
-        if (!searchText) return students;
-        return students.filter((student) => student.이름.toLowerCase().includes(searchText.toLowerCase()));
-    }, [students, searchText]);
+        return students.filter((student) => {
+            const nameMatch = filteredKeyword.name
+                ? student.이름?.toLowerCase().includes(filteredKeyword.name.toLowerCase())
+                : true;
+            const stageMatch = filteredKeyword.stage ? student.단계 === filteredKeyword.stage : true;
+            return nameMatch && stageMatch;
+        });
+    }, [students, filteredKeyword]);
+
+    const handleSearch = () => {
+        setFilteredKeyword({
+            name: searchName,
+            stage: searchStage ?? '',
+        });
+    };
 
     const columns: ColumnsType<Student> = [
-        { title: 'id', dataIndex: 'id', key: 'id', width: 70 },
+        { title: 'id', dataIndex: 'id', key: 'id', width: 70, fixed: 'left' },
         {
             title: '단계',
             dataIndex: '단계',
             key: '단계',
+            fixed: 'left',
             width: 160,
+            sorter: (a, b) => {
+                const valA = a.단계 || '';
+                const valB = b.단계 || '';
+                return valA.localeCompare(valB, 'ko');
+            },
             render: (value: string | undefined, record: Student) => {
                 const isEditing = editingId === record.id;
                 if (!isEditing) return value || '';
@@ -160,7 +181,7 @@ export default function AdminStudentManager() {
                 );
             },
         },
-        { title: '이름', dataIndex: '이름', key: '이름', width: 100 },
+        { title: '이름', dataIndex: '이름', key: '이름', width: 100, fixed: 'left' },
         { title: '연락처', dataIndex: '연락처', key: '연락처', width: 120 },
         ...COMPLETION_FIELDS.map((key) => ({
             title: key.replace('_완료일', '').toUpperCase(),
@@ -190,27 +211,17 @@ export default function AdminStudentManager() {
             render: (_: unknown, record: Student) => {
                 const isEditing = editingId === record.id;
                 return isEditing ? (
-                    <span className="flex gap-2">
-                        <Button
-                            size="small"
-                            type="primary"
-                            onClick={() => handleSave(record.id)}
-                        >
+                    <Space>
+                        <Button size="small" type="primary" onClick={() => handleSave(record.id)}>
                             저장
                         </Button>
-                        <Button
-                            size="small"
-                            onClick={() => setEditingId(null)}
-                        >
+                        <Button size="small" onClick={() => setEditingId(null)}>
                             취소
                         </Button>
-                    </span>
+                    </Space>
                 ) : (
-                    <span className="flex gap-2">
-                        <Button
-                            size="small"
-                            onClick={() => handleEdit(record)}
-                        >
+                    <Space>
+                        <Button size="small" onClick={() => handleEdit(record)}>
                             수정
                         </Button>
                         <Popconfirm
@@ -219,14 +230,11 @@ export default function AdminStudentManager() {
                             okText="삭제"
                             cancelText="취소"
                         >
-                            <Button
-                                danger
-                                size="small"
-                            >
+                            <Button danger size="small">
                                 삭제
                             </Button>
                         </Popconfirm>
-                    </span>
+                    </Space>
                 );
             },
         },
@@ -239,14 +247,28 @@ export default function AdminStudentManager() {
     return (
         <div className="p-4">
             <h2 className="text-2xl font-bold mb-4">관리자 학생 관리</h2>
-            <div className="mb-4">
-                <Search
-                    placeholder="이름으로 검색"
+            <div className="mb-4 flex gap-2">
+                <Input
+                    placeholder="이름"
                     allowClear
-                    onChange={(e) => setSearchText(e.target.value)}
-                    style={{ width: 300 }}
-                    value={searchText}
+                    value={searchName}
+                    onChange={(e) => setSearchName(e.target.value)}
+                    onPressEnter={handleSearch}
+                    style={{ width: 200 }}
                 />
+                <Select
+                    placeholder="단계"
+                    allowClear
+                    style={{ width: 200 }}
+                    value={searchStage}
+                    onChange={(value) => setSearchStage(value)}
+                    options={STAGE_OPTIONS.map((stage) => ({ label: stage, value: stage }))}
+                    showSearch
+                    optionFilterProp="label"
+                />
+                <Button type="primary" onClick={handleSearch}>
+                    검색
+                </Button>
             </div>
             <Table
                 dataSource={filteredStudents}

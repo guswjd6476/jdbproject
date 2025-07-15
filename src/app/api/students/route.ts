@@ -29,6 +29,7 @@ const 단계완료일컬럼: Record<string, string> = {
     E: 'e_완료일',
     F: 'f_완료일',
     탈락: 'g',
+    센확: '센확_완료일',
 };
 
 export async function GET(request: NextRequest) {
@@ -64,6 +65,7 @@ export async function GET(request: NextRequest) {
                 s.d_2_완료일 AS "d-2",
                 s.e_완료일 AS "e",
                 s.f_완료일 AS "f",
+                s.센확_완료일 AS "센확",
                 s.탈락 AS "g",
                 m_ind.지역 AS 인도자지역, 
                 m_ind.구역 AS 인도자팀, 
@@ -124,7 +126,6 @@ export async function GET(request: NextRequest) {
         client.release();
     }
 }
-
 export async function POST(request: NextRequest) {
     const client = await pool.connect();
     try {
@@ -151,17 +152,16 @@ export async function POST(request: NextRequest) {
                 d_2_완료일: null,
                 e_완료일: null,
                 f_완료일: null,
+                센확_완료일: null,
                 g: null,
             };
 
             const colName = 단계완료일컬럼[단계];
             if (colName) 완료일[colName] = now;
 
-            // 기존 데이터 조회 (단계 기준으로 비교)
             const existingRes = await client.query('SELECT * FROM students WHERE 이름 = $1 ORDER BY 단계 ASC', [
                 row.이름.trim(),
             ]);
-            // 기존 중 이전 단계가 존재하는지 확인 (예: 현재 단계가 C면 A 또는 B가 있는지)
             const existing = existingRes.rows.find((r) => 단계순서.indexOf(r.단계) < 단계순서.indexOf(단계));
 
             if (existing) {
@@ -179,8 +179,9 @@ export async function POST(request: NextRequest) {
                         d_2_완료일 = COALESCE($10, d_2_완료일),
                         e_완료일 = COALESCE($11, e_완료일),
                         f_완료일 = COALESCE($12, f_완료일),
-                        탈락 = COALESCE($13, 탈락)
-                    WHERE id = $14`,
+                        센확_완료일 = COALESCE($13, 센확_완료일),
+                        탈락 = COALESCE($14, 탈락)
+                    WHERE id = $15`,
                     [
                         단계,
                         row.연락처 || existing.연락처,
@@ -194,18 +195,21 @@ export async function POST(request: NextRequest) {
                         완료일.d_2_완료일,
                         완료일.e_완료일,
                         완료일.f_완료일,
+                        완료일.센확_완료일,
                         완료일.g,
                         existing.id,
                     ]
                 );
             } else {
+                // INSERT
                 await client.query(
                     `INSERT INTO students
                         (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호,
                          a_완료일, b_완료일, c_완료일, d_1_완료일, d_2_완료일,
-                         e_완료일, f_완료일, 탈락)
+                         e_완료일, f_완료일, 센확_완료일, 탈락)
                      VALUES ($1, $2, $3, $4, $5, $6,
-                             $7, $8, $9, $10, $11, $12, $13, $14)`,
+                             $7, $8, $9, $10, $11,
+                             $12, $13, $14, $15)`,
                     [
                         단계,
                         row.이름,
@@ -220,6 +224,7 @@ export async function POST(request: NextRequest) {
                         완료일.d_2_완료일,
                         완료일.e_완료일,
                         완료일.f_완료일,
+                        완료일.센확_완료일,
                         완료일.g,
                     ]
                 );
