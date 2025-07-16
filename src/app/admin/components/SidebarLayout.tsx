@@ -18,6 +18,11 @@ const menuItems = [
         icon: <UserSwitchOutlined />,
         label: <Link href="/admin/correction">삭제 및 수정</Link>,
     },
+    {
+        key: 'error',
+        icon: <UserSwitchOutlined />,
+        label: <Link href="/admin/error">중복처리</Link>,
+    },
 ];
 
 export default function SidebarLayout({ children }: { children: React.ReactNode }) {

@@ -126,23 +126,42 @@ export async function GET(request: NextRequest) {
         client.release();
     }
 }
+
 export async function POST(request: NextRequest) {
     const client = await pool.connect();
     try {
-        const data: Student[] = await request.json();
+        const body = await request.json();
+        const data = body.data || [];
+        const dryRun = body.dryRun === true;
         const now = new Date();
+        console.log('POST /api/students 호출, dryRun:', dryRun);
+        console.log('입력 데이터:', data);
+        if (dryRun) {
+            const invalid = data.some(
+                (r: { 이름: string; 단계: string }) =>
+                    !r.이름?.trim() || !단계순서.includes(r.단계?.trim().toUpperCase())
+            );
+            if (invalid) {
+                return NextResponse.json(
+                    { success: false, message: '유효하지 않은 데이터가 포함되어 있습니다.' },
+                    { status: 400 }
+                );
+            }
+            const summary = data.map((r: { 이름: string; 단계: string }) => ({
+                이름: r.이름.trim(),
+                단계: r.단계.trim().toUpperCase(),
+            }));
+            return NextResponse.json({ success: true, summary });
+        }
 
         for (const row of data) {
             row.단계 = row.단계.trim().toUpperCase();
             const 단계 = row.단계;
 
             row.인도자_고유번호 = await getMemberUniqueId(client, row.인도자지역, row.인도자팀, row.인도자이름);
-
-            if (단계 === 'A' || 단계 === 'B') {
-                row.교사_고유번호 = null;
-            } else {
-                row.교사_고유번호 = await getMemberUniqueId(client, row.교사지역, row.교사팀, row.교사이름);
-            }
+            row.교사_고유번호 = ['A', 'B'].includes(단계)
+                ? null
+                : await getMemberUniqueId(client, row.교사지역, row.교사팀, row.교사이름);
 
             const 완료일: { [key: string]: Date | null } = {
                 a_완료일: null,
@@ -155,33 +174,46 @@ export async function POST(request: NextRequest) {
                 센확_완료일: null,
                 g: null,
             };
-
             const colName = 단계완료일컬럼[단계];
             if (colName) 완료일[colName] = now;
 
-            const existingRes = await client.query('SELECT * FROM students WHERE 이름 = $1 ORDER BY 단계 ASC', [
-                row.이름.trim(),
-            ]);
-            const existing = existingRes.rows.find((r) => 단계순서.indexOf(r.단계) < 단계순서.indexOf(단계));
+            let existingRes;
+            if (row.인도자_고유번호) {
+                existingRes = await client.query(
+                    'SELECT * FROM students WHERE 이름 = $1 AND 인도자_고유번호 = $2 ORDER BY 단계 ASC',
+                    [row.이름.trim(), row.인도자_고유번호]
+                );
+            } else {
+                existingRes = await client.query(
+                    'SELECT * FROM students WHERE 이름 = $1 AND 교사_고유번호 = $2 ORDER BY 단계 ASC',
+                    [row.이름.trim(), row.교사_고유번호]
+                );
+            }
+
+            // 조건에 맞는 기존 데이터 선택
+            const existing = existingRes.rows.find((r) => {
+                if (단계 === 'F' || 단계 === '탈락') return true;
+                return 단계순서.indexOf(r.단계) < 단계순서.indexOf(단계);
+            });
 
             if (existing) {
                 await client.query(
                     `UPDATE students SET
-                        단계 = $1,
-                        연락처 = COALESCE($2, 연락처),
-                        생년월일 = COALESCE($3, 생년월일),
-                        인도자_고유번호 = COALESCE($4, 인도자_고유번호),
-                        교사_고유번호 = COALESCE($5, 교사_고유번호),
-                        a_완료일 = COALESCE($6, a_완료일),
-                        b_완료일 = COALESCE($7, b_완료일),
-                        c_완료일 = COALESCE($8, c_완료일),
-                        d_1_완료일 = COALESCE($9, d_1_완료일),
-                        d_2_완료일 = COALESCE($10, d_2_완료일),
-                        e_완료일 = COALESCE($11, e_완료일),
-                        f_완료일 = COALESCE($12, f_완료일),
-                        센확_완료일 = COALESCE($13, 센확_완료일),
-                        탈락 = COALESCE($14, 탈락)
-                    WHERE id = $15`,
+            단계 = $1,
+            연락처 = COALESCE($2, 연락처),
+            생년월일 = COALESCE($3, 생년월일),
+            인도자_고유번호 = COALESCE($4, 인도자_고유번호),
+            교사_고유번호 = COALESCE($5, 교사_고유번호),
+            a_완료일 = COALESCE($6, a_완료일),
+            b_완료일 = COALESCE($7, b_완료일),
+            c_완료일 = COALESCE($8, c_완료일),
+            d_1_완료일 = COALESCE($9, d_1_완료일),
+            d_2_완료일 = COALESCE($10, d_2_완료일),
+            e_완료일 = COALESCE($11, e_완료일),
+            f_완료일 = COALESCE($12, f_완료일),
+            센확_완료일 = COALESCE($13, 센확_완료일),
+            탈락 = COALESCE($14, 탈락)
+          WHERE id = $15`,
                     [
                         단계,
                         row.연락처 || existing.연락처,
@@ -201,15 +233,14 @@ export async function POST(request: NextRequest) {
                     ]
                 );
             } else {
-                // INSERT
                 await client.query(
                     `INSERT INTO students
-                        (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호,
-                         a_완료일, b_완료일, c_완료일, d_1_완료일, d_2_완료일,
-                         e_완료일, f_완료일, 센확_완료일, 탈락)
-                     VALUES ($1, $2, $3, $4, $5, $6,
-                             $7, $8, $9, $10, $11,
-                             $12, $13, $14, $15)`,
+            (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호,
+             a_완료일, b_완료일, c_완료일, d_1_완료일, d_2_완료일,
+             e_완료일, f_완료일, 센확_완료일, 탈락)
+           VALUES ($1, $2, $3, $4, $5, $6,
+                   $7, $8, $9, $10, $11,
+                   $12, $13, $14, $15)`,
                     [
                         단계,
                         row.이름,
@@ -232,7 +263,7 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({ success: true });
-    } catch (err: unknown) {
+    } catch (err) {
         console.error('POST /api/students 에러:', err);
         const message = err instanceof Error ? err.message : '서버 오류가 발생했습니다.';
         return NextResponse.json({ success: false, message }, { status: 500 });

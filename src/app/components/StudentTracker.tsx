@@ -1,16 +1,16 @@
 'use client';
 import { useUser } from '@/app/hook/useUser';
-import React, { useState, useMemo } from 'react';
-import debounce from 'lodash.debounce';
+import React, { useState } from 'react';
 import TableHeader from './table/TableHeader';
 import TableRow from './table/TableRow';
 import AddRowButton from './table/AddRowButton';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { Student } from '../lib/types';
-import { Spin, Alert } from 'antd';
+import { Spin, Alert, Modal } from 'antd';
 
 const INITIAL_ROWS = 100;
 const ADDITIONAL_ROWS = 10;
+const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F', '탈락'];
 
 const initialRow: Student = {
     id: '',
@@ -28,197 +28,182 @@ const initialRow: Student = {
     교사_고유번호: null,
 };
 
-const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F', '탈락'];
-
-function isSkipTeamCheck(team: string): boolean {
-    return ['타지파', '타부서', '수강생', '타지역'].some((kw) => team.includes(kw));
-}
-
-async function checkPreviousStageExists(
-    name: string,
-    stage: string,
-    region: string,
-    team: string,
-    name2: string,
-    teacherRegion: string,
-    teacherTeam: string,
-    teacherName: string
-): Promise<boolean> {
-    try {
-        const query = new URLSearchParams({
-            name,
-            stage,
-            region,
-            team,
-            name2,
-            teacherRegion,
-            teacherTeam,
-            teacherName,
-        });
-        const res = await fetch(`/api/students/checkPreviousStage?${query.toString()}`);
-        if (!res.ok) return false;
-        const json = await res.json();
-        console.log(json, '?json');
-        return json.exists === true;
-    } catch {
-        return false;
-    }
-}
-async function validatePreviousStageForSubmit(row: Student, allRows: Student[]): Promise<string[]> {
-    const errors: string[] = [];
-    const stage = row.단계.trim().toUpperCase();
-
-    if (!단계순서.includes(stage)) {
-        errors.push('유효한 단계가 아닙니다.');
-        return errors;
-    }
-
-    if (!row.이름.trim()) {
-        errors.push('이름이 필요합니다.');
-        return errors;
-    }
-
-    if (stage === '탈락') {
-        let alreadyExistsInDB = false;
-        if (row.인도자지역.trim() && row.인도자팀.trim() && row.인도자이름.trim()) {
-            alreadyExistsInDB = await checkPreviousStageExists(
-                row.이름.trim(),
-                '탈락',
-                row.인도자지역,
-                row.인도자팀,
-                row.인도자이름,
-                '',
-                '',
-                ''
-            );
-        } else if (row.교사지역.trim() && row.교사팀.trim() && row.교사이름.trim()) {
-            alreadyExistsInDB = await checkPreviousStageExists(
-                row.이름.trim(),
-                '탈락',
-                '',
-                '',
-                '',
-                row.교사지역,
-                row.교사팀,
-                row.교사이름
-            );
-        }
-
-        if (alreadyExistsInDB) {
-            errors.push('이미 탈락으로 등록된 학생입니다.');
-        }
-
-        const hasFullIndo = row.인도자지역.trim() && row.인도자팀.trim() && row.인도자이름.trim();
-        const hasFullTeacher = row.교사지역.trim() && row.교사팀.trim() && row.교사이름.trim();
-
-        if (!hasFullIndo && !hasFullTeacher) {
-            errors.push('탈락 시 인도자 정보 또는 교사 정보(지역, 팀, 이름)가 모두 필요합니다.');
-        }
-
-        return errors;
-    }
-
-    const currentStageIndex = 단계순서.indexOf(stage);
-    if (currentStageIndex > 0) {
-        const previousStage = 단계순서[currentStageIndex - 1];
-
-        const previousExistsInUI = allRows.some(
-            (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === previousStage
-        );
-
-        const previousExistsInDB = await checkPreviousStageExists(
-            row.이름.trim(),
-            previousStage,
-            row.인도자지역,
-            row.인도자팀,
-            row.인도자이름,
-            row.교사지역,
-            row.교사팀,
-            row.교사이름
-        );
-
-        if (!previousExistsInUI && !previousExistsInDB) {
-            errors.push(`${previousStage} 단계가 먼저 등록되어야 합니다.`);
-        }
-    }
-
-    if (stage === 'A' && !row.연락처.trim()) {
-        errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
-    }
-    if (stage === 'B' && !row.생년월일.trim()) {
-        errors.push('B단계는 생년월일이 필요합니다.');
-    }
-    if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
-        const skip = isSkipTeamCheck(row.교사팀);
-        if (!skip && (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim())) {
-            errors.push('C~F단계는 교사 정보(지역, 팀, 이름)가 필요합니다.');
-        }
-    }
-
-    return errors;
-}
-
-function validateRow(row: Student, allRows: Student[]): string[] {
-    const errors: string[] = [];
-    const stage = row.단계.trim().toUpperCase();
-
-    if (!단계순서.includes(stage)) errors.push('유효한 단계가 아닙니다.');
-
-    if (stage === '탈락') {
-        const duplicate = allRows.filter(
-            (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === '탈락'
-        );
-        if (duplicate.length > 1) {
-            errors.push('이미 탈락 처리된 수강생입니다.');
-        }
-        return errors;
-    }
-
-    if (!row.이름.trim()) errors.push('이름이 필요합니다.');
-    if (stage === 'A' && !row.연락처.trim()) errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
-    if (stage === 'B' && !row.생년월일.trim()) errors.push('B단계는 생년월일이 필요합니다.');
-    if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
-        const skip = isSkipTeamCheck(row.교사팀);
-        if (!skip && (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim())) {
-            errors.push('C~F단계는 교사 정보(지역, 팀, 이름)가 필요합니다.');
-        }
-    }
-
-    return errors;
-}
-
-export default function StudentTracker() {
+function StudentTracker() {
     const [data, setData] = useState<Student[]>(Array.from({ length: INITIAL_ROWS }, () => ({ ...initialRow })));
     const [errorsData, setErrorsData] = useState<string[][]>(Array.from({ length: INITIAL_ROWS }, () => []));
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [summaryList, setSummaryList] = useState<{ 이름: string; 단계: string }[]>([]);
+    const [confirmVisible, setConfirmVisible] = useState(false);
+
     const { isAdmin } = useUser();
-    const now = new Date();
-    const currentHour = now.getHours();
-    const isSaveDisabledByTime = !isAdmin && currentHour >= 21 && currentHour < 24;
+
+    function isSkipTeamCheck(team: string): boolean {
+        return ['타지파', '타부서', '수강생', '타지역'].some((kw) => team.includes(kw));
+    }
+
+    async function checkPreviousStageExists(
+        name: string,
+        stage: string,
+        region: string,
+        team: string,
+        name2: string,
+        teacherRegion: string,
+        teacherTeam: string,
+        teacherName: string
+    ): Promise<boolean> {
+        try {
+            const query = new URLSearchParams({
+                name,
+                stage,
+                region,
+                team,
+                name2,
+                teacherRegion,
+                teacherTeam,
+                teacherName,
+            });
+            const res = await fetch(`/api/students/checkPreviousStage?${query.toString()}`);
+            if (!res.ok) return false;
+            const json = await res.json();
+            return json.exists === true;
+        } catch {
+            return false;
+        }
+    }
+
+    async function validatePreviousStageForSubmit(row: Student, allRows: Student[]): Promise<string[]> {
+        const errors: string[] = [];
+
+        const stage = row.단계.trim().toUpperCase();
+
+        if (!단계순서.includes(stage)) {
+            errors.push('유효한 단계가 아닙니다.');
+            return errors;
+        }
+
+        if (!row.이름.trim()) {
+            errors.push('이름이 필요합니다.');
+            return errors;
+        }
+
+        if (stage === '탈락') {
+            let alreadyExistsInDB = false;
+            if (row.인도자지역.trim() && row.인도자팀.trim() && row.인도자이름.trim()) {
+                alreadyExistsInDB = await checkPreviousStageExists(
+                    row.이름.trim(),
+                    '탈락',
+                    row.인도자지역,
+                    row.인도자팀,
+                    row.인도자이름,
+                    '',
+                    '',
+                    ''
+                );
+            } else if (row.교사지역.trim() && row.교사팀.trim() && row.교사이름.trim()) {
+                alreadyExistsInDB = await checkPreviousStageExists(
+                    row.이름.trim(),
+                    '탈락',
+                    '',
+                    '',
+                    '',
+                    row.교사지역,
+                    row.교사팀,
+                    row.교사이름
+                );
+            }
+
+            if (alreadyExistsInDB) {
+                errors.push('이미 탈락으로 등록된 학생입니다.');
+            }
+
+            const hasFullIndo = row.인도자지역.trim() && row.인도자팀.trim() && row.인도자이름.trim();
+            const hasFullTeacher = row.교사지역.trim() && row.교사팀.trim() && row.교사이름.trim();
+
+            if (!hasFullIndo && !hasFullTeacher) {
+                errors.push('탈락 시 인도자 정보 또는 교사 정보(지역, 팀, 이름)가 모두 필요합니다.');
+            }
+
+            return errors;
+        }
+
+        const currentStageIndex = 단계순서.indexOf(stage);
+        if (currentStageIndex > 0) {
+            const previousStage = 단계순서[currentStageIndex - 1];
+
+            const previousExistsInUI = allRows.some(
+                (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === previousStage
+            );
+
+            const previousExistsInDB = await checkPreviousStageExists(
+                row.이름.trim(),
+                previousStage,
+                row.인도자지역,
+                row.인도자팀,
+                row.인도자이름,
+                row.교사지역,
+                row.교사팀,
+                row.교사이름
+            );
+
+            if (!previousExistsInUI && !previousExistsInDB) {
+                errors.push(`${previousStage} 단계가 먼저 등록되어야 합니다.`);
+            }
+        }
+
+        if (stage === 'A' && !row.연락처.trim()) {
+            errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
+        }
+        if (stage === 'B' && !row.생년월일.trim()) {
+            errors.push('B단계는 생년월일이 필요합니다.');
+        }
+        if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
+            const skip = isSkipTeamCheck(row.교사팀);
+            if (!skip && (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim())) {
+                errors.push('C~F단계는 교사 정보(지역, 팀, 이름)가 필요합니다.');
+            }
+        }
+
+        return errors;
+    }
+
+    function validateRow(row: Student, allRows: Student[]): string[] {
+        const errors: string[] = [];
+        const stage = row.단계.trim().toUpperCase();
+
+        if (!단계순서.includes(stage)) errors.push('유효한 단계가 아닙니다.');
+
+        if (stage === '탈락') {
+            const duplicate = allRows.filter(
+                (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === '탈락'
+            );
+            if (duplicate.length > 1) {
+                errors.push('이미 탈락 처리된 수강생입니다.');
+            }
+            return errors;
+        }
+
+        if (!row.이름.trim()) errors.push('이름이 필요합니다.');
+        if (stage === 'A' && !row.연락처.trim()) errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
+        if (stage === 'B' && !row.생년월일.trim()) errors.push('B단계는 생년월일이 필요합니다.');
+        if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
+            const skip = isSkipTeamCheck(row.교사팀);
+            if (!skip && (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim())) {
+                errors.push('C~F단계는 교사 정보(지역, 팀, 이름)가 필요합니다.');
+            }
+        }
+
+        return errors;
+    }
+
+    const isSaveDisabledByTime = !isAdmin && new Date().getHours() >= 21 && new Date().getHours() < 24;
 
     const handleChange = (index: number, field: keyof Student, value: string) => {
         setData((prev) => {
             const newData = [...prev];
             if (field === '인도자_고유번호' || field === '교사_고유번호') return newData;
             newData[index] = { ...newData[index], [field]: value };
-            if (['인도자지역', '인도자팀', '인도자이름'].includes(field)) newData[index].인도자_고유번호 = null;
-            if (['교사지역', '교사팀', '교사이름'].includes(field)) newData[index].교사_고유번호 = null;
-
-            const indTeam = newData[index].인도자팀.trim().split('-')[0];
-            const 교사Team = newData[index].교사팀.trim().split('-')[0];
-            const 인도자Key = `인도자-${newData[index].인도자지역.trim()}-${indTeam}-${newData[
-                index
-            ].인도자이름.trim()}`;
-            const 교사Key = `교사-${newData[index].교사지역.trim()}-${교사Team}-${newData[index].교사이름.trim()}`;
-
-            setErrorsData((prevErrors) => {
-                const newErrors = [...prevErrors];
-                newErrors[index] = validateRow(newData[index], newData);
-                return newErrors;
-            });
-
             return newData;
         });
     };
@@ -229,11 +214,8 @@ export default function StudentTracker() {
     };
 
     const addRows = () => {
-        setData((prev) => {
-            const newRows = Array.from({ length: ADDITIONAL_ROWS }, () => ({ ...initialRow }));
-            setErrorsData((prevErrors) => [...prevErrors, ...Array.from({ length: ADDITIONAL_ROWS }, () => [])]);
-            return [...prev, ...newRows];
-        });
+        setData((prev) => [...prev, ...Array.from({ length: ADDITIONAL_ROWS }, () => ({ ...initialRow }))]);
+        setErrorsData((prev) => [...prev, ...Array.from({ length: ADDITIONAL_ROWS }, () => [])]);
     };
 
     const safe = (arr: string[], index: number) => (index < arr.length ? arr[index].trim() : '');
@@ -247,7 +229,7 @@ export default function StudentTracker() {
         setData((prev) => {
             const newData = [...prev];
             let writeIndex = newData.findIndex((r) => r.단계 === '');
-            console.log(newData, 'dd');
+
             parsed.forEach((cols) => {
                 if (writeIndex < 0 || writeIndex >= newData.length) return;
 
@@ -308,41 +290,40 @@ export default function StudentTracker() {
         setLoading(true);
         setError(null);
         setSuccess(null);
-
-        const now = new Date();
-        const currentHour = now.getHours();
-        if (!isAdmin && currentHour >= 21 && currentHour < 24) {
-            setError('일일보고시간이 마감되었습니다.');
-            setLoading(false);
-            return;
-        }
-
         const filledRows = data.filter((row) => row.단계.trim() !== '');
-
-        for (let i = 0; i < filledRows.length; i++) {
-            const errs = await validatePreviousStageForSubmit(filledRows[i], filledRows);
-            if (errs.length > 0) {
-                setError(`유효성 검사 실패: ${i + 1}번째 행 - ${errs.join(', ')}`);
-                setLoading(false);
-                return;
-            }
-        }
 
         try {
             const res = await fetch('/api/students', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(filledRows),
+                body: JSON.stringify({ data: filledRows, dryRun: true }),
             });
-            if (!res.ok) {
-                const json = await res.json();
-                throw new Error(json.message || '서버 오류가 발생했습니다.');
-            }
-            setSuccess('저장이 완료되었습니다.');
-            alert('저장이 완료되었습니다. 등록이 잘 되었는지 확인 해 주세요 ');
-        } catch (e: unknown) {
-            if (e instanceof Error) setError(e.message);
-            else setError('알 수 없는 오류가 발생했습니다.');
+            const result = await res.json();
+            if (!res.ok || !result.success) throw new Error(result.message);
+
+            setSummaryList(result.summary); // 저장될 목록 세팅
+            setConfirmVisible(true); // 모달 열기
+        } catch (err: any) {
+            setError(err.message || '서버 오류 발생');
+        } finally {
+            setLoading(false);
+        }
+    };
+    const handleFinalSubmit = async () => {
+        setLoading(true);
+        setConfirmVisible(false);
+        const filledRows = data.filter((row) => row.단계.trim() !== '');
+        try {
+            const res = await fetch('/api/students', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: filledRows, dryRun: false }), // ✅ dryRun: false
+            });
+            const result = await res.json();
+            if (!res.ok || !result.success) throw new Error(result.message);
+            setSuccess('최종 저장이 완료되었습니다.');
+        } catch (e: any) {
+            setError(e.message);
         } finally {
             setLoading(false);
         }
@@ -362,7 +343,7 @@ export default function StudentTracker() {
                     >
                         저장하기
                     </button>
-                    <div>
+                    <div className="min-w-[200px] whitespace-pre-line">
                         {error && <Alert message={error} type="error" showIcon />}
                         {success && <Alert message={success} type="success" showIcon />}
                     </div>
@@ -388,6 +369,38 @@ export default function StudentTracker() {
                     </table>
                 </Spin>
             </CardContent>
+
+            <Modal
+                title="저장 확인"
+                open={confirmVisible}
+                onCancel={() => setConfirmVisible(false)}
+                onOk={handleFinalSubmit}
+                okText="확인"
+                cancelText="취소"
+                width={600}
+            >
+                <p>입력된 정보를 최종 저장하시겠습니까?</p>
+                <div style={{ maxHeight: 300, overflowY: 'auto', marginTop: 16 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr>
+                                <th style={{ borderBottom: '1px solid #ccc', padding: '4px' }}>이름</th>
+                                <th style={{ borderBottom: '1px solid #ccc', padding: '4px' }}>단계</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {summaryList.map((item, i) => (
+                                <tr key={i}>
+                                    <td style={{ borderBottom: '1px solid #eee', padding: '4px' }}>{item.이름}</td>
+                                    <td style={{ borderBottom: '1px solid #eee', padding: '4px' }}>{item.단계}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Modal>
         </Card>
     );
 }
+
+export default StudentTracker;
