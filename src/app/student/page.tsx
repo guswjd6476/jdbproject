@@ -226,7 +226,6 @@ export default function DashboardPage() {
             });
         });
 
-        // 총합 행의 최종 계산
         STEPS2.forEach((step) => {
             const totalScore = totalRow[`${step}_보유`] as number;
             totalRow[`${step}_보유`] = Math.round(totalScore * 10) / 10;
@@ -234,10 +233,9 @@ export default function DashboardPage() {
 
         const totalFGoal = Number(totalRow['f_goal']);
         const totalGospelScore = Number(totalRow['gospel_score']);
-        totalRow['gospel_rate'] = totalFGoal > 0 ? Math.round((totalGospelScore / totalFGoal) * 100) : 0; // %로 표시
+        totalRow['gospel_rate'] = totalFGoal > 0 ? Math.round((totalGospelScore / totalFGoal) * 100) : 0;
 
-        return [...rows, totalRow]; // ✅ 개별 행과 총합 행을 함께 반환
-        // 총합 행 추가 끝
+        return [...rows, totalRow];
     }, [students, selectedYear, selectedTargetMonth, regionTeamsMap, enrollmentMap, regionConfigs]);
 
     const handleExportExcel = () => {
