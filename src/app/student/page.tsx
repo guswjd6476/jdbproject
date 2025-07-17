@@ -5,7 +5,6 @@ import { Table, Select, Typography, Space, Spin, Button } from 'antd';
 import dayjs from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
 import { REGIONS } from '@/app/lib/types';
-// ✅ 이 타입 파일의 TableRow3에 gospel_score?: number; 와 gospel_rate?: number; 가 포함되어 있어야 합니다.
 import type { STEP2, TableRow3 } from '@/app/lib/types';
 import { STEPS2 } from '@/app/lib/types';
 import { exportToExcel } from '@/utills/exportToExcel';
@@ -266,15 +265,8 @@ export default function DashboardPage() {
     return (
         <div className="w-full mx-auto p-6">
             <Title level={2}>개강 점검</Title>
-            <Space
-                direction="vertical"
-                size="large"
-                style={{ marginBottom: 24, width: '100%' }}
-            >
-                <Space
-                    wrap
-                    size="middle"
-                >
+            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
+                <Space wrap size="middle">
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
@@ -299,10 +291,7 @@ export default function DashboardPage() {
                     </Button>
                     <Button onClick={handleExportExcel}>엑셀 다운로드</Button>
                 </Space>
-                <Spin
-                    spinning={isLoading}
-                    tip="데이터를 불러오는 중입니다..."
-                >
+                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
                     <Table<TableRow3>
                         columns={[
                             {

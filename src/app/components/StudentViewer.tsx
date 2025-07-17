@@ -135,9 +135,8 @@ export default function StudentViewer() {
         ...completionColumns,
     ];
 
-    const handleExportToExcel = () => {
+    const handleExportForUser = () => {
         const exportData = filteredStudents.map((student) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const row: Record<string, any> = {
                 번호: student.번호,
                 단계: student.단계,
@@ -145,18 +144,15 @@ export default function StudentViewer() {
                 연락처: student.연락처,
                 생년월일: student.생년월일,
 
-                // 인도자 정보 분리
                 인도자지역: student.인도자지역 ?? '',
                 인도자구역: student.인도자팀 ?? '',
                 인도자이름: student.인도자이름 ?? '',
 
-                // 교사 정보 분리
                 교사지역: student.교사지역 ?? '',
                 교사구역: student.교사팀 ?? '',
                 교사이름: student.교사이름 ?? '',
             };
 
-            // 완료일 추가
             COMPLETION_KEYS.forEach((key) => {
                 const label = key === 'g' ? '탈락 완료일' : `${key.toUpperCase()} 완료일`;
                 row[label] = student[key] ? dayjs(student[key]).format('YYYY-MM-DD') : '';
@@ -168,13 +164,42 @@ export default function StudentViewer() {
         const worksheet = XLSX.utils.json_to_sheet(exportData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, '수강생 목록');
-
-        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-        const blob = new Blob([excelBuffer], {
+        const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([buffer], {
             type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         });
+        saveAs(blob, `수강생_일반_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`);
+    };
 
-        saveAs(blob, `수강생목록_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`);
+    const handleExportForAdmin = () => {
+        const exportData = filteredStudents.map((student) => {
+            const row: Record<string, any> = {
+                번호: student.번호,
+                단계: student.단계,
+                이름: student.이름,
+                연락처: student.연락처,
+                생년월일: student.생년월일,
+
+                인도자고유번호: student.인도자_고유번호 ?? '',
+                교사고유번호: student.교사_고유번호 ?? '',
+            };
+
+            COMPLETION_KEYS.forEach((key) => {
+                const label = key === 'g' ? '탈락 완료일' : `${key.toUpperCase()} 완료일`;
+                row[label] = student[key] ? dayjs(student[key]).format('YYYY-MM-DD') : '';
+            });
+
+            return row;
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, '관리자용');
+        const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([buffer], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        saveAs(blob, `수강생_관리자_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`);
     };
 
     return (
@@ -198,10 +223,14 @@ export default function StudentViewer() {
                         ))}
                     </div>
 
-                    {/* 엑셀 추출 버튼 */}
-                    <Button onClick={handleExportToExcel} type="default" className="mb-4">
-                        엑셀로 내보내기
-                    </Button>
+                    <div className="mb-4 flex gap-2 flex-wrap">
+                        <Button onClick={handleExportForUser} type="default">
+                            엑셀로 내보내기 (일반)
+                        </Button>
+                        <Button onClick={handleExportForAdmin} type="dashed">
+                            엑셀로 내보내기 (관리자용)
+                        </Button>
+                    </div>
 
                     {/* 검색창 */}
                     <Search

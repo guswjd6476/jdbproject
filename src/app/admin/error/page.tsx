@@ -9,10 +9,12 @@ type Student = {
     이름: string;
     연락처?: string;
     생년월일?: string;
-    인도자?: string;
     인도자지역?: string;
     인도자팀?: string;
     인도자이름?: string;
+    교사지역?: string;
+    교사팀?: string;
+    교사이름?: string;
     단계?: string;
     a?: string;
     b?: string;
@@ -51,19 +53,31 @@ export default function DuplicateStudentByNameAndLeader() {
 
     const duplicateStudents = useMemo(() => {
         const map = new Map<string, Student[]>();
+        const errorEntries: Student[] = [];
 
         for (const student of students) {
             const name = student.이름?.trim() || '';
-            const leaderName = student.인도자이름?.trim() || ''; // 인도자이름 기준
-            const key = `${name}__${leaderName}`;
+            const leaderName = student.인도자이름?.trim() || '';
+            const teacherName = student.교사이름?.trim() || '';
 
+            // 인도자 + 교사 정보가 모두 없을 경우
+            if (!leaderName && !teacherName) {
+                errorEntries.push(student);
+                continue;
+            }
+
+            const key = `${name}__${leaderName}`;
             if (!map.has(key)) {
                 map.set(key, []);
             }
             map.get(key)?.push(student);
         }
 
-        return Array.from(map.values()).flatMap((group) => (group.length > 1 ? group : []));
+        // 이름+인도자이름 중복
+        const nameLeaderDuplicates = Array.from(map.values()).flatMap((group) => (group.length > 1 ? group : []));
+
+        // 최종: 중복 + 에러
+        return [...new Set([...nameLeaderDuplicates, ...errorEntries])];
     }, [students]);
 
     const handleDeleteSelected = async () => {
@@ -93,13 +107,17 @@ export default function DuplicateStudentByNameAndLeader() {
 
     const columns: ColumnsType<Student> = [
         { title: '번호', dataIndex: '번호', key: '번호', width: 30 },
+        { title: '단계', dataIndex: '단계', key: '단계', width: 80 },
         { title: '이름', dataIndex: '이름', key: '이름', width: 50 },
         { title: '연락처', dataIndex: '연락처', key: '연락처', width: 50 },
         { title: '생년월일', dataIndex: '생년월일', key: '생년월일', width: 60 },
-        { title: '인도자 지역', dataIndex: '인도자지역', key: '인도자지역', width: 50 },
-        { title: '인도자 팀', dataIndex: '인도자팀', key: '인도자팀', width: 50 },
-        { title: '인도자 이름', dataIndex: '인도자이름', key: '인도자이름', width: 50 },
-        { title: '단계', dataIndex: '단계', key: '단계', width: 80 },
+        { title: '인도자지역', dataIndex: '인도자지역', key: '인도자지역', width: 50 },
+        { title: '인도자팀', dataIndex: '인도자팀', key: '인도자팀', width: 50 },
+        { title: '인도자이름', dataIndex: '인도자이름', key: '인도자이름', width: 50 },
+        { title: '교사지역', dataIndex: '교사지역', key: '교사지역', width: 50 },
+        { title: '교사팀', dataIndex: '교사팀', key: '교사팀', width: 50 },
+        { title: '교사이름', dataIndex: '교사이름', key: '교사이름', width: 50 },
+
         { title: 'A', dataIndex: 'a', key: 'a', width: 110, render: renderDate },
         { title: 'B', dataIndex: 'b', key: 'b', width: 110, render: renderDate },
         { title: 'C', dataIndex: 'c', key: 'c', width: 110, render: renderDate },

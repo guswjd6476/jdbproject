@@ -58,6 +58,8 @@ export async function GET(request: NextRequest) {
                 s.연락처, 
                 s.생년월일,
                 s.target,
+                s.인도자_고유번호,
+                s.교사_고유번호,
                 s.a_완료일 AS "a",
                 s.b_완료일 AS "b",
                 s.c_완료일 AS "c",
