@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Table, InputNumber, Input, Button, Form, message, Typography } from 'antd';
+import { useUser } from '@/app/hook/useUser'; // 사용자 정보 가져오는 훅
 
 interface RowData {
     month: number;
@@ -25,6 +26,7 @@ export default function MonthlyDashboard() {
     const [data, setData] = useState<RowData[]>([]);
     const [form] = Form.useForm();
     const [editingKey, setEditingKey] = useState<string>('');
+    const { isAdmin } = useUser();
 
     useEffect(() => {
         fetch('/api/monthly')
@@ -159,6 +161,7 @@ export default function MonthlyDashboard() {
             title: '수정',
             dataIndex: 'edit',
             render: (_: any, row: RowData) =>
+                isAdmin &&
                 !row.isTotal && (
                     <Button
                         type="link"
@@ -177,48 +180,50 @@ export default function MonthlyDashboard() {
         <div>
             <Typography.Title level={4}>📊 월별 지역별 단계별 현황</Typography.Title>
 
-            <Form
-                form={form}
-                layout="inline"
-                onFinish={handleAddOrUpdate}
-                style={{ marginBottom: 16, flexWrap: 'wrap', gap: 8 }}
-            >
-                <Form.Item name="month" rules={[{ required: true }]}>
-                    <InputNumber placeholder="월" min={1} max={12} />
-                </Form.Item>
-                <Form.Item name="region" rules={[{ required: true }]}>
-                    <Input placeholder="지역" />
-                </Form.Item>
-                <Form.Item name="a">
-                    <InputNumber placeholder="A" />
-                </Form.Item>
-                <Form.Item name="b">
-                    <InputNumber placeholder="B" />
-                </Form.Item>
-                <Form.Item name="c">
-                    <InputNumber placeholder="C" />
-                </Form.Item>
-                <Form.Item name="d_1">
-                    <InputNumber placeholder="D-1" />
-                </Form.Item>
-                <Form.Item name="d_2">
-                    <InputNumber placeholder="D-2" />
-                </Form.Item>
-                <Form.Item name="f">
-                    <InputNumber placeholder="F" />
-                </Form.Item>
-                <Form.Item name="센확">
-                    <InputNumber placeholder="센확" />
-                </Form.Item>
-                <Form.Item name="센등">
-                    <InputNumber placeholder="센등" />
-                </Form.Item>
-                <Form.Item>
-                    <Button type="primary" htmlType="submit">
-                        {editingKey ? '수정 완료' : '추가'}
-                    </Button>
-                </Form.Item>
-            </Form>
+            {isAdmin && (
+                <Form
+                    form={form}
+                    layout="inline"
+                    onFinish={handleAddOrUpdate}
+                    style={{ marginBottom: 16, flexWrap: 'wrap', gap: 8 }}
+                >
+                    <Form.Item name="month" rules={[{ required: true }]}>
+                        <InputNumber placeholder="월" min={1} max={12} />
+                    </Form.Item>
+                    <Form.Item name="region" rules={[{ required: true }]}>
+                        <Input placeholder="지역" />
+                    </Form.Item>
+                    <Form.Item name="a">
+                        <InputNumber placeholder="A" />
+                    </Form.Item>
+                    <Form.Item name="b">
+                        <InputNumber placeholder="B" />
+                    </Form.Item>
+                    <Form.Item name="c">
+                        <InputNumber placeholder="C" />
+                    </Form.Item>
+                    <Form.Item name="d_1">
+                        <InputNumber placeholder="D-1" />
+                    </Form.Item>
+                    <Form.Item name="d_2">
+                        <InputNumber placeholder="D-2" />
+                    </Form.Item>
+                    <Form.Item name="f">
+                        <InputNumber placeholder="F" />
+                    </Form.Item>
+                    <Form.Item name="센확">
+                        <InputNumber placeholder="센확" />
+                    </Form.Item>
+                    <Form.Item name="센등">
+                        <InputNumber placeholder="센등" />
+                    </Form.Item>
+                    <Form.Item>
+                        <Button type="primary" htmlType="submit">
+                            {editingKey ? '수정 완료' : '추가'}
+                        </Button>
+                    </Form.Item>
+                </Form>
+            )}
 
             <Table
                 rowKey={(row) => `${row.month}-${row.region}-${row.isTotal ? 'total' : 'row'}`}

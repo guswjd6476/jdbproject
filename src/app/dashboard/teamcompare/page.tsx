@@ -222,8 +222,12 @@ export default function DashboardPage() {
         monthsToShow.forEach((month) => {
             if (isRegionalAccount) {
                 const teams = selectedTeam ? [selectedTeam] : Object.keys(grouped[month] ?? {});
+                teams.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)); // 내림차순 정렬
+
                 teams.forEach((team) => {
                     const 구역들 = selectedRegion ? [selectedRegion] : Object.keys(grouped[month]?.[team] ?? {});
+                    구역들.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)); // 내림차순 정렬
+
                     구역들.forEach((구역) => {
                         const stepData = grouped[month]?.[team]?.[구역] || {};
                         const row: TableRow = {
@@ -249,10 +253,14 @@ export default function DashboardPage() {
                 });
             } else {
                 const regions = selectedRegion ? [selectedRegion] : REGIONS.filter((r) => Boolean(grouped[month]?.[r]));
+                regions.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)); // 내림차순 정렬
+
                 regions.forEach((region) => {
                     const teams = selectedTeam
                         ? [selectedTeam]
                         : fixedTeams.filter((t) => Boolean(grouped[month]?.[region]?.[t]));
+                    teams.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)); // 내림차순 정렬
+
                     teams.forEach((team) => {
                         const stepData = grouped[month]?.[region]?.[team] || {};
                         const row: TableRow = {
@@ -388,89 +396,73 @@ export default function DashboardPage() {
                         style={{ width: 100 }}
                         options={yearOptions}
                     />
-                    <Radio.Group value={scoreMode} onChange={(e) => setScoreMode(e.target.value)}>
-                        <Radio.Button value="score">점수로 보기</Radio.Button>
-                        <Radio.Button value="count">건수로 보기</Radio.Button>
-                    </Radio.Group>
-                    {!isRegionalAccount && (
-                        <Select
-                            placeholder="지역 선택"
-                            allowClear
-                            style={{ width: 120 }}
-                            value={selectedRegion ?? undefined}
-                            onChange={(v) => setSelectedRegion(v ?? null)}
-                            options={REGIONS.map((r) => ({ label: r, value: r }))}
-                        />
-                    )}
-
                     <Select
+                        value={selectedRegion ?? undefined}
+                        onChange={setSelectedRegion}
+                        placeholder="지역 선택"
+                        allowClear
+                        style={{ width: 120 }}
+                        options={REGIONS.map((r) => ({ label: r, value: r }))}
+                    />
+                    <Select
+                        value={selectedTeam ?? undefined}
+                        onChange={setSelectedTeam}
                         placeholder="팀 선택"
                         allowClear
                         style={{ width: 120 }}
-                        value={selectedTeam ?? undefined}
-                        onChange={(v) => setSelectedTeam(v ?? null)}
                         options={fixedTeams.map((t) => ({ label: t, value: t }))}
                     />
-
-                    {isRegionalAccount && (
-                        <Select
-                            placeholder="구역 선택"
-                            allowClear
-                            style={{ width: 120 }}
-                            value={selectedRegion ?? undefined}
-                            onChange={(v) => setSelectedRegion(v ?? null)}
-                            options={[
-                                ...new Set(students.map((s) => (s.인도자팀 ?? '').trim()).filter((v) => v !== '')),
-                            ].map((q) => ({ label: q, value: q }))}
-                        />
-                    )}
-
                     <Radio.Group
-                        onChange={(e) => {
-                            setFilterMode(e.target.value);
-                            setSelectedMonth(null);
-                            setSelectedDateRange([null, null]);
-                        }}
+                        onChange={(e) => setFilterMode(e.target.value)}
                         value={filterMode}
+                        optionType="button"
+                        buttonStyle="solid"
                     >
                         <Radio.Button value="month">월별</Radio.Button>
                         <Radio.Button value="range">기간별</Radio.Button>
                     </Radio.Group>
-
-                    {filterMode === 'month' && (
+                    {filterMode === 'month' ? (
                         <Select
-                            placeholder="월 선택"
-                            allowClear
-                            style={{ width: 100 }}
                             value={selectedMonth ?? undefined}
-                            onChange={(v) => setSelectedMonth(v ?? null)}
+                            onChange={setSelectedMonth}
+                            placeholder="월 선택"
+                            style={{ width: 100 }}
                             options={monthOptions}
                         />
-                    )}
-
-                    {filterMode === 'range' && (
+                    ) : (
                         <RangePicker
-                            value={selectedDateRange}
-                            onChange={(dates) => {
-                                setSelectedDateRange([dates?.[0] ?? null, dates?.[1] ?? null]);
-                            }}
-                            picker="date"
+                            value={selectedDateRange as [Dayjs, Dayjs]}
+                            onChange={(dates) => setSelectedDateRange(dates as [Dayjs, Dayjs])}
                             allowClear
                         />
                     )}
+
+                    <Select
+                        value={scoreMode}
+                        onChange={(v) => setScoreMode(v)}
+                        style={{ width: 120 }}
+                        options={[
+                            { label: '점수 기준', value: 'score' },
+                            { label: '건수 기준', value: 'count' },
+                        ]}
+                    />
 
                     <Button onClick={handleReset}>초기화</Button>
                 </Space>
 
-                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
-                    <Table<TableRow>
-                        columns={columns}
+                {isLoading ? (
+                    <Spin />
+                ) : (
+                    <Table
                         dataSource={[...tableData, totalRow]}
+                        columns={columns}
+                        bordered
+                        size="small"
                         scroll={{ x: 'max-content' }}
-                        pagination={{ pageSize: 50 }}
-                        sticky
+                        pagination={false}
+                        rowKey="key"
                     />
-                </Spin>
+                )}
             </Space>
         </div>
     );

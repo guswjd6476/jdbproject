@@ -2,26 +2,36 @@
 
 import React from 'react';
 import { Layout, Menu } from 'antd';
-import { UserAddOutlined, UserSwitchOutlined } from '@ant-design/icons';
+import { EditOutlined, TeamOutlined, UploadOutlined, UserAddOutlined, WarningOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 
 const { Sider } = Layout;
 
 const menuItems = [
     {
+        key: 'teacherUpload',
+        icon: <UploadOutlined />,
+        label: <Link href="/admin/teacherUpload">교사 업로드</Link>,
+    },
+    {
+        key: 'teacherAdmin',
+        icon: <TeamOutlined />,
+        label: <Link href="/admin/teacherAdmin">교사 현황</Link>,
+    },
+    {
         key: 'members',
         icon: <UserAddOutlined />,
-        label: <Link href="/admin/members">명단 업데이트</Link>,
+        label: <Link href="/admin/members">명단 등록</Link>,
     },
     {
         key: 'view',
-        icon: <UserSwitchOutlined />,
+        icon: <EditOutlined />,
         label: <Link href="/admin/correction">삭제 및 수정</Link>,
     },
     {
         key: 'error',
-        icon: <UserSwitchOutlined />,
-        label: <Link href="/admin/error">중복처리</Link>,
+        icon: <WarningOutlined />,
+        label: <Link href="/admin/error">중복 처리</Link>,
     },
 ];
 

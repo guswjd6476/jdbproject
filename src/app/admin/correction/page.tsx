@@ -1,12 +1,10 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Table, Input, Button, DatePicker, Popconfirm, message, Select, Space } from 'antd';
+import { Table, Input, Button, DatePicker, Popconfirm, message, Select, Space, Spin } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useUser } from '@/app/hook/useUser';
-
-const { Search } = Input;
 
 const COMPLETION_FIELDS = [
     'a_완료일',
@@ -29,10 +27,11 @@ const STAGE_OPTIONS = [
     'E',
     'F',
     '탈락',
-    ...Array.from({ length: 25 }, (_, i) => {
-        const date = dayjs().subtract(12, 'month').add(i, 'month');
+    ...Array.from({ length: 3 }, (_, i) => {
+        const date = dayjs().add(i - 1, 'month'); // -1,0,+1개월
         return `${date.year()}년 ${date.month() + 1}월센등`;
     }),
+    '센확',
 ];
 
 type Student = {
@@ -61,6 +60,13 @@ export default function AdminStudentManager() {
     const [searchStage, setSearchStage] = useState<string | null>(null);
     const [filteredKeyword, setFilteredKeyword] = useState({ name: '', stage: '' });
 
+    // === 일괄 변경 관련 상태 ===
+    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+    const [bulkStage, setBulkStage] = useState<string | null>(null);
+    const [bulkDateField, setBulkDateField] = useState<string | null>(null);
+    const [bulkDate, setBulkDate] = useState<Dayjs | null>(null);
+
+    // 학생 데이터 불러오기
     const fetchStudents = async () => {
         setLoading(true);
         try {
@@ -79,6 +85,7 @@ export default function AdminStudentManager() {
         fetchStudents();
     }, []);
 
+    // 단일 수정: 수정 시작
     const handleEdit = (record: Student) => {
         setEditingId(record.id);
         setEditingStages((prev) => ({ ...prev, [record.id]: record.단계 ?? '' }));
@@ -90,14 +97,17 @@ export default function AdminStudentManager() {
         setEditingDates(newDates);
     };
 
+    // 단일 수정: 날짜 변경
     const handleDateChange = (field: string, date: Dayjs | null) => {
         setEditingDates((prev) => ({ ...prev, [field]: date }));
     };
 
+    // 단일 수정: 단계 변경
     const handleStageChange = (id: number, value: string) => {
         setEditingStages((prev) => ({ ...prev, [id]: value }));
     };
 
+    // 단일 수정: 저장
     const handleSave = async (번호: number) => {
         try {
             const payload: Record<string, string | null> = {};
@@ -121,6 +131,7 @@ export default function AdminStudentManager() {
         }
     };
 
+    // 단일 삭제
     const handleDelete = async (id: number) => {
         try {
             const res = await fetch('/api/students/delete', {
@@ -136,6 +147,7 @@ export default function AdminStudentManager() {
         }
     };
 
+    // 필터링
     const filteredStudents = useMemo(() => {
         return students.filter((student) => {
             const nameMatch = filteredKeyword.name
@@ -151,6 +163,56 @@ export default function AdminStudentManager() {
             name: searchName,
             stage: searchStage ?? '',
         });
+    };
+
+    // === 체크박스 선택 변경 ===
+    const rowSelection = {
+        selectedRowKeys,
+        onChange: (keys: React.Key[]) => {
+            setSelectedRowKeys(keys);
+        },
+    };
+
+    // === 일괄 저장 핸들러 ===
+    const handleBulkSave = async () => {
+        if (selectedRowKeys.length === 0) {
+            message.warning('변경할 학생을 선택하세요.');
+            return;
+        }
+        if (!bulkStage && !bulkDateField) {
+            message.warning('변경할 단계 또는 완료일을 선택하세요.');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const payload = {
+                ids: selectedRowKeys,
+                단계: bulkStage ?? undefined,
+                완료일필드: bulkDateField ?? undefined,
+                완료일: bulkDate ? bulkDate.format('YYYY-MM-DD') : undefined,
+            };
+
+            const res = await fetch('/api/students/bulk-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (!res.ok) throw new Error();
+
+            message.success('일괄 저장 완료');
+            setSelectedRowKeys([]);
+            setBulkStage(null);
+            setBulkDateField(null);
+            setBulkDate(null);
+            fetchStudents();
+        } catch (err) {
+            console.error(err);
+            message.error('일괄 저장 실패');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const columns: ColumnsType<Student> = [
@@ -247,6 +309,8 @@ export default function AdminStudentManager() {
     return (
         <div className="p-4">
             <h2 className="text-2xl font-bold mb-4">관리자 학생 관리</h2>
+
+            {/* 검색 필터 */}
             <div className="mb-4 flex gap-2">
                 <Input
                     placeholder="이름"
@@ -270,13 +334,52 @@ export default function AdminStudentManager() {
                     검색
                 </Button>
             </div>
+
+            {/* 일괄 변경 UI */}
+            <Space align="center" wrap className="mb-4">
+                <Select
+                    placeholder="일괄 단계 선택"
+                    style={{ width: 150 }}
+                    value={bulkStage}
+                    onChange={setBulkStage}
+                    options={STAGE_OPTIONS.map((stage) => ({ label: stage, value: stage }))}
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                />
+                <Select
+                    placeholder="일괄 완료일 필드 선택"
+                    style={{ width: 150 }}
+                    value={bulkDateField}
+                    onChange={setBulkDateField}
+                    options={COMPLETION_FIELDS.map((field) => ({
+                        label: field.replace('_완료일', '').toUpperCase(),
+                        value: field,
+                    }))}
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                />
+                <DatePicker value={bulkDate} onChange={setBulkDate} format="YYYY.MM.DD" allowClear />
+                <Button
+                    type="primary"
+                    disabled={selectedRowKeys.length === 0 || (!bulkStage && !bulkDateField)}
+                    onClick={handleBulkSave}
+                    loading={loading}
+                >
+                    일괄 저장
+                </Button>
+            </Space>
+
+            {/* 학생 테이블 */}
             <Table
+                rowSelection={rowSelection}
                 dataSource={filteredStudents}
                 columns={columns}
                 rowKey="id"
                 loading={loading}
                 pagination={{ pageSize: 50 }}
-                scroll={{ x: 1500 }}
+                scroll={{ x: 1600 }}
                 size="middle"
             />
         </div>

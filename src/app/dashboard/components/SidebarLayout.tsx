@@ -18,6 +18,11 @@ const menuItems = [
         icon: <TeamOutlined />,
         label: <Link href="/dashboard/goal">목표달성</Link>,
     },
+    {
+        key: 'teacher',
+        icon: <TeamOutlined />,
+        label: <Link href="/dashboard/teacher">교사관리</Link>,
+    },
     // {
     //     key: 'settings',
     //     icon: <SettingOutlined />,
