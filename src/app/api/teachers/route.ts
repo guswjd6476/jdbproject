@@ -11,19 +11,7 @@ interface Teacher {
     고유번호: string;
     등록구분: string;
 }
-function getRegionFilterByEmail(email: string | null): string | null {
-    if (!email) return null;
 
-    if (email.includes('nowon')) return `(m.지역 = '노원')`;
-    if (email.includes('dobong')) return `(m.지역 = '도봉')`;
-    if (email.includes('sungbook')) return `(m.지역 = '성북')`;
-    if (email.includes('joongrang')) return `(m.지역 = '중랑')`;
-    if (email.includes('gangbook')) return `(m.지역 = '강북')`;
-    if (email.includes('dae')) return `(m.지역 = '대학')`;
-    if (email.includes('sae')) return `(m.지역 = '새신자')`;
-
-    return null;
-}
 export async function POST(request: NextRequest) {
     try {
         const teachers: Teacher[] = await request.json();
@@ -107,6 +95,9 @@ export async function GET(request: NextRequest) {
                 m.지역,
                 m.구역,
                 t.type AS 교사형태,
+                t.uid,
+                t.reason,
+                t.fail,
                 to_char(t.updated_at, 'YYYY-MM-DD') AS "마지막업데이트",
 
                 -- 활동 여부

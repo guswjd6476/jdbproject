@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Table, Button, Input, Typography, message } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 
 interface TeacherRow {
     고유번호: string;
@@ -10,12 +12,32 @@ interface TeacherRow {
     구역?: string;
     교사형태?: string;
     마지막업데이트?: string;
+    등록사유?: string;
+    fail?: boolean;
 }
 
 export default function TeacherUpload() {
     const [rawText, setRawText] = useState('');
     const [rows, setRows] = useState<TeacherRow[]>([]);
     const [loading, setLoading] = useState(false);
+
+    const fetchTeachers = async () => {
+        try {
+            setLoading(true);
+            const res = await fetch('/api/teachers');
+            if (!res.ok) throw new Error('조회 실패');
+            const data: TeacherRow[] = await res.json();
+            setRows(data);
+        } catch (err) {
+            message.error(`오류: ${(err as Error).message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchTeachers();
+    }, []);
 
     const handleProcess = async () => {
         setLoading(true);
@@ -30,7 +52,6 @@ export default function TeacherUpload() {
             });
 
         try {
-            // POST 저장 요청
             const postRes = await fetch('/api/teachers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -46,74 +67,119 @@ export default function TeacherUpload() {
                 throw new Error(errMsg);
             }
 
-            // 저장 후 전체 데이터 GET
-            const getRes = await fetch('/api/teachers');
-            if (!getRes.ok) {
-                let errMsg = '데이터 조회 실패';
-                try {
-                    const err = await getRes.json();
-                    errMsg = err.error ?? errMsg;
-                } catch {}
-                throw new Error(errMsg);
-            }
-            const data: TeacherRow[] = await getRes.json();
-
-            setRows(data);
+            await fetchTeachers();
+            setRawText('');
         } catch (error) {
-            alert(`오류 발생: ${(error as Error).message}`);
+            message.error(`오류 발생: ${(error as Error).message}`);
         } finally {
             setLoading(false);
         }
     };
 
+    const handleDropout = async (고유번호: string) => {
+        const 사유 = prompt('탈락 사유를 입력하세요:');
+        if (!사유) return;
+
+        try {
+            setLoading(true);
+            const res = await fetch('/api/teachers/dropout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 고유번호, 사유 }),
+            });
+
+            if (!res.ok) throw new Error('탈락 처리 실패');
+
+            await fetchTeachers();
+        } catch (err) {
+            message.error(`오류: ${(err as Error).message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const columns: ColumnsType<TeacherRow> = [
+        {
+            title: '고유번호',
+            dataIndex: '고유번호',
+            key: '고유번호',
+        },
+        {
+            title: '이름',
+            dataIndex: '이름',
+            key: '이름',
+        },
+        {
+            title: '지역',
+            dataIndex: '지역',
+            key: '지역',
+        },
+        {
+            title: '구역',
+            dataIndex: '구역',
+            key: '구역',
+        },
+        {
+            title: '교사형태',
+            dataIndex: '교사형태',
+            key: '교사형태',
+            render: (_, row) => (row.fail ? `${row.교사형태 ?? ''}(탈락)` : row.교사형태 ?? ''),
+        },
+        {
+            title: '마지막업데이트',
+            dataIndex: '마지막업데이트',
+            key: '마지막업데이트',
+        },
+        {
+            title: '탈락사유',
+            dataIndex: 'reason',
+            key: 'reason',
+        },
+        {
+            title: '탈락처리',
+            key: 'action',
+            render: (_, row) =>
+                row.fail ? (
+                    <span style={{ color: 'red' }}>탈락</span>
+                ) : (
+                    <Button
+                        size="small"
+                        danger
+                        onClick={() => handleDropout(row.고유번호)}
+                    >
+                        탈락처리
+                    </Button>
+                ),
+        },
+    ];
+
     return (
         <div className="p-4">
-            <h2 className="font-bold text-lg mb-2">교사 명단 붙여넣기</h2>
-            <textarea
-                rows={10}
+            <Typography.Title level={4}>교사 명단 붙여넣기</Typography.Title>
+            <Input.TextArea
+                rows={8}
                 value={rawText}
                 onChange={(e) => setRawText(e.target.value)}
                 placeholder="고유번호 [탭 또는 공백] 등록구분 붙여넣기"
-                className="w-full p-2 border rounded mb-2"
                 disabled={loading}
+                className="mb-2"
             />
-            <button onClick={handleProcess} className="bg-blue-600 text-white px-4 py-2 rounded" disabled={loading}>
-                {loading ? '처리중...' : '저장 및 조회'}
-            </button>
+            <Button
+                type="primary"
+                onClick={handleProcess}
+                loading={loading}
+                className="mb-4"
+            >
+                저장 및 조회
+            </Button>
 
-            <table className="mt-4 w-full table-auto border border-collapse">
-                <thead>
-                    <tr className="bg-gray-100">
-                        <th className="border px-2">고유번호</th>
-                        <th className="border px-2">등록구분</th>
-                        <th className="border px-2">이름</th>
-                        <th className="border px-2">지역</th>
-                        <th className="border px-2">구역</th>
-                        <th className="border px-2">교사형태</th>
-                        <th className="border px-2">마지막업데이트</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows.length === 0 && (
-                        <tr>
-                            <td colSpan={7} className="text-center py-4 text-gray-400">
-                                데이터가 없습니다.
-                            </td>
-                        </tr>
-                    )}
-                    {rows.map((row, idx) => (
-                        <tr key={idx}>
-                            <td className="border px-2">{row.고유번호}</td>
-                            <td className="border px-2">{row.등록구분}</td>
-                            <td className="border px-2">{row.이름 ?? ''}</td>
-                            <td className="border px-2">{row.지역 ?? ''}</td>
-                            <td className="border px-2">{row.구역 ?? ''}</td>
-                            <td className="border px-2">{row.교사형태 ?? ''}</td>
-                            <td className="border px-2">{row.마지막업데이트 ?? ''}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+            <Table
+                dataSource={rows}
+                columns={columns}
+                rowKey="고유번호"
+                loading={loading}
+                bordered
+            />
         </div>
     );
 }

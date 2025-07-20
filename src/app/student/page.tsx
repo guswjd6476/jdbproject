@@ -196,7 +196,9 @@ export default function DashboardPage() {
                 row.gospel_score = Math.round(gospelScore * 10) / 10;
                 row.gospel_rate = fGoal > 0 ? Math.round((gospelScore / fGoal) * 100) : 0; // %로 표시
 
-                rows.push(row);
+                if (!['중랑-5', '도봉-3'].includes(`${region}-${team}`)) {
+                    rows.push(row);
+                }
             });
         });
 
