@@ -29,9 +29,9 @@ export default function TeacherPage() {
         fetch('/api/teachers')
             .then((res) => res.json())
             .then((res) => {
-                setData(res);
-                console.log(res, 'res???');
-                setFilteredData(res);
+                const filtered = res.filter((t: any) => !t.fail); // ✅ 이 줄 추가
+                setData(filtered);
+                setFilteredData(filtered);
                 setLoading(false);
             })
             .catch((err) => {
@@ -117,7 +117,11 @@ export default function TeacherPage() {
 
     return (
         <div style={{ padding: 24 }}>
-            <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
+            <Space
+                direction="vertical"
+                size="middle"
+                style={{ display: 'flex' }}
+            >
                 <Title level={3}>교사 목록</Title>
 
                 <Space wrap>
@@ -133,7 +137,13 @@ export default function TeacherPage() {
                 {loading ? (
                     <Spin tip="로딩 중..." />
                 ) : (
-                    <Table dataSource={filteredData} columns={columns} rowKey="고유번호" bordered size="middle" />
+                    <Table
+                        dataSource={filteredData}
+                        columns={columns}
+                        rowKey="고유번호"
+                        bordered
+                        size="middle"
+                    />
                 )}
             </Space>
         </div>
