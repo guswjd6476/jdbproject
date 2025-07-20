@@ -107,7 +107,7 @@ export default function DashboardPage() {
             const 단계 = (s.단계 ?? '').toUpperCase().trim();
             if (!단계) return;
 
-            if (lastMonthSearchTerm && 단계.startsWith(lastMonthSearchTerm)) {
+            if (lastMonthSearchTerm && 단계.includes('센확')) {
                 const 인도자지역 = (s.인도자지역 ?? '').trim();
                 const 인도자팀Raw = (s.인도자팀 ?? '').replace(/\s/g, '');
                 if (인도자지역 && 인도자팀Raw && REGIONS.includes(인도자지역)) {
@@ -115,6 +115,7 @@ export default function DashboardPage() {
                     const leaderKey = `${인도자지역}-${인도자팀}`;
                     lastMonthScoreMap[leaderKey] = (lastMonthScoreMap[leaderKey] ?? 0) + 0.5;
                 }
+
                 const 교사지역 = (s.교사지역 ?? '').trim();
                 const 교사팀Raw = (s.교사팀 ?? '').replace(/\s/g, '');
                 if (교사지역 && 교사팀Raw && REGIONS.includes(교사지역)) {
@@ -265,8 +266,15 @@ export default function DashboardPage() {
     return (
         <div className="w-full mx-auto p-6">
             <Title level={2}>개강 점검</Title>
-            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
-                <Space wrap size="middle">
+            <Space
+                direction="vertical"
+                size="large"
+                style={{ marginBottom: 24, width: '100%' }}
+            >
+                <Space
+                    wrap
+                    size="middle"
+                >
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
@@ -291,7 +299,10 @@ export default function DashboardPage() {
                     </Button>
                     <Button onClick={handleExportExcel}>엑셀 다운로드</Button>
                 </Space>
-                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
+                <Spin
+                    spinning={isLoading}
+                    tip="데이터를 불러오는 중입니다..."
+                >
                     <Table<TableRow3>
                         columns={[
                             {
