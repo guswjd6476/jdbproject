@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Table, Select, Typography, Space, Spin, Radio, DatePicker, Button } from 'antd';
-
+import type { SortOrder } from 'antd/es/table/interface';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
@@ -222,12 +222,8 @@ export default function DashboardPage() {
         monthsToShow.forEach((month) => {
             if (isRegionalAccount) {
                 const teams = selectedTeam ? [selectedTeam] : Object.keys(grouped[month] ?? {});
-                teams.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)); // 내림차순 정렬
-
                 teams.forEach((team) => {
                     const 구역들 = selectedRegion ? [selectedRegion] : Object.keys(grouped[month]?.[team] ?? {});
-                    구역들.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)); // 내림차순 정렬
-
                     구역들.forEach((구역) => {
                         const stepData = grouped[month]?.[team]?.[구역] || {};
                         const row: TableRow = {
@@ -253,14 +249,10 @@ export default function DashboardPage() {
                 });
             } else {
                 const regions = selectedRegion ? [selectedRegion] : REGIONS.filter((r) => Boolean(grouped[month]?.[r]));
-                regions.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)); // 내림차순 정렬
-
                 regions.forEach((region) => {
                     const teams = selectedTeam
                         ? [selectedTeam]
                         : fixedTeams.filter((t) => Boolean(grouped[month]?.[region]?.[t]));
-                    teams.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)); // 내림차순 정렬
-
                     teams.forEach((team) => {
                         const stepData = grouped[month]?.[region]?.[team] || {};
                         const row: TableRow = {
@@ -286,7 +278,6 @@ export default function DashboardPage() {
             }
         });
 
-        // 전체 합계 행 생성
         const totalRow: TableRow = {
             key: 'total',
             월: '전체 합계',
@@ -327,13 +318,29 @@ export default function DashboardPage() {
         isRegionalAccount,
         scoreMode,
     ]);
-
     const columns: ColumnsType<TableRow> = [
         { title: '월', dataIndex: '월', key: 'month', fixed: 'left' as const, width: 80 },
         ...(isRegionalAccount
             ? [
-                  { title: '팀', dataIndex: '팀', key: 'team', fixed: 'left' as const, width: 100 },
-                  { title: '구역', dataIndex: '구역', key: '구역', fixed: 'left' as const, width: 100 },
+                  {
+                      title: '팀',
+                      dataIndex: '팀',
+                      key: 'team',
+                      fixed: 'left' as const,
+                      width: 100,
+                      sorter: (a: TableRow, b: TableRow) => a.팀.localeCompare(b.팀),
+                      sortDirections: ['ascend', 'descend'] as SortOrder[],
+                  },
+                  {
+                      title: '구역',
+                      dataIndex: '구역',
+                      key: '구역',
+                      fixed: 'left' as const,
+                      width: 100,
+                      sorter: (a: TableRow, b: TableRow) =>
+                          (a.구역 ?? '').toString().localeCompare((b.구역 ?? '').toString()),
+                      sortDirections: ['ascend', 'descend'] as SortOrder[],
+                  },
               ]
             : [
                   { title: '지역', dataIndex: '지역', key: 'region', fixed: 'left' as const, width: 100 },
@@ -360,7 +367,7 @@ export default function DashboardPage() {
                 onCell: () => ({
                     style: {
                         backgroundColor: '#d9f7be',
-                        textAlign: 'center' as const, // <- string literal type 지정
+                        textAlign: 'center' as const,
                         padding: '8px',
                     },
                 }),
@@ -370,7 +377,7 @@ export default function DashboardPage() {
             title: '탈락',
             dataIndex: '탈락',
             key: '탈락',
-            align: 'center' as const, // <- string literal type 지정
+            align: 'center' as const,
             width: 80,
         },
     ];
@@ -396,73 +403,89 @@ export default function DashboardPage() {
                         style={{ width: 100 }}
                         options={yearOptions}
                     />
-                    <Select
-                        value={selectedRegion ?? undefined}
-                        onChange={setSelectedRegion}
-                        placeholder="지역 선택"
-                        allowClear
-                        style={{ width: 120 }}
-                        options={REGIONS.map((r) => ({ label: r, value: r }))}
-                    />
-                    <Select
-                        value={selectedTeam ?? undefined}
-                        onChange={setSelectedTeam}
-                        placeholder="팀 선택"
-                        allowClear
-                        style={{ width: 120 }}
-                        options={fixedTeams.map((t) => ({ label: t, value: t }))}
-                    />
-                    <Radio.Group
-                        onChange={(e) => setFilterMode(e.target.value)}
-                        value={filterMode}
-                        optionType="button"
-                        buttonStyle="solid"
-                    >
-                        <Radio.Button value="month">월별</Radio.Button>
-                        <Radio.Button value="range">기간별</Radio.Button>
+                    <Radio.Group value={scoreMode} onChange={(e) => setScoreMode(e.target.value)}>
+                        <Radio.Button value="score">점수로 보기</Radio.Button>
+                        <Radio.Button value="count">건수로 보기</Radio.Button>
                     </Radio.Group>
-                    {filterMode === 'month' ? (
+                    {!isRegionalAccount && (
                         <Select
-                            value={selectedMonth ?? undefined}
-                            onChange={setSelectedMonth}
-                            placeholder="월 선택"
-                            style={{ width: 100 }}
-                            options={monthOptions}
-                        />
-                    ) : (
-                        <RangePicker
-                            value={selectedDateRange as [Dayjs, Dayjs]}
-                            onChange={(dates) => setSelectedDateRange(dates as [Dayjs, Dayjs])}
+                            placeholder="지역 선택"
                             allowClear
+                            style={{ width: 120 }}
+                            value={selectedRegion ?? undefined}
+                            onChange={(v) => setSelectedRegion(v ?? null)}
+                            options={REGIONS.map((r) => ({ label: r, value: r }))}
                         />
                     )}
 
                     <Select
-                        value={scoreMode}
-                        onChange={(v) => setScoreMode(v)}
+                        placeholder="팀 선택"
+                        allowClear
                         style={{ width: 120 }}
-                        options={[
-                            { label: '점수 기준', value: 'score' },
-                            { label: '건수 기준', value: 'count' },
-                        ]}
+                        value={selectedTeam ?? undefined}
+                        onChange={(v) => setSelectedTeam(v ?? null)}
+                        options={fixedTeams.map((t) => ({ label: t, value: t }))}
                     />
+
+                    {isRegionalAccount && (
+                        <Select
+                            placeholder="구역 선택"
+                            allowClear
+                            style={{ width: 120 }}
+                            value={selectedRegion ?? undefined}
+                            onChange={(v) => setSelectedRegion(v ?? null)}
+                            options={[
+                                ...new Set(students.map((s) => (s.인도자팀 ?? '').trim()).filter((v) => v !== '')),
+                            ].map((q) => ({ label: q, value: q }))}
+                        />
+                    )}
+
+                    <Radio.Group
+                        onChange={(e) => {
+                            setFilterMode(e.target.value);
+                            setSelectedMonth(null);
+                            setSelectedDateRange([null, null]);
+                        }}
+                        value={filterMode}
+                    >
+                        <Radio.Button value="month">월별</Radio.Button>
+                        <Radio.Button value="range">기간별</Radio.Button>
+                    </Radio.Group>
+
+                    {filterMode === 'month' && (
+                        <Select
+                            placeholder="월 선택"
+                            allowClear
+                            style={{ width: 100 }}
+                            value={selectedMonth ?? undefined}
+                            onChange={(v) => setSelectedMonth(v ?? null)}
+                            options={monthOptions}
+                        />
+                    )}
+
+                    {filterMode === 'range' && (
+                        <RangePicker
+                            value={selectedDateRange}
+                            onChange={(dates) => {
+                                setSelectedDateRange([dates?.[0] ?? null, dates?.[1] ?? null]);
+                            }}
+                            picker="date"
+                            allowClear
+                        />
+                    )}
 
                     <Button onClick={handleReset}>초기화</Button>
                 </Space>
 
-                {isLoading ? (
-                    <Spin />
-                ) : (
-                    <Table
-                        dataSource={[...tableData, totalRow]}
+                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
+                    <Table<TableRow>
                         columns={columns}
-                        bordered
-                        size="small"
+                        dataSource={[...tableData, totalRow]}
                         scroll={{ x: 'max-content' }}
-                        pagination={false}
-                        rowKey="key"
+                        pagination={{ pageSize: 50 }}
+                        sticky
                     />
-                )}
+                </Spin>
             </Space>
         </div>
     );

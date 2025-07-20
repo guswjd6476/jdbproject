@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Table, Typography, Space, Spin, Input, Select } from 'antd';
+import { Table, Typography, Space, Spin, Input } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
 const { Title } = Typography;

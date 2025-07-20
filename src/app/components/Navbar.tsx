@@ -11,7 +11,7 @@ export default function Navbar() {
     const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
     const logout = useAuthStore((state) => state.logout);
     const router = useRouter();
-    const { isAdmin } = useUser(); // 관리자 여부 가져오기
+    const { isAdmin, user } = useUser(); // 관리자 여부 가져오기
 
     const handleLogout = async () => {
         const confirmed = window.confirm('정말 로그아웃하시겠습니까?');
@@ -33,7 +33,21 @@ export default function Navbar() {
             <nav className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
                 <span className="text-lg font-bold">
                     <Link href="/" className="hover:underline">
-                        JD
+                        {user === '성북'
+                            ? '성북화이팅'
+                            : user === '도봉'
+                            ? '도보옹화이팅'
+                            : user === '노원'
+                            ? '노원화이티잉'
+                            : user === '중랑'
+                            ? '중랑화이팅~'
+                            : user === '강북'
+                            ? '강북화이팅~'
+                            : user === '대학'
+                            ? '대학화이팅~'
+                            : user === '새신자'
+                            ? '새신자화이팅~'
+                            : '전도부'}
                     </Link>
                 </span>
                 <ul className="flex gap-6 items-center text-sm">
