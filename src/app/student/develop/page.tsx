@@ -64,6 +64,7 @@ export default function RegionWiseRemarks() {
         const 교사지역Set = new Set<string>();
         const 교사팀Set = new Set<string>();
         const 교사이름Set = new Set<string>();
+        const targetSet = new Set<string>();
 
         students.forEach((s) => {
             if (s.단계) 단계Set.add(s.단계);
@@ -73,6 +74,7 @@ export default function RegionWiseRemarks() {
             if (s.교사지역) 교사지역Set.add(String(s.교사지역));
             if (s.교사팀) 교사팀Set.add(String(s.교사팀));
             if (s.교사이름) 교사이름Set.add(String(s.교사이름));
+            if (s.target) targetSet.add(String(s.target));
         });
 
         const toFilters = (set: Set<string>) =>
@@ -89,6 +91,7 @@ export default function RegionWiseRemarks() {
             교사지역: toFilters(교사지역Set),
             교사팀: toFilters(교사팀Set),
             교사이름: toFilters(교사이름Set),
+            target: toFilters(targetSet),
         };
     }, [students]);
 
@@ -237,6 +240,8 @@ export default function RegionWiseRemarks() {
             title: '목표 월',
             key: '목표월',
             width: 60,
+            filters: uniqueFilters.target,
+            onFilter: (value, record) => String(record.target) === value,
             render: (_, record) => (
                 <Select
                     value={targets[record.번호]?.month}
