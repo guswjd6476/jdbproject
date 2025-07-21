@@ -103,41 +103,49 @@ export default function TeacherUpload() {
             title: '고유번호',
             dataIndex: '고유번호',
             key: '고유번호',
+            sorter: (a, b) => a.고유번호.localeCompare(b.고유번호),
         },
         {
             title: '이름',
             dataIndex: '이름',
             key: '이름',
+            sorter: (a, b) => (a.이름 ?? '').localeCompare(b.이름 ?? ''),
         },
         {
             title: '지역',
             dataIndex: '지역',
             key: '지역',
+            sorter: (a, b) => (a.지역 ?? '').localeCompare(b.지역 ?? ''),
         },
         {
             title: '구역',
             dataIndex: '구역',
             key: '구역',
+            sorter: (a, b) => (a.구역 ?? '').localeCompare(b.구역 ?? ''),
         },
         {
             title: '교사형태',
             dataIndex: '교사형태',
             key: '교사형태',
+            sorter: (a, b) => (a.교사형태 ?? '').localeCompare(b.교사형태 ?? ''),
             render: (_, row) => (row.fail ? `${row.교사형태 ?? ''}(탈락)` : row.교사형태 ?? ''),
         },
         {
             title: '마지막업데이트',
             dataIndex: '마지막업데이트',
             key: '마지막업데이트',
+            sorter: (a, b) => (a.마지막업데이트 ?? '').localeCompare(b.마지막업데이트 ?? ''),
         },
         {
             title: '탈락사유',
             dataIndex: 'reason',
             key: 'reason',
+            sorter: (a, b) => (a.등록사유 ?? '').localeCompare(b.등록사유 ?? ''),
         },
         {
             title: '탈락처리',
             key: 'action',
+            sorter: (a, b) => (a.등록사유 ?? '').localeCompare(b.등록사유 ?? ''),
             render: (_, row) =>
                 row.fail ? (
                     <span style={{ color: 'red' }}>탈락</span>
