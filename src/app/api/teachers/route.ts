@@ -100,22 +100,36 @@ export async function GET(request: NextRequest) {
                 t.fail,
                 to_char(t.updated_at, 'YYYY-MM-DD') AS "마지막업데이트",
 
-                -- 활동 여부
                 CASE 
-                    WHEN EXISTS (
-                        SELECT 1
-                        FROM students s
-                        WHERE ( s.교사_고유번호 = m.고유번호)
-                          AND (
-                              s.d_1_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                              s.d_2_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                              s.e_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                              s.f_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                              s.센확_완료일 >= CURRENT_DATE - INTERVAL '3 months'
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM students s
+                    WHERE s.교사_고유번호 = m.고유번호
+                      AND (
+                          (
+                              CURRENT_DATE < '2025-09-01' AND (
+                                  s.d_1_완료일 >= '2025-06-01' OR
+                                  s.d_2_완료일 >= '2025-06-01' OR
+                                  s.e_완료일   >= '2025-06-01' OR
+                                  s.f_완료일   >= '2025-06-01' OR
+                                  s.센확_완료일 >= '2025-06-01'
+                              )
                           )
-                    ) THEN '활동'
-                    ELSE '비활동'
-                END AS 활동여부,
+                          OR
+                          (
+                              CURRENT_DATE >= '2025-09-01' AND (
+                                  s.d_1_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
+                                  s.d_2_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
+                                  s.e_완료일   >= CURRENT_DATE - INTERVAL '3 months' OR
+                                  s.f_완료일   >= CURRENT_DATE - INTERVAL '3 months' OR
+                                  s.센확_완료일 >= CURRENT_DATE - INTERVAL '3 months'
+                              )
+                          )
+                      )
+                ) THEN '활동'
+                ELSE '비활동'
+            END AS 활동여부,
+            
 
                 (
                     SELECT COUNT(*)

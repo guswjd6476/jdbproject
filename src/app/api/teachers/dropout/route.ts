@@ -10,7 +10,6 @@ export async function POST(req: NextRequest) {
         if (!고유번호 || !사유) {
             return NextResponse.json({ error: '고유번호와 사유는 필수입니다.' }, { status: 400 });
         }
-        console.log(사유, 고유번호);
         await client.query(
             `
             UPDATE teachers

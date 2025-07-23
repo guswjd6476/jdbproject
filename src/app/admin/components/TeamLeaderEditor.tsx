@@ -28,7 +28,6 @@ export default function TeamLeaderEditor() {
             .then((result: TeamLeaderRow[]) => {
                 setData([...result, { 지역: '', 팀: '', 팀장: '', 교관: '' }]);
                 setEdited(false);
-                console.log(result, '?');
             })
             .catch(() => message.error('팀장/교관 데이터를 불러오지 못했습니다.'))
             .finally(() => setLoading(false));
@@ -89,7 +88,10 @@ export default function TeamLeaderEditor() {
                     allowClear
                 >
                     {REGION_OPTIONS.map((region) => (
-                        <Option key={region} value={region}>
+                        <Option
+                            key={region}
+                            value={region}
+                        >
                             {region}
                         </Option>
                     ))}
@@ -143,7 +145,10 @@ export default function TeamLeaderEditor() {
                     cancelText="아니오"
                     disabled={data.length === 1}
                 >
-                    <Button danger disabled={data.length === 1}>
+                    <Button
+                        danger
+                        disabled={data.length === 1}
+                    >
                         삭제
                     </Button>
                 </Popconfirm>
@@ -164,7 +169,12 @@ export default function TeamLeaderEditor() {
             />
             <Space style={{ marginTop: 16 }}>
                 <Button onClick={handleAddRow}>행 추가</Button>
-                <Button type="primary" onClick={handleSave} loading={saving} disabled={!edited}>
+                <Button
+                    type="primary"
+                    onClick={handleSave}
+                    loading={saving}
+                    disabled={!edited}
+                >
                     저장하기
                 </Button>
             </Space>

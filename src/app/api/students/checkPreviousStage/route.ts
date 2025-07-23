@@ -31,10 +31,6 @@ export async function GET(request: Request) {
         const teacherTeam = searchParams.get('teacherTeam')?.trim();
         const teacherName = searchParams.get('teacherName')?.trim();
 
-        console.log(
-            `[checkPreviousStage] name:${name}, stage:${stage}, region:${region}, team:${team}, name2:${name2}, teacherRegion:${teacherRegion}, teacherTeam:${teacherTeam}, teacherName:${teacherName}`
-        );
-
         if (!name || !stage) {
             return NextResponse.json(
                 { exists: false, message: 'Invalid parameters: name and stage are required.' },
@@ -47,10 +43,8 @@ export async function GET(request: Request) {
 
         if (stage === '탈락') {
             if (region && team && name2) {
-                console.log('이거아님?1');
                 indUniqueId = await getMemberUniqueId(client, region, team, name2);
             } else if (!indUniqueId && teacherRegion && teacherTeam && teacherName) {
-                console.log('이거아님?2');
                 teaUniquId = await getMemberUniqueId(client, teacherRegion, teacherTeam, teacherName);
             } else {
                 indUniqueId = null;
@@ -82,7 +76,6 @@ export async function GET(request: Request) {
                 [name, stage]
             );
         }
-        console.log(indUniqueId, teaUniquId);
         const count = parseInt(result.rows[0].count, 10);
         return NextResponse.json({ exists: count > 0 });
     } catch (error) {

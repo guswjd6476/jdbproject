@@ -27,7 +27,6 @@ export default function TeacherDashboard() {
         fetch('/api/teachers/teacher-summary')
             .then((res) => res.json())
             .then((result: TeacherSummaryRow[]) => {
-                console.log(result, '?');
                 const grouped = groupByTeam(result);
                 setData(grouped);
             })
@@ -48,7 +47,6 @@ export default function TeacherDashboard() {
         const map = new Map<string, TeacherSummaryRow>();
 
         rawData.forEach((row) => {
-            // 팀 번호를 row.팀에서 직접 사용, 없으면 구역으로 fallback
             const teamKey = row.팀 || (row.구역 ? `${row.구역.split('-')[0]}팀` : '알수없음');
 
             const key = `${row.지역}-${teamKey}`;
@@ -71,7 +69,6 @@ export default function TeacherDashboard() {
                 const prev = map.get(key)!;
                 map.set(key, {
                     ...prev,
-                    // 팀장, 교관은 첫 값 유지
                     교사재적: prev.교사재적 + row.교사재적,
                     활동교사: prev.활동교사 + row.활동교사,
                     교사건: prev.교사건 + row.교사건,
@@ -94,7 +91,10 @@ export default function TeacherDashboard() {
             dataIndex: '팀장',
             key: '팀장',
             render: (_: string, __: TeacherSummaryRow, index: number) => (
-                <Input value={data[index]?.팀장} onChange={(e) => handleInputChange(e.target.value, index, '팀장')} />
+                <Input
+                    value={data[index]?.팀장}
+                    onChange={(e) => handleInputChange(e.target.value, index, '팀장')}
+                />
             ),
         },
         {
@@ -102,7 +102,10 @@ export default function TeacherDashboard() {
             dataIndex: '교관',
             key: '교관',
             render: (_: string, __: TeacherSummaryRow, index: number) => (
-                <Input value={data[index]?.교관} onChange={(e) => handleInputChange(e.target.value, index, '교관')} />
+                <Input
+                    value={data[index]?.교관}
+                    onChange={(e) => handleInputChange(e.target.value, index, '교관')}
+                />
             ),
         },
         { title: '교사재적', dataIndex: '교사재적', key: '교사재적' },
@@ -118,7 +121,12 @@ export default function TeacherDashboard() {
         <>
             <Typography.Title level={4}>교사 활동 현황 (관리자용)</Typography.Title>
             <TeamLeaderEditor />
-            <Table columns={columns} dataSource={data} rowKey={(row) => `${row.지역}-${row.팀}`} pagination={false} />
+            <Table
+                columns={columns}
+                dataSource={data}
+                rowKey={(row) => `${row.지역}-${row.팀}`}
+                pagination={false}
+            />
         </>
     );
 }

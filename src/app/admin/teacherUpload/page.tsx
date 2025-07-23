@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Table, Button, Input, Typography, message } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Table, Button, Input, Typography, message, Space, Modal } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
 interface TeacherRow {
@@ -11,25 +11,28 @@ interface TeacherRow {
     지역?: string;
     구역?: string;
     교사형태?: string;
-    마지막업데이트?: string;
-    등록사유?: string;
     fail?: boolean;
+    reason?: string;
+    마지막업데이트?: string;
 }
 
-export default function TeacherUpload() {
-    const [rawText, setRawText] = useState('');
-    const [rows, setRows] = useState<TeacherRow[]>([]);
-    const [loading, setLoading] = useState(false);
+export default function TeacherUploadPage() {
+    const [rawInput, setRawInput] = useState<string>('');
+    const [data, setData] = useState<TeacherRow[]>([]);
+    const [loading, setLoading] = useState<boolean>(false);
+    const [searchText, setSearchText] = useState<string>('');
+    const [dropoutKey, setDropoutKey] = useState<string | null>(null);
+    const [deleteKeys, setDeleteKeys] = useState<string[]>([]);
 
     const fetchTeachers = async () => {
+        setLoading(true);
         try {
-            setLoading(true);
             const res = await fetch('/api/teachers');
-            if (!res.ok) throw new Error('조회 실패');
-            const data: TeacherRow[] = await res.json();
-            setRows(data);
-        } catch (err) {
-            message.error(`오류: ${(err as Error).message}`);
+            if (!res.ok) throw new Error('데이터 조회 실패');
+            const teachers: TeacherRow[] = await res.json();
+            setData(teachers);
+        } catch (err: any) {
+            message.error(err.message || '데이터를 불러오는 중 오류 발생');
         } finally {
             setLoading(false);
         }
@@ -39,154 +42,237 @@ export default function TeacherUpload() {
         fetchTeachers();
     }, []);
 
-    const handleProcess = async () => {
-        setLoading(true);
-
-        const parsed = rawText
+    const parseInput = (input: string): TeacherRow[] => {
+        return input
+            .trim()
             .split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean)
             .map((line) => {
-                const [id, type] = line.split(/\s+/);
-                return { 고유번호: id, 등록구분: type };
-            });
+                const [고유번호, 등록구분] = line.trim().split(/\s+/);
+                return { 고유번호, 등록구분 };
+            })
+            .filter((row) => row.고유번호 && row.등록구분);
+    };
 
+    const handleUpload = async () => {
+        const parsed = parseInput(rawInput);
+        if (parsed.length === 0) {
+            message.warning('입력값을 확인해주세요.');
+            return;
+        }
+
+        setLoading(true);
         try {
-            const postRes = await fetch('/api/teachers', {
+            const res = await fetch('/api/teachers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(parsed),
             });
 
-            if (!postRes.ok) {
-                let errMsg = '저장 실패';
-                try {
-                    const err = await postRes.json();
-                    errMsg = err.error ?? errMsg;
-                } catch {}
-                throw new Error(errMsg);
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || '업로드 실패');
             }
 
-            await fetchTeachers();
-            setRawText('');
-        } catch (error) {
-            message.error(`오류 발생: ${(error as Error).message}`);
+            const resData: TeacherRow[] = await res.json();
+            setData(resData);
+            setRawInput('');
+            message.success('업로드 완료');
+        } catch (err: any) {
+            message.error(err.message || '에러 발생');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleDropout = async (고유번호: string) => {
+    const handleDropout = async () => {
+        if (!dropoutKey) {
+            message.warning('탈락할 교사를 선택하세요.');
+            return;
+        }
+
+        const teacher = data.find((t) => t.고유번호 + t.등록구분 === dropoutKey);
+        if (!teacher) {
+            message.error('교사를 찾을 수 없습니다.');
+            return;
+        }
+
         const 사유 = prompt('탈락 사유를 입력하세요:');
         if (!사유) return;
 
+        setLoading(true);
         try {
-            setLoading(true);
             const res = await fetch('/api/teachers/dropout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 고유번호, 사유 }),
+                body: JSON.stringify({ 고유번호: teacher.고유번호, 사유 }),
             });
 
-            if (!res.ok) throw new Error('탈락 처리 실패');
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || '탈락 실패');
+            }
 
-            await fetchTeachers();
-        } catch (err) {
-            message.error(`오류: ${(err as Error).message}`);
+            const updatedData: TeacherRow[] = await res.json();
+            setData(updatedData);
+            setDropoutKey(null);
+            message.success('탈락 처리 완료');
+        } catch (err: any) {
+            message.error(err.message || '탈락 중 오류');
         } finally {
             setLoading(false);
         }
     };
 
+    const handleDelete = async () => {
+        if (deleteKeys.length === 0) {
+            message.warning('삭제할 교사를 선택하세요.');
+            return;
+        }
+
+        const confirmed = confirm(`${deleteKeys.length}명 삭제하시겠습니까?`);
+
+        if (!confirmed) return;
+
+        setLoading(true);
+
+        try {
+            const res = await fetch('/api/teachers/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keys: deleteKeys }),
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || '삭제 실패');
+            }
+
+            const updatedData: TeacherRow[] = await res.json();
+            setData(updatedData);
+            setDeleteKeys([]);
+            message.success('삭제 완료');
+        } catch (err: any) {
+            message.error(err.message || '삭제 중 오류');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filteredData = useMemo(() => {
+        if (!searchText) return data;
+        const lower = searchText.toLowerCase();
+        return data.filter(
+            (row) =>
+                row.고유번호.toLowerCase().includes(lower) ||
+                (row.이름?.toLowerCase().includes(lower) ?? false) ||
+                (row.지역?.toLowerCase().includes(lower) ?? false) ||
+                (row.구역?.toLowerCase().includes(lower) ?? false) ||
+                (row.교사형태?.toLowerCase().includes(lower) ?? false)
+        );
+    }, [data, searchText]);
+
     const columns: ColumnsType<TeacherRow> = [
+        { title: '고유번호', dataIndex: '고유번호', key: '고유번호' },
+        { title: '이름', dataIndex: '이름', key: '이름' },
+        { title: '지역', dataIndex: '지역', key: '지역' },
+        { title: '구역', dataIndex: '구역', key: '구역' },
+        { title: '교사형태', dataIndex: '교사형태', key: '교사형태' },
         {
-            title: '고유번호',
-            dataIndex: '고유번호',
-            key: '고유번호',
-            sorter: (a, b) => a.고유번호.localeCompare(b.고유번호),
-        },
-        {
-            title: '이름',
-            dataIndex: '이름',
-            key: '이름',
-            sorter: (a, b) => (a.이름 ?? '').localeCompare(b.이름 ?? ''),
-        },
-        {
-            title: '지역',
-            dataIndex: '지역',
-            key: '지역',
-            sorter: (a, b) => (a.지역 ?? '').localeCompare(b.지역 ?? ''),
-        },
-        {
-            title: '구역',
-            dataIndex: '구역',
-            key: '구역',
-            sorter: (a, b) => (a.구역 ?? '').localeCompare(b.구역 ?? ''),
-        },
-        {
-            title: '교사형태',
-            dataIndex: '교사형태',
-            key: '교사형태',
-            sorter: (a, b) => (a.교사형태 ?? '').localeCompare(b.교사형태 ?? ''),
-            render: (_, row) => (row.fail ? `${row.교사형태 ?? ''}(탈락)` : row.교사형태 ?? ''),
-        },
-        {
-            title: '마지막업데이트',
-            dataIndex: '마지막업데이트',
-            key: '마지막업데이트',
-            sorter: (a, b) => (a.마지막업데이트 ?? '').localeCompare(b.마지막업데이트 ?? ''),
-        },
-        {
-            title: '탈락사유',
-            dataIndex: 'reason',
-            key: 'reason',
-            sorter: (a, b) => (a.등록사유 ?? '').localeCompare(b.등록사유 ?? ''),
-        },
-        {
-            title: '탈락처리',
-            key: 'action',
-            sorter: (a, b) => (a.등록사유 ?? '').localeCompare(b.등록사유 ?? ''),
-            render: (_, row) =>
-                row.fail ? (
-                    <span style={{ color: 'red' }}>탈락</span>
+            title: '탈락',
+            key: 'fail',
+            render: (_, record) =>
+                record.fail ? (
+                    <span style={{ color: 'red' }}>탈락 {record.reason ? `(${record.reason})` : ''}</span>
                 ) : (
-                    <Button
-                        size="small"
-                        danger
-                        onClick={() => handleDropout(row.고유번호)}
-                    >
-                        탈락처리
-                    </Button>
+                    ''
                 ),
         },
+        { title: '마지막업데이트', dataIndex: '마지막업데이트', key: '마지막업데이트' },
     ];
 
     return (
-        <div className="p-4">
-            <Typography.Title level={4}>교사 명단 붙여넣기</Typography.Title>
+        <div className="p-6 max-w-5xl mx-auto">
+            <Typography.Title level={3}>교사 명단 관리</Typography.Title>
+
+            <Typography.Paragraph type="secondary">
+                <strong>붙여넣기 예시:</strong>
+                <br />
+                <code>00351126-00667 교사이수</code>
+                <br />
+                고유번호와 등록구분을 띄어쓰기로 구분해 주세요.
+            </Typography.Paragraph>
+
             <Input.TextArea
-                rows={8}
-                value={rawText}
-                onChange={(e) => setRawText(e.target.value)}
-                placeholder="고유번호 [탭 또는 공백] 등록구분 붙여넣기"
+                rows={6}
+                value={rawInput}
+                onChange={(e) => setRawInput(e.target.value)}
+                placeholder="고유번호 등록구분"
                 disabled={loading}
-                className="mb-2"
             />
             <Button
                 type="primary"
-                onClick={handleProcess}
+                onClick={handleUpload}
                 loading={loading}
-                className="mb-4"
+                className="my-4"
             >
-                저장 및 조회
+                업로드 및 조회
             </Button>
 
+            <Space
+                direction="vertical"
+                style={{ width: '100%' }}
+                size="middle"
+                className="mb-4"
+            >
+                <Input.Search
+                    placeholder="고유번호, 이름, 지역 등으로 검색"
+                    allowClear
+                    enterButton
+                    onSearch={(value) => setSearchText(value)}
+                    onChange={(e) => {
+                        if (e.target.value === '') setSearchText('');
+                    }}
+                    disabled={loading}
+                />
+
+                <Space wrap>
+                    <Button
+                        danger
+                        onClick={handleDropout}
+                        disabled={!dropoutKey || loading}
+                    >
+                        선택 교사 탈락처리
+                    </Button>
+
+                    <Button
+                        type="default"
+                        onClick={handleDelete}
+                        disabled={deleteKeys.length === 0 || loading}
+                    >
+                        선택 교사 삭제
+                    </Button>
+                </Space>
+            </Space>
+
             <Table
-                dataSource={rows}
                 columns={columns}
-                rowKey="고유번호"
+                dataSource={filteredData}
+                rowKey={(record) => record.고유번호}
                 loading={loading}
                 bordered
+                pagination={{ pageSize: 20 }}
+                rowSelection={{
+                    type: 'checkbox',
+                    selectedRowKeys: deleteKeys,
+                    onChange: (selectedKeys) => {
+                        setDeleteKeys(selectedKeys as string[]);
+                        if (selectedKeys.length === 1) {
+                            setDropoutKey(String(selectedKeys[0]));
+                        } else {
+                            setDropoutKey(null);
+                        }
+                    },
+                }}
             />
         </div>
     );

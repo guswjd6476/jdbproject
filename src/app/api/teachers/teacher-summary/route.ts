@@ -14,11 +14,27 @@ export async function GET(request: NextRequest) {
             COUNT(DISTINCT CASE
                 WHEN s.단계 IN ('D-1','D-2','E','F','센확')
                 AND (
-                    s.d_1_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                    s.d_2_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                    s.e_완료일   >= CURRENT_DATE - INTERVAL '3 months' OR
-                    s.f_완료일   >= CURRENT_DATE - INTERVAL '3 months' OR
-                    s.센확_완료일 >= CURRENT_DATE - INTERVAL '3 months'
+                    (
+                        CURRENT_DATE < '2025-09-01'
+                        AND (
+                            s.d_1_완료일 >= '2025-06-01' OR
+                            s.d_2_완료일 >= '2025-06-01' OR
+                            s.e_완료일   >= '2025-06-01' OR
+                            s.f_완료일   >= '2025-06-01' OR
+                            s.센확_완료일 >= '2025-06-01'
+                        )
+                    )
+                    OR
+                    (
+                        CURRENT_DATE >= '2025-09-01'
+                        AND (
+                            s.d_1_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
+                            s.d_2_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
+                            s.e_완료일   >= CURRENT_DATE - INTERVAL '3 months' OR
+                            s.f_완료일   >= CURRENT_DATE - INTERVAL '3 months' OR
+                            s.센확_완료일 >= CURRENT_DATE - INTERVAL '3 months'
+                        )
+                    )
                 )
                 THEN m.고유번호 ELSE NULL
             END) AS 활동교사,

@@ -136,8 +136,6 @@ export async function POST(request: NextRequest) {
         const data = body.data || [];
         const dryRun = body.dryRun === true;
         const now = new Date();
-        console.log('POST /api/students 호출, dryRun:', dryRun);
-        console.log('입력 데이터:', data);
         if (dryRun) {
             const invalid = data.some(
                 (r: { 이름: string; 단계: string }) =>
