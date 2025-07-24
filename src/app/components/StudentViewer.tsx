@@ -8,13 +8,14 @@ import { useStudentsQuery, Students } from '../hook/useStudentsQuery';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { useUser } from '../hook/useUser';
 
 const { Search } = Input;
 const COMPLETION_KEYS = ['a', 'b', 'c', 'd-1', 'd-2', 'e', 'f', 'g', '센확'] as const;
 
 export default function StudentViewer() {
     const { data: students = [], isLoading } = useStudentsQuery();
-
+    const { isAdmin } = useUser();
     const [searchText, setSearchText] = useState('');
     const [filters, setFilters] = useState<Record<string, FilterValue | null>>({});
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
@@ -227,9 +228,11 @@ export default function StudentViewer() {
                         <Button onClick={handleExportForUser} type="default">
                             엑셀로 내보내기 (일반)
                         </Button>
-                        <Button onClick={handleExportForAdmin} type="dashed">
-                            엑셀로 내보내기 (관리자용)
-                        </Button>
+                        {isAdmin && (
+                            <Button onClick={handleExportForAdmin} type="dashed">
+                                엑셀로 내보내기 (관리자용)
+                            </Button>
+                        )}
                     </div>
 
                     {/* 검색창 */}

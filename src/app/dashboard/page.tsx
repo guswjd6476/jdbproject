@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Table, InputNumber, Input, Button, Form, message, Typography } from 'antd';
-import { useUser } from '@/app/hook/useUser'; // 사용자 정보 가져오는 훅
+import { useUser } from '@/app/hook/useUser';
 
 interface RowData {
     month: number;
@@ -127,16 +127,16 @@ export default function MonthlyDashboard() {
     }, [data]);
 
     const columns = [
-        { title: '월', dataIndex: 'month', sorter: (a: any, b: any) => a.month - b.month },
-        { title: '지역', dataIndex: 'region' },
-        { title: 'A', dataIndex: 'a' },
-        { title: 'B', dataIndex: 'b' },
-        { title: 'C', dataIndex: 'c' },
-        { title: 'D-1', dataIndex: 'd_1' },
-        { title: 'D-2', dataIndex: 'd_2' },
-        { title: 'F', dataIndex: 'f' },
-        { title: '센확', dataIndex: '센확' },
-        { title: '센등', dataIndex: '센등' },
+        { title: '월', dataIndex: 'month', sorter: (a: any, b: any) => a.month - b.month, width: 70 },
+        { title: '지역', dataIndex: 'region', width: 80 },
+        { title: 'A', dataIndex: 'a', width: 80 },
+        { title: 'B', dataIndex: 'b', width: 60 },
+        { title: 'C', dataIndex: 'c', width: 60 },
+        { title: 'D-1', dataIndex: 'd_1', width: 60 },
+        { title: 'D-2', dataIndex: 'd_2', width: 60 },
+        { title: 'F', dataIndex: 'f', width: 60 },
+        { title: '센확', dataIndex: '센확', width: 60 },
+        { title: '센등', dataIndex: '센등', width: 60 },
         {
             title: 'A→B(%)',
             dataIndex: 'aToB',
@@ -231,6 +231,8 @@ export default function MonthlyDashboard() {
                 columns={columns}
                 pagination={false}
                 rowClassName={(row) => (row.isTotal ? 'bg-gray-100 font-semibold' : '')}
+                scroll={{ y: 600 }}
+                sticky
             />
         </div>
     );

@@ -20,6 +20,14 @@ interface StudentBrief {
     교사지역: string | null;
     교사구역: string | null;
     교사이름: string | null;
+    a_완료일: string | null;
+    b_완료일: string | null;
+    c_완료일: string | null;
+    d_1_완료일: string | null;
+    d_2_완료일: string | null;
+    e_완료일: string | null;
+    f_완료일: string | null;
+    탈락: string | null;
 }
 
 export default function TodayStudentList() {
@@ -154,6 +162,54 @@ export default function TodayStudentList() {
                     `${b.교사지역 ?? ''}${b.교사구역 ?? ''}${b.교사이름 ?? ''}`
                 ),
         },
+        {
+            title: 'A 완료일',
+            dataIndex: 'a_완료일',
+            key: 'a_완료일',
+            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
+        },
+        {
+            title: 'B 완료일',
+            dataIndex: 'b_완료일',
+            key: 'b_완료일',
+            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
+        },
+        {
+            title: 'C 완료일',
+            dataIndex: 'c_완료일',
+            key: 'c_완료일',
+            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
+        },
+        {
+            title: 'D-1 완료일',
+            dataIndex: 'd_1_완료일',
+            key: 'd_1_완료일',
+            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
+        },
+        {
+            title: 'D-2 완료일',
+            dataIndex: 'd_2_완료일',
+            key: 'd_2_완료일',
+            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
+        },
+        {
+            title: 'E 완료일',
+            dataIndex: 'e_완료일',
+            key: 'e_완료일',
+            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
+        },
+        {
+            title: 'F 완료일',
+            dataIndex: 'f_완료일',
+            key: 'f_완료일',
+            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
+        },
+        {
+            title: '탈락일',
+            dataIndex: '탈락',
+            key: '탈락',
+            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
+        },
     ];
 
     if (isAdmin) {
@@ -167,10 +223,7 @@ export default function TodayStudentList() {
                     okText="삭제"
                     cancelText="취소"
                 >
-                    <Button
-                        danger
-                        size="small"
-                    >
+                    <Button danger size="small">
                         삭제
                     </Button>
                 </Popconfirm>
@@ -178,15 +231,12 @@ export default function TodayStudentList() {
         });
     }
 
+    console.log(filteredStudents, 'filteredStudents');
     return (
-        <div className="mt-6 px-4 max-w-screen-lg mx-auto">
+        <div className="mt-6 px-4 w-full mx-auto">
             <Title level={4}>📋 등록/수정된 명단</Title>
 
-            <Space
-                direction="vertical"
-                size="middle"
-                style={{ width: '100%' }}
-            >
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                 <RangePicker
                     value={dateRange}
                     onChange={(range) => {
