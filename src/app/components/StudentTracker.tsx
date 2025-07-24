@@ -1,4 +1,5 @@
 'use client';
+
 import { useUser } from '@/app/hook/useUser';
 import React, { useState } from 'react';
 import TableHeader from './table/TableHeader';
@@ -75,7 +76,6 @@ function StudentTracker() {
 
     async function validatePreviousStageForSubmit(row: Student, allRows: Student[]): Promise<string[]> {
         const errors: string[] = [];
-
         const stage = row.단계.trim().toUpperCase();
 
         if (!단계순서.includes(stage)) {
@@ -89,40 +89,38 @@ function StudentTracker() {
         }
 
         if (stage === '탈락') {
-            let alreadyExistsInDB = false;
-            if (row.인도자지역.trim() && row.인도자팀.trim() && row.인도자이름.trim()) {
-                alreadyExistsInDB = await checkPreviousStageExists(
-                    row.이름.trim(),
-                    '탈락',
-                    row.인도자지역,
-                    row.인도자팀,
-                    row.인도자이름,
-                    '',
-                    '',
-                    ''
-                );
-            } else if (row.교사지역.trim() && row.교사팀.trim() && row.교사이름.trim()) {
-                alreadyExistsInDB = await checkPreviousStageExists(
-                    row.이름.trim(),
-                    '탈락',
-                    '',
-                    '',
-                    '',
-                    row.교사지역,
-                    row.교사팀,
-                    row.교사이름
-                );
-            }
-
-            if (alreadyExistsInDB) {
-                errors.push('이미 탈락으로 등록된 학생입니다.');
-            }
-
-            const hasFullIndo = row.인도자지역.trim() && row.인도자팀.trim() && row.인도자이름.trim();
-            const hasFullTeacher = row.교사지역.trim() && row.교사팀.trim() && row.교사이름.trim();
+            const hasFullIndo = row.인도자지역 && row.인도자팀 && row.인도자이름;
+            const hasFullTeacher = row.교사지역 && row.교사팀 && row.교사이름;
 
             if (!hasFullIndo && !hasFullTeacher) {
-                errors.push('탈락 시 인도자 정보 또는 교사 정보(지역, 팀, 이름)가 모두 필요합니다.');
+                errors.push('탈락 시 인도자 정보 또는 교사 정보가 필요합니다.');
+            }
+
+            // '탈락' 유효성 검사를 위해 API를 직접 호출하여 상세한 오류를 확인합니다.
+            try {
+                const query = new URLSearchParams({
+                    name: row.이름.trim(),
+                    stage: '탈락',
+                    region: row.인도자지역.trim(),
+                    team: row.인도자팀.trim(),
+                    name2: row.인도자이름.trim(),
+                    teacherRegion: row.교사지역.trim(),
+                    teacherTeam: row.교사팀.trim(),
+                    teacherName: row.교사이름.trim(),
+                });
+                const res = await fetch(`/api/students/checkPreviousStage?${query.toString()}`);
+                const json = await res.json();
+
+                if (!res.ok) {
+                    // 백엔드에서 400 오류와 함께 보낸 메시지를 오류 배열에 추가합니다.
+                    // (예: "탈락 처리할 기존 학생 기록이 없습니다.")
+                    errors.push(json.message || '유효성 검사 중 오류가 발생했습니다.');
+                } else if (json.exists === true) {
+                    // 이미 '탈락'으로 등록된 경우
+                    errors.push('이미 탈락으로 등록된 학생입니다.');
+                }
+            } catch (e) {
+                errors.push('서버 통신 중 오류가 발생했습니다.');
             }
 
             return errors;
@@ -131,13 +129,12 @@ function StudentTracker() {
         const currentStageIndex = 단계순서.indexOf(stage);
         if (currentStageIndex > 0) {
             const previousStage = 단계순서[currentStageIndex - 1];
-
-            const previousExistsInUI = allRows.some(
+            const existsInUI = allRows.some(
                 (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === previousStage
             );
 
-            const previousExistsInDB = await checkPreviousStageExists(
-                row.이름.trim(),
+            const existsInDB = await checkPreviousStageExists(
+                row.이름,
                 previousStage,
                 row.인도자지역,
                 row.인도자팀,
@@ -147,7 +144,7 @@ function StudentTracker() {
                 row.교사이름
             );
 
-            if (!previousExistsInUI && !previousExistsInDB) {
+            if (!existsInUI && !existsInDB) {
                 errors.push(`${previousStage} 단계가 먼저 등록되어야 합니다.`);
             }
         }
@@ -160,8 +157,8 @@ function StudentTracker() {
         }
         if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
             const skip = isSkipTeamCheck(row.교사팀);
-            if (!skip && (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim())) {
-                errors.push('C~F단계는 교사 정보(지역, 팀, 이름)가 필요합니다.');
+            if (!skip && (!row.교사지역 || !row.교사팀 || !row.교사이름)) {
+                errors.push('C~F단계는 교사 정보가 필요합니다.');
             }
         }
 
@@ -173,24 +170,21 @@ function StudentTracker() {
         const stage = row.단계.trim().toUpperCase();
 
         if (!단계순서.includes(stage)) errors.push('유효한 단계가 아닙니다.');
-
+        if (!row.이름.trim()) errors.push('이름이 필요합니다.');
         if (stage === '탈락') {
-            const duplicate = allRows.filter(
-                (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === '탈락'
-            );
-            if (duplicate.length > 1) {
+            const duplicates = allRows.filter((r) => r.이름.trim() === row.이름.trim() && r.단계 === '탈락');
+            if (duplicates.length > 1) {
                 errors.push('이미 탈락 처리된 수강생입니다.');
             }
             return errors;
         }
 
-        if (!row.이름.trim()) errors.push('이름이 필요합니다.');
-        if (stage === 'A' && !row.연락처.trim()) errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
+        if (stage === 'A' && !row.연락처.trim()) errors.push('A단계는 연락처가 필요합니다.');
         if (stage === 'B' && !row.생년월일.trim()) errors.push('B단계는 생년월일이 필요합니다.');
         if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
             const skip = isSkipTeamCheck(row.교사팀);
-            if (!skip && (!row.교사지역.trim() || !row.교사팀.trim() || !row.교사이름.trim())) {
-                errors.push('C~F단계는 교사 정보(지역, 팀, 이름)가 필요합니다.');
+            if (!skip && (!row.교사지역 || !row.교사팀 || !row.교사이름)) {
+                errors.push('교사 정보가 필요합니다.');
             }
         }
 
@@ -223,7 +217,7 @@ function StudentTracker() {
     const handlePaste = (e: React.ClipboardEvent<HTMLTableElement>) => {
         e.preventDefault();
         const paste = e.clipboardData.getData('text');
-        const rows = paste.split('\n').filter((r) => r.trim() !== '');
+        const rows = paste.split('\n').filter(Boolean);
         const parsed = rows.map((row) => row.split(/\t|\//));
 
         setData((prev) => {
@@ -236,11 +230,7 @@ function StudentTracker() {
                 const 단계 = safe(cols, 0)?.toUpperCase();
                 const 이름 = safe(cols, 1);
 
-                const newRow: Student = {
-                    ...initialRow,
-                    단계,
-                    이름,
-                };
+                const newRow: Student = { ...initialRow, 단계, 이름 };
 
                 if (단계 === 'A') {
                     newRow.연락처 = safe(cols, 2);
@@ -263,24 +253,18 @@ function StudentTracker() {
                     newRow.인도자지역 = safe(cols, 2);
                     newRow.인도자팀 = safe(cols, 3);
                     newRow.인도자이름 = safe(cols, 4);
-
                     if (cols.length >= 8) {
                         newRow.교사지역 = safe(cols, 5);
                         newRow.교사팀 = safe(cols, 6);
                         newRow.교사이름 = safe(cols, 7);
                     }
                 }
+
                 newData[writeIndex] = newRow;
                 writeIndex++;
             });
 
-            setErrorsData((prevErrors) => {
-                const newErrors = [...prevErrors];
-                for (let i = 0; i < newData.length; i++) {
-                    newErrors[i] = validateRow(newData[i], newData);
-                }
-                return newErrors;
-            });
+            setErrorsData((prevErrors) => newData.map((r) => (r.단계 ? validateRow(r, newData) : [])));
 
             return newData;
         });
@@ -290,7 +274,31 @@ function StudentTracker() {
         setLoading(true);
         setError(null);
         setSuccess(null);
-        const filledRows = data.filter((row) => row.단계.trim() !== '');
+        const filledRows = data.filter((r) => r.단계.trim());
+
+        // Create a flat list of promises
+        const validationPromises = filledRows.map((row) => validatePreviousStageForSubmit(row, filledRows));
+
+        // Await all promises to resolve
+        const newErrorsDataArray = await Promise.all(validationPromises);
+
+        // Map the results back to the original data structure
+        const newErrorsData: string[][] = Array.from({ length: data.length }, () => []);
+        let filledRowIndex = 0;
+        data.forEach((row, i) => {
+            if (row.단계.trim()) {
+                newErrorsData[i] = newErrorsDataArray[filledRowIndex];
+                filledRowIndex++;
+            }
+        });
+
+        setErrorsData(newErrorsData);
+
+        if (newErrorsData.flat().length > 0) {
+            setError('유효성 검사 오류가 있습니다. 각 행을 확인해 주세요.');
+            setLoading(false);
+            return;
+        }
 
         try {
             const res = await fetch('/api/students', {
@@ -298,27 +306,30 @@ function StudentTracker() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ data: filledRows, dryRun: true }),
             });
+
             const result = await res.json();
             if (!res.ok || !result.success) throw new Error(result.message);
 
-            setSummaryList(result.summary); // 저장될 목록 세팅
-            setConfirmVisible(true); // 모달 열기
+            setSummaryList(result.summary);
+            setConfirmVisible(true);
         } catch (err: any) {
             setError(err.message || '서버 오류 발생');
         } finally {
             setLoading(false);
         }
     };
+
     const handleFinalSubmit = async () => {
         setLoading(true);
         setConfirmVisible(false);
-        const filledRows = data.filter((row) => row.단계.trim() !== '');
+        const filledRows = data.filter((r) => r.단계.trim());
         try {
             const res = await fetch('/api/students', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data: filledRows, dryRun: false }), // ✅ dryRun: false
+                body: JSON.stringify({ data: filledRows, dryRun: false }),
             });
+
             const result = await res.json();
             if (!res.ok || !result.success) throw new Error(result.message);
             setSuccess('최종 저장이 완료되었습니다.');
