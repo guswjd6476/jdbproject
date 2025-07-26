@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Table, Button, Input, Typography, message, Space, Modal } from 'antd';
+import { Table, Button, Input, Typography, message, Space } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
 interface TeacherRow {
@@ -123,6 +123,38 @@ export default function TeacherUploadPage() {
         }
     };
 
+    const handleRestore = async () => {
+        if (deleteKeys.length === 0) {
+            message.warning('복귀할 교사를 선택하세요.');
+            return;
+        }
+
+        const confirmed = confirm(`${deleteKeys.length}명 복귀하시겠습니까?`);
+        if (!confirmed) return;
+
+        setLoading(true);
+        try {
+            const res = await fetch('/api/teachers/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keys: deleteKeys }),
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || '삭제 실패');
+            }
+
+            const updatedData: TeacherRow[] = await res.json();
+            setData(updatedData);
+            setDeleteKeys([]);
+            message.success('삭제 완료');
+        } catch (err: any) {
+            message.error(err.message || '삭제 중 오류');
+        } finally {
+            setLoading(false);
+        }
+    };
     const handleDelete = async () => {
         if (deleteKeys.length === 0) {
             message.warning('삭제할 교사를 선택하세요.');
@@ -130,11 +162,9 @@ export default function TeacherUploadPage() {
         }
 
         const confirmed = confirm(`${deleteKeys.length}명 삭제하시겠습니까?`);
-
         if (!confirmed) return;
 
         setLoading(true);
-
         try {
             const res = await fetch('/api/teachers/delete', {
                 method: 'POST',
@@ -157,7 +187,7 @@ export default function TeacherUploadPage() {
             setLoading(false);
         }
     };
-
+    console.log(deleteKeys, '?d');
     const filteredData = useMemo(() => {
         if (!searchText) return data;
         const lower = searchText.toLowerCase();
@@ -171,6 +201,12 @@ export default function TeacherUploadPage() {
         );
     }, [data, searchText]);
 
+    const isSelectedTeacherFailed = () => {
+        if (!dropoutKey) return false;
+        const teacher = data.find((t) => t.고유번호 + t.등록구분 === dropoutKey);
+        return teacher?.fail ?? false;
+    };
+
     const columns: ColumnsType<TeacherRow> = [
         { title: '고유번호', dataIndex: '고유번호', key: '고유번호' },
         { title: '이름', dataIndex: '이름', key: '이름' },
@@ -179,13 +215,8 @@ export default function TeacherUploadPage() {
         { title: '교사형태', dataIndex: '교사형태', key: '교사형태' },
         {
             title: '탈락',
-            key: 'fail',
-            render: (_, record) =>
-                record.fail ? (
-                    <span style={{ color: 'red' }}>탈락 {record.reason ? `(${record.reason})` : ''}</span>
-                ) : (
-                    ''
-                ),
+            key: 'reason',
+            render: (_, record) => record.reason,
         },
         { title: '마지막업데이트', dataIndex: '마지막업데이트', key: '마지막업데이트' },
     ];
@@ -209,6 +240,7 @@ export default function TeacherUploadPage() {
                 placeholder="고유번호 등록구분"
                 disabled={loading}
             />
+
             <Button
                 type="primary"
                 onClick={handleUpload}
@@ -242,6 +274,14 @@ export default function TeacherUploadPage() {
                         disabled={!dropoutKey || loading}
                     >
                         선택 교사 탈락처리
+                    </Button>
+
+                    <Button
+                        type="default"
+                        onClick={handleRestore}
+                        disabled={deleteKeys.length === 0 || loading}
+                    >
+                        선택 교사 복귀처리
                     </Button>
 
                     <Button

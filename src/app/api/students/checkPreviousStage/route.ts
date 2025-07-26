@@ -6,9 +6,9 @@ async function getMemberUniqueId(client: PoolClient, 지역: string, 팀: string
     if (!지역?.trim() || !팀?.trim() || !이름?.trim()) return null;
     const prefix = 팀.trim().charAt(0);
     const query = `
-        SELECT 고유번호 FROM members
-        WHERE 지역 = $1 AND 구역 LIKE $2 AND 이름 = $3
-        LIMIT 1
+      SELECT 고유번호 FROM members
+      WHERE 지역 = $1 AND 구역 LIKE $2 AND 이름 = $3
+      LIMIT 1
     `;
     const values = [지역.trim(), prefix + '%', 이름.trim()];
     const res = await client.query(query, values);
@@ -21,7 +21,16 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const name = searchParams.get('name')?.trim();
-        const stage = searchParams.get('stage')?.trim()?.toUpperCase();
+        const stageRaw = searchParams.get('stage')?.trim();
+        if (!name || !stageRaw) {
+            return NextResponse.json(
+                { exists: false, message: '필수 파라미터(이름, 단계)가 누락되었습니다.' },
+                { status: 400 }
+            );
+        }
+
+        // 탈락은 대문자 변환 하지 않고 그대로 비교할 예정
+        const stage = stageRaw.toUpperCase() === '탈락' ? '탈락' : stageRaw.toUpperCase();
 
         const region = searchParams.get('region')?.trim();
         const team = searchParams.get('team')?.trim();
@@ -156,10 +165,31 @@ export async function GET(request: Request) {
             ]);
         }
 
-        const count = parseInt(result.rows[0].count, 10);
-        return NextResponse.json({ exists: count > 0 });
-    } catch (error) {
-        console.error('DB query error:', error);
+        // 일반 단계 조회 (탈락 이외)
+        {
+            const queryParams2: any[] = [name, stage];
+            let condition2 = '';
+            if (indUniqueId && teaUniqueId) {
+                condition2 = `(COALESCE(CAST(인도자_고유번호 AS TEXT), '') = $3 OR COALESCE(CAST(교사_고유번호 AS TEXT), '') = $4)`;
+                queryParams2.push(indUniqueId, teaUniqueId);
+            } else if (indUniqueId) {
+                condition2 = `COALESCE(CAST(인도자_고유번호 AS TEXT), '') = $3`;
+                queryParams2.push(indUniqueId);
+            } else if (teaUniqueId) {
+                condition2 = `COALESCE(CAST(교사_고유번호 AS TEXT), '') = $3`;
+                queryParams2.push(teaUniqueId);
+            }
+
+            const stageQuery = condition2
+                ? `SELECT COUNT(*) FROM students WHERE 이름 = $1 AND UPPER(단계) = $2 AND ${condition2}`
+                : `SELECT COUNT(*) FROM students WHERE 이름 = $1 AND UPPER(단계) = $2`;
+
+            const res = await client.query(stageQuery, queryParams2);
+            const count = parseInt(res.rows[0].count, 10);
+            return NextResponse.json({ exists: count > 0 });
+        }
+    } catch (e) {
+        console.error('DB query error:', e);
         return NextResponse.json({ exists: false, message: 'DB 오류가 발생했습니다.' }, { status: 500 });
     } finally {
         client.release();

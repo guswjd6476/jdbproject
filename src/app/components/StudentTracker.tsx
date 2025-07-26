@@ -79,9 +79,13 @@ function StudentTracker() {
 
     async function validatePreviousStageForSubmit(row: Student, allRows: Student[]): Promise<string[]> {
         const errors: string[] = [];
-        const stage = row.단계.trim().toUpperCase();
+        // stage 대문자로 변환하되 '탈락'은 그대로 비교할 것
+        const stageRaw = row.단계.trim();
+        const stage = stageRaw.toUpperCase() === '탈락' ? '탈락' : stageRaw.toUpperCase();
 
-        if (!단계순서.includes(stage)) {
+        const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F'];
+
+        if (stage !== '탈락' && !단계순서.includes(stage)) {
             errors.push('유효한 단계가 아닙니다.');
             return errors;
         }
