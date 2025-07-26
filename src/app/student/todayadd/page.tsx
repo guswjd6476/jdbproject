@@ -127,7 +127,10 @@ export default function TodayStudentList() {
                     return name;
                 })();
                 return (
-                    <div onClick={() => setVisibleId(isVisible ? null : record.id)} className="cursor-pointer">
+                    <div
+                        onClick={() => setVisibleId(isVisible ? null : record.id)}
+                        className="cursor-pointer"
+                    >
                         {isVisible ? name : maskedName}
                     </div>
                 );
@@ -192,7 +195,10 @@ export default function TodayStudentList() {
                     okText="삭제"
                     cancelText="취소"
                 >
-                    <Button danger size="small">
+                    <Button
+                        danger
+                        size="small"
+                    >
                         삭제
                     </Button>
                 </Popconfirm>
@@ -204,7 +210,11 @@ export default function TodayStudentList() {
         <div className="mt-6 px-2 sm:px-4 w-full mx-auto">
             <Title level={4}>📋 등록/수정된 명단</Title>
 
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Space
+                direction="vertical"
+                size="middle"
+                style={{ width: '100%' }}
+            >
                 <RangePicker
                     value={dateRange}
                     onChange={(range) => {
@@ -254,7 +264,6 @@ export default function TodayStudentList() {
                     loading={loading}
                     bordered
                     locale={{ emptyText: '해당 기간에 등록/수정된 명단이 없습니다.' }}
-                    pagination={{ pageSize: 50 }}
                     size="middle"
                     scroll={{ x: 'max-content' }}
                 />
