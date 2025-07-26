@@ -202,7 +202,7 @@ const WeeklyGoalsTable = ({
                                 if (!stepFilterToggle[week] && (weekIndex === 0 || weekIndex === 1) && step !== 'A') {
                                     colorStyle = {};
                                 } else {
-                                    if (rate === 100) {
+                                    if (rate >= 100) {
                                         colorStyle = { backgroundColor: '#bfdbfe' };
                                     } else if (rate >= 70) {
                                         colorStyle = { backgroundColor: '#fef9c3' };
