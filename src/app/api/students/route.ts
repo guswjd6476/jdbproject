@@ -181,11 +181,21 @@ export async function POST(request: NextRequest) {
         const now = new Date();
 
         if (dryRun) {
-            // ... dryRun 로직은 동일 ...
-            return NextResponse.json({
-                success: true,
-                summary: data.map((r: any) => ({ 이름: r.이름.trim(), 단계: r.단계.trim().toUpperCase() })),
-            });
+            const invalid = data.some(
+                (r: { 이름: string; 단계: string }) =>
+                    !r.이름?.trim() || !단계순서.includes(r.단계?.trim().toUpperCase())
+            );
+            if (invalid) {
+                return NextResponse.json(
+                    { success: false, message: '유효하지 않은 데이터가 포함되어 있습니다.' },
+                    { status: 400 }
+                );
+            }
+            const summary = data.map((r: { 이름: string; 단계: string }) => ({
+                이름: r.이름.trim(),
+                단계: r.단계.trim().toUpperCase(),
+            }));
+            return NextResponse.json({ success: true, summary });
         }
 
         for (const row of data) {

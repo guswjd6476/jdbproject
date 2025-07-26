@@ -60,7 +60,6 @@ export async function GET(request: Request) {
         const hasInd = !!indUniqueId;
         const hasTea = !!teaUniqueId;
         let result;
-        // 탈락인 경우, 기존 학생이 존재하는지 확인 후 중복 확인
         if (stage === '탈락') {
             let existsCount = 0;
 
