@@ -50,12 +50,13 @@ async function getOrInsertMemberUniqueId(
         findValues = [trimmedRegion, trimmedName];
     } else {
         if (!trimmedTeam) return null;
+        const prefix = trimmedTeam.charAt(0);
         findQuery = `
-            SELECT 고유번호 FROM members
-            WHERE 지역 = $1 AND 팀 = $2 AND 이름 = $3
-            LIMIT 1
-        `;
-        findValues = [trimmedRegion, trimmedTeam, trimmedName];
+        SELECT 고유번호 FROM members
+        WHERE 지역 = $1 AND 구역 LIKE $2 AND 이름 = $3
+        LIMIT 1
+    `;
+        findValues = [trimmedRegion, prefix + '%', trimmedName];
     }
 
     const res = await client.query(findQuery, findValues);
