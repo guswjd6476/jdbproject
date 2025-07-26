@@ -47,6 +47,36 @@ export async function POST(request: Request) {
     try {
         await client.query('BEGIN');
 
+        // 1. 기존 고유번호로 DB에서 일괄 조회
+        const 고유번호목록 = members.map((m) => `'${m.고유번호}'`).join(', ');
+        const { rows: existingMembers } = await client.query(
+            `SELECT * FROM members WHERE 고유번호 IN (${고유번호목록})`
+        );
+
+        const updatedMembers: Member[] = [];
+        const newMembers: Member[] = [];
+
+        for (const member of members) {
+            const 기존 = existingMembers.find((m) => m.고유번호 === member.고유번호);
+            if (!기존) {
+                newMembers.push(member);
+            } else {
+                const hasChanged =
+                    기존.순번 !== member.순번 ||
+                    기존.이름 !== member.이름 ||
+                    기존.등록구분 !== member.등록구분 ||
+                    기존.등록상태 !== member.등록상태 ||
+                    기존.등록사유 !== member.등록사유 ||
+                    기존.지역 !== member.지역 ||
+                    기존.구역 !== member.구역;
+
+                if (hasChanged) {
+                    updatedMembers.push(member);
+                }
+            }
+        }
+
+        // INSERT + ON CONFLICT UPDATE (모든 데이터 넣지만 실제 DB에서 변경된 것만 응답)
         const values: (number | string)[] = [];
         const valuePlaceholders: string[] = [];
 
@@ -62,7 +92,6 @@ export async function POST(request: Request) {
                 member.지역,
                 member.구역
             );
-
             const placeholders = Array.from({ length: 8 }, (_, j) => `$${idx + j + 1}`);
             valuePlaceholders.push(`(${placeholders.join(', ')}, NOW())`);
         });
@@ -88,7 +117,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
             message: '성공',
-            count: members.length,
+            updated: updatedMembers,
         });
     } catch (err) {
         await client.query('ROLLBACK');

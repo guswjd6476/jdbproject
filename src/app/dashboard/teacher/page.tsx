@@ -254,7 +254,6 @@ export default function TeacherPage() {
             ),
         },
     ];
-    console.log(filteredData, 'filteredData?');
     return (
         <div style={{ padding: 24 }}>
             <Space direction="vertical" size="middle" style={{ display: 'flex' }}>

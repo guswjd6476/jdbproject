@@ -1,14 +1,16 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Table, Typography, DatePicker, Input, message, Space, Button, Popconfirm } from 'antd';
+import { Table, Typography, DatePicker, Input, message, Space, Button, Popconfirm, Grid } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import type { Breakpoint } from 'antd/es/_util/responsiveObserver';
 import dayjs, { Dayjs } from 'dayjs';
 import { SearchOutlined } from '@ant-design/icons';
 import { useUser } from '@/app/hook/useUser';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
+const { useBreakpoint } = Grid;
 
 interface StudentBrief {
     id: number;
@@ -38,6 +40,7 @@ export default function TodayStudentList() {
     const [searchText, setSearchText] = useState('');
     const [visibleId, setVisibleId] = useState<number | null>(null);
     const { isAdmin } = useUser();
+    const screens = useBreakpoint();
 
     const fetchStudents = async (start: string, end: string) => {
         setLoading(true);
@@ -99,11 +102,14 @@ export default function TodayStudentList() {
         );
     }, [students, searchText]);
 
+    const formatDate = (val: string | null) => (val ? dayjs(val).format('YY-MM-DD') : '-');
+
     const columns: ColumnsType<StudentBrief> = [
         {
             title: '번호',
             dataIndex: 'id',
             key: 'id',
+            responsive: ['md'] as Breakpoint[],
         },
         {
             title: '이름',
@@ -121,13 +127,8 @@ export default function TodayStudentList() {
                     return name;
                 })();
                 return (
-                    <div
-                        onClick={() => {
-                            setVisibleId(isVisible ? null : record.id);
-                        }}
-                        className="cursor-pointer flex items-center gap-1"
-                    >
-                        <span>{isVisible ? name : maskedName}</span>
+                    <div onClick={() => setVisibleId(isVisible ? null : record.id)} className="cursor-pointer">
+                        {isVisible ? name : maskedName}
                     </div>
                 );
             },
@@ -142,73 +143,41 @@ export default function TodayStudentList() {
             title: '인도자',
             key: '인도자',
             render: (_, record) =>
-                record.인도자지역 && record.인도자구역 && record.인도자이름
-                    ? `${record.인도자지역} / ${record.인도자구역} / ${record.인도자이름}`
+                record.인도자지역 && record.인도자이름
+                    ? `${record.인도자지역}/${record.인도자구역}/${record.인도자이름}`
                     : '-',
-            sorter: (a, b) =>
-                `${a.인도자지역 ?? ''}${a.인도자구역 ?? ''}${a.인도자이름 ?? ''}`.localeCompare(
-                    `${b.인도자지역 ?? ''}${b.인도자구역 ?? ''}${b.인도자이름 ?? ''}`
-                ),
         },
         {
             title: '교사',
             key: '교사',
             render: (_, record) =>
-                record.교사지역 && record.교사구역 && record.교사이름
-                    ? `${record.교사지역} / ${record.교사구역} / ${record.교사이름}`
-                    : '-',
-            sorter: (a, b) =>
-                `${a.교사지역 ?? ''}${a.교사구역 ?? ''}${a.교사이름 ?? ''}`.localeCompare(
-                    `${b.교사지역 ?? ''}${b.교사구역 ?? ''}${b.교사이름 ?? ''}`
-                ),
+                record.교사지역 && record.교사이름 ? `${record.교사지역}/${record.교사구역}/${record.교사이름}` : '-',
         },
         {
-            title: 'A 완료일',
-            dataIndex: 'a_완료일',
-            key: 'a_완료일',
-            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
+            title: '완료일',
+            key: '완료일',
+            responsive: ['xs'] as Breakpoint[],
+            render: (_, record) => (
+                <div className="text-xs whitespace-pre-line">
+                    A:{formatDate(record.a_완료일)} B:{formatDate(record.b_완료일)} C:{formatDate(record.c_완료일)}
+                    {'\n'}D1:{formatDate(record.d_1_완료일)} D2:{formatDate(record.d_2_완료일)} E:
+                    {formatDate(record.e_완료일)} F:{formatDate(record.f_완료일)} 탈:{formatDate(record.탈락)}
+                </div>
+            ),
         },
-        {
-            title: 'B 완료일',
-            dataIndex: 'b_완료일',
-            key: 'b_완료일',
-            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
-        },
-        {
-            title: 'C 완료일',
-            dataIndex: 'c_완료일',
-            key: 'c_완료일',
-            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
-        },
-        {
-            title: 'D-1 완료일',
-            dataIndex: 'd_1_완료일',
-            key: 'd_1_완료일',
-            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
-        },
-        {
-            title: 'D-2 완료일',
-            dataIndex: 'd_2_완료일',
-            key: 'd_2_완료일',
-            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
-        },
-        {
-            title: 'E 완료일',
-            dataIndex: 'e_완료일',
-            key: 'e_완료일',
-            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
-        },
-        {
-            title: 'F 완료일',
-            dataIndex: 'f_완료일',
-            key: 'f_완료일',
-            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
-        },
+        ...(['a', 'b', 'c', 'd_1', 'd_2', 'e', 'f'] as const).map((key) => ({
+            title: `${key.toUpperCase().replace('_', '-')} 완료일`,
+            dataIndex: `${key}_완료일`,
+            key: `${key}_완료일`,
+            render: (val: string | null) => formatDate(val),
+            responsive: ['sm'] as Breakpoint[],
+        })),
         {
             title: '탈락일',
             dataIndex: '탈락',
             key: '탈락',
-            render: (val) => (val ? dayjs(val).format('YYYY-MM-DD') : '-'),
+            render: (val) => formatDate(val),
+            responsive: ['sm'] as Breakpoint[],
         },
     ];
 
@@ -231,9 +200,8 @@ export default function TodayStudentList() {
         });
     }
 
-    console.log(filteredStudents, 'filteredStudents');
     return (
-        <div className="mt-6 px-4 w-full mx-auto">
+        <div className="mt-6 px-2 sm:px-4 w-full mx-auto">
             <Title level={4}>📋 등록/수정된 명단</Title>
 
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -288,6 +256,7 @@ export default function TodayStudentList() {
                     locale={{ emptyText: '해당 기간에 등록/수정된 명단이 없습니다.' }}
                     pagination={{ pageSize: 50 }}
                     size="middle"
+                    scroll={{ x: 'max-content' }}
                 />
             </Space>
         </div>
