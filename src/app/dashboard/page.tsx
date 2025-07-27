@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Table, InputNumber, Input, Button, Form, message, Typography } from 'antd';
+import { Table, InputNumber, Input, Button, Typography, message, Space } from 'antd';
 import { useUser } from '@/app/hook/useUser';
 
 interface RowData {
@@ -22,43 +22,117 @@ interface RowData {
     isTotal?: boolean;
 }
 
+const INITIAL_ROW = (month: number): RowData => ({
+    month,
+    region: '',
+    a: 0,
+    b: 0,
+    c: 0,
+    d_1: 0,
+    d_2: 0,
+    f: 0,
+    센확: 0,
+    센등: 0,
+});
+
+function MultiRegionInputForm({ month, onSubmit }: { month: number; onSubmit: (rows: RowData[]) => void }) {
+    const [rows, setRows] = useState<RowData[]>([INITIAL_ROW(month)]);
+
+    // month가 바뀌면 rows 초기화
+    React.useEffect(() => {
+        setRows([INITIAL_ROW(month)]);
+    }, [month]);
+
+    const handleChange = (index: number, key: keyof RowData, value: any) => {
+        const updated = [...rows];
+        (updated[index] as any)[key] = value;
+        setRows(updated);
+    };
+
+    const handleAddRow = () => setRows([...rows, INITIAL_ROW(month)]);
+
+    const handleSubmit = () => {
+        const valid = rows.every((r) => r.region.trim() !== '');
+        if (!valid) return message.error('모든 행의 지역을 입력하세요.');
+        const withMonth = rows.map((r) => ({ ...r, month }));
+        onSubmit(withMonth);
+        // 제출 후 초기화
+        setRows([INITIAL_ROW(month)]);
+    };
+
+    return (
+        <div className="mb-6">
+            <Typography.Text strong>📥 지역별 입력</Typography.Text>
+            <div className="overflow-auto mt-2">
+                <table className="w-full border text-sm">
+                    <thead className="bg-gray-100">
+                        <tr>
+                            <th className="p-2 border">지역</th>
+                            <th className="p-2 border">A</th>
+                            <th className="p-2 border">B</th>
+                            <th className="p-2 border">C</th>
+                            <th className="p-2 border">D-1</th>
+                            <th className="p-2 border">D-2</th>
+                            <th className="p-2 border">F</th>
+                            <th className="p-2 border">센확</th>
+                            <th className="p-2 border">센등</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row, idx) => (
+                            <tr key={idx}>
+                                <td className="border p-1">
+                                    <Input
+                                        value={row.region}
+                                        onChange={(e) => handleChange(idx, 'region', e.target.value)}
+                                    />
+                                </td>
+                                {['a', 'b', 'c', 'd_1', 'd_2', 'f', '센확', '센등'].map((key) => (
+                                    <td
+                                        className="border p-1"
+                                        key={key}
+                                    >
+                                        <InputNumber
+                                            value={row[key as keyof RowData] as number}
+                                            onChange={(val) => handleChange(idx, key as keyof RowData, val || 0)}
+                                            min={0}
+                                        />
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="mt-2 flex gap-2">
+                <Button onClick={handleAddRow}>+ 행 추가</Button>
+                <Button
+                    type="primary"
+                    onClick={handleSubmit}
+                >
+                    저장
+                </Button>
+            </div>
+        </div>
+    );
+}
+
 export default function MonthlyDashboard() {
     const [data, setData] = useState<RowData[]>([]);
-    const [form] = Form.useForm();
-    const [editingKey, setEditingKey] = useState<string>('');
+    const [selectedMonth, setSelectedMonth] = useState<number>(7);
     const { isAdmin } = useUser();
 
     useEffect(() => {
-        fetch('/api/monthly')
-            .then((res) => res.json())
-            .then((res) => setData(res));
+        fetchData();
     }, []);
 
-    const handleAddOrUpdate = async (values: any) => {
-        const key = `${values.month}-${values.region}`;
-        const exists = data.find((d) => `${d.month}-${d.region}` === key);
-
-        if (exists && editingKey !== key) {
-            message.warning('이미 입력된 월/지역입니다.');
-            return;
-        }
-
-        const newData = data.filter((d) => `${d.month}-${d.region}` !== key);
-        const updatedRow: RowData = {
-            ...values,
-            a: values.a || 0,
-            b: values.b || 0,
-            c: values.c || 0,
-            d_1: values.d_1 || 0,
-            d_2: values.d_2 || 0,
-            f: values.f || 0,
-            센확: values.센확 || 0,
-            센등: values.센등 || 0,
-        };
-
-        setData([...newData, updatedRow]);
-        setEditingKey('');
-        form.resetFields();
+    // 서버에서 최신 데이터 받아오기 함수
+    const fetchData = () => {
+        fetch('/api/monthly')
+            .then((res) => res.json())
+            .then((res) => setData(res))
+            .catch(() => message.error('데이터를 불러오는 데 실패했습니다.'));
     };
 
     const enhancedData = useMemo(() => {
@@ -126,10 +200,31 @@ export default function MonthlyDashboard() {
         return result;
     }, [data]);
 
+    // 수정된 부분: 여러 행을 한꺼번에 POST 요청 보내는 함수
+    const handleSaveRows = async (rows: RowData[]) => {
+        try {
+            const res = await fetch('/api/monthly', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(rows), // 배열 통째로 보내기
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || '저장 실패');
+            }
+
+            message.success('저장 성공');
+            fetchData();
+        } catch (error: any) {
+            message.error(`저장 실패: ${error.message}`);
+        }
+    };
+
     const columns = [
         { title: '월', dataIndex: 'month', sorter: (a: any, b: any) => a.month - b.month, width: 70 },
         { title: '지역', dataIndex: 'region', width: 80 },
-        { title: 'A', dataIndex: 'a', width: 80 },
+        { title: 'A', dataIndex: 'a', width: 70 },
         { title: 'B', dataIndex: 'b', width: 60 },
         { title: 'C', dataIndex: 'c', width: 60 },
         { title: 'D-1', dataIndex: 'd_1', width: 60 },
@@ -157,72 +252,28 @@ export default function MonthlyDashboard() {
             dataIndex: 'd1ToF',
             render: (v: number) => v?.toFixed(1),
         },
-        {
-            title: '수정',
-            dataIndex: 'edit',
-            render: (_: any, row: RowData) =>
-                isAdmin &&
-                !row.isTotal && (
-                    <Button
-                        type="link"
-                        onClick={() => {
-                            form.setFieldsValue(row);
-                            setEditingKey(`${row.month}-${row.region}`);
-                        }}
-                    >
-                        수정
-                    </Button>
-                ),
-        },
     ];
 
     return (
-        <div>
+        <div className="p-12">
             <Typography.Title level={4}>📊 월별 지역별 단계별 현황</Typography.Title>
 
             {isAdmin && (
-                <Form
-                    form={form}
-                    layout="inline"
-                    onFinish={handleAddOrUpdate}
-                    style={{ marginBottom: 16, flexWrap: 'wrap', gap: 8 }}
-                >
-                    <Form.Item name="month" rules={[{ required: true }]}>
-                        <InputNumber placeholder="월" min={1} max={12} />
-                    </Form.Item>
-                    <Form.Item name="region" rules={[{ required: true }]}>
-                        <Input placeholder="지역" />
-                    </Form.Item>
-                    <Form.Item name="a">
-                        <InputNumber placeholder="A" />
-                    </Form.Item>
-                    <Form.Item name="b">
-                        <InputNumber placeholder="B" />
-                    </Form.Item>
-                    <Form.Item name="c">
-                        <InputNumber placeholder="C" />
-                    </Form.Item>
-                    <Form.Item name="d_1">
-                        <InputNumber placeholder="D-1" />
-                    </Form.Item>
-                    <Form.Item name="d_2">
-                        <InputNumber placeholder="D-2" />
-                    </Form.Item>
-                    <Form.Item name="f">
-                        <InputNumber placeholder="F" />
-                    </Form.Item>
-                    <Form.Item name="센확">
-                        <InputNumber placeholder="센확" />
-                    </Form.Item>
-                    <Form.Item name="센등">
-                        <InputNumber placeholder="센등" />
-                    </Form.Item>
-                    <Form.Item>
-                        <Button type="primary" htmlType="submit">
-                            {editingKey ? '수정 완료' : '추가'}
-                        </Button>
-                    </Form.Item>
-                </Form>
+                <div className="mb-4">
+                    <Space className="mb-2">
+                        <span>입력 월:</span>
+                        <InputNumber
+                            min={1}
+                            max={12}
+                            value={selectedMonth}
+                            onChange={(v) => setSelectedMonth(v || 1)}
+                        />
+                    </Space>
+                    <MultiRegionInputForm
+                        month={selectedMonth}
+                        onSubmit={handleSaveRows}
+                    />
+                </div>
             )}
 
             <Table
