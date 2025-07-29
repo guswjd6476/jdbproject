@@ -27,18 +27,19 @@ export const headers = [
     '교사 팀',
     '교사 이름',
 ];
-export const STEPS = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F', '탈락'] as const;
-export const STEPS2 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F'] as const;
-export type STEP = 'A' | 'B' | 'C' | 'D-1' | 'D-2' | 'E' | 'F' | '탈락';
-export type STEP2 = 'A' | 'B' | 'C' | 'D-1' | 'D-2' | 'E' | 'F';
+export const STEPS = ['발', '찾', '합', '섭', '복', '예정', '탈락'] as const;
+export const STEPS2 = ['발', '찾', '합', '섭', '복', '예정'] as const;
+export type STEP = '발' | '찾' | '합' | '섭' | '복' | '예정' | '탈락';
+export type STEP2 = '발' | '찾' | '합' | '섭' | '복' | '예정';
 export const REGIONS = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자'];
 export const fixedTeams = ['1', '2', '3', '4', '5'] satisfies readonly string[];
 export interface WeeklyGoals {
-    A: number;
-    B: number;
-    C: number;
-    D: number;
-    F: number;
+    발: number;
+    찾: number;
+    합: number;
+    섭: number;
+    복: number;
+    예정: number;
 }
 
 export interface WeeklyPercentages {
@@ -50,13 +51,14 @@ export interface WeeklyPercentages {
 }
 
 export interface ConversionRates {
-    aToB: number;
-    bToC: number;
-    cToD: number;
-    dToF: number;
+    발To찾: number;
+    찾To합: number;
+    합To섭: number;
+    섭To복: number;
+    복To예정: number;
 }
 
-export type FGoals = Record<string, string>;
+export type 예정Goals = Record<string, string>;
 
 export interface TeamResult {
     team: number;
@@ -73,19 +75,18 @@ export interface RawStudent {
     이름: string;
     단계: string | null;
     인도자지역: string | null;
-    a?: string | null;
-    b?: string | null;
-    c?: string | null;
-    'd-1'?: string | null;
-    'd-2'?: string | null;
-    e?: string | null;
-    f?: string | null;
+    발?: string | null;
+    찾?: string | null;
+    합?: string | null;
+    섭?: string | null;
+    복?: string | null;
+    예정?: string | null;
     g?: string | null; // 탈락일
     [key: string]: string | number | null | undefined;
 }
 export type Region = (typeof REGIONS)[number];
 
-export const DEFAULT_F_GOALS: Record<Region, FGoals> = {
+export const DEFAULT_예정_goals: Record<Region, 예정Goals> = {
     도봉: { team1: '8', team2: '8' },
     성북: { team1: '4.0', team2: '4.0', team3: '3.5', team4: '3.0' },
     노원: { team1: '4.0', team2: '4.0', team3: '4.0', team4: '4.0' },
@@ -108,7 +109,7 @@ export interface TableRow3 {
     지역: string;
     팀: string;
     재적: number;
-    f_goal: number;
+    예정_goal: number;
     last_month_result: number;
     탈락?: number;
     gospel_score: number;

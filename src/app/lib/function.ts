@@ -1,6 +1,6 @@
 import {
     ConversionRates,
-    FGoals,
+    예정Goals,
     fixedTeams,
     Region,
     REGIONS,
@@ -19,41 +19,51 @@ dayjs.extend(isBetween);
 
 type Step = (typeof STEPS)[number];
 export const initializeResults = (
-    fGoals: FGoals,
+    예정Goals: 예정Goals,
     conversionRates: ConversionRates,
     weeklyPercentages: WeeklyPercentages
 ): Results => {
-    const goals = Object.values(fGoals).map((f) => parseFloat(f));
+    const goals = Object.values(예정Goals).map((f) => parseFloat(f));
 
-    const teamResults: TeamResult[] = goals.map((fValue, index) => {
-        const d = Math.ceil(fValue / conversionRates.dToF);
-        const c = Math.ceil(d / conversionRates.cToD);
-        const b = Math.ceil(c / conversionRates.bToC);
-        const a = Math.ceil(b / conversionRates.aToB);
+    const teamResults: TeamResult[] = goals.map((예정Value, index) => {
+        const 복 = Math.ceil(예정Value / conversionRates.복To예정);
+        const 섭 = Math.ceil(복 / conversionRates.섭To복);
+        const 합 = Math.ceil(섭 / conversionRates.합To섭);
+        const 찾 = Math.ceil(합 / conversionRates.찾To합);
+        const 발 = Math.ceil(찾 / conversionRates.발To찾);
 
         const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'].map((week) => {
-            const percentages = weeklyPercentages[week as keyof WeeklyPercentages] ?? { A: 0, B: 0, C: 0, D: 0, F: 0 };
+            const percentages = weeklyPercentages[week as keyof WeeklyPercentages] ?? {
+                발: 0,
+                찾: 0,
+                합: 0,
+                섭: 0,
+                복: 0,
+                예정: 0,
+            };
             return {
-                A: Math.ceil(a * percentages.A),
-                B: Math.ceil(b * percentages.B),
-                C: Math.ceil(c * percentages.C),
-                D: Math.ceil(d * percentages.D),
-                F: Math.ceil(fValue * percentages.F),
+                발: Math.ceil(발 * percentages.발),
+                찾: Math.ceil(찾 * percentages.찾),
+                합: Math.ceil(합 * percentages.합),
+                섭: Math.ceil(섭 * percentages.섭),
+                복: Math.ceil(복 * percentages.복),
+                예정: Math.ceil(예정Value * percentages.예정),
             };
         });
 
-        return { team: index + 1, goals: { A: a, B: b, C: c, D: d, F: fValue }, weeks };
+        return { team: index + 1, goals: { 발: 발, 찾: 찾, 합: 합, 섭: 섭, 복: 복, 예정: 예정Value }, weeks };
     });
 
     const totals: WeeklyGoals = teamResults.reduce(
         (acc: WeeklyGoals, team: TeamResult) => ({
-            A: acc.A + team.goals.A,
-            B: acc.B + team.goals.B,
-            C: acc.C + team.goals.C,
-            D: acc.D + team.goals.D,
-            F: acc.F + team.goals.F,
+            발: acc.발 + team.goals.발,
+            찾: acc.찾 + team.goals.찾,
+            합: acc.합 + team.goals.합,
+            섭: acc.섭 + team.goals.섭,
+            복: acc.복 + team.goals.예정,
+            예정: acc.예정 + team.goals.예정,
         }),
-        { A: 0, B: 0, C: 0, D: 0, F: 0 }
+        { 발: 0, 찾: 0, 합: 0, 섭: 0, 복: 0, 예정: 0 }
     );
 
     return { teams: teamResults, totals };
@@ -97,9 +107,8 @@ export const calculateAchievements = (
         key: 'total',
         지역: '',
         팀: '',
-
         탈락: 0,
-        ...['A', 'B', 'C', 'D', 'F'].reduce(
+        ...['발', '찾', '합', '섭', '복', '예정'].reduce(
             (acc, step) => ({
                 ...acc,
                 [step]: 0,
@@ -109,23 +118,29 @@ export const calculateAchievements = (
             {}
         ),
     };
+
     const holdMap: Record<string, number> = {};
 
     students.forEach((s) => {
-        const 지역 = (s.인도자지역 ?? '').trim();
-        const 팀 = getTeamName(s.인도자팀);
-        if (!REGIONS.includes(지역 as Region) || !fixedTeams.includes(팀)) return;
+        const 인도자지역 = (s.인도자지역 ?? '').trim();
+        const 인도자팀 = getTeamName(s.인도자팀);
+        if (!REGIONS.includes(인도자지역 as Region) || !fixedTeams.includes(인도자팀)) return;
 
-        // 보유 수 집계 (인도자 기준)
+        // 보유 수 카운트용
         if (mode === 'monthly') {
-            const currentStep = (s.단계 ?? '').toUpperCase();
-            const mappedStep = currentStep === 'D-1' || currentStep === 'D-2' ? 'D' : currentStep;
-            if (STEPS.includes(mappedStep as Step)) {
-                holdMap[`${지역}-${팀}-${mappedStep}`] = (holdMap[`${지역}-${팀}-${mappedStep}`] ?? 0) + 1;
-            }
+            ['발', '찾', '합', '섭', '복', '예정'].forEach((step) => {
+                const key = step.toLowerCase() as keyof Student;
+                const dateStr = s[key] as string | null | undefined;
+                const date = dateStr ? dayjs(dateStr) : null;
+                if (date && date.isValid() && date.year() === year && date.month() + 1 === selectedMonth) {
+                    holdMap[`${인도자지역}-${인도자팀}-${step}`] =
+                        (holdMap[`${인도자지역}-${인도자팀}-${step}`] ?? 0) + 1;
+                }
+            });
         }
 
-        ['A', 'B', 'C', 'D-1', 'D-2', 'F'].forEach((step) => {
+        // 각 단계별 점수 누적
+        ['발', '찾', '합', '섭', '복', '예정'].forEach((step) => {
             const key = step.toLowerCase() as keyof Student;
             const dateStr = s[key] as string | null | undefined;
             if (!dateStr) return;
@@ -133,10 +148,10 @@ export const calculateAchievements = (
             const date = dayjs(dateStr);
             if (!date.isValid() || date.year() !== year) return;
 
-            const mappedStep = step === 'D-1' || step === 'D-2' ? 'D' : step;
+            const mappedStep = step;
 
             const targets =
-                step === 'A' || step === 'B'
+                step === '발' || step === '찾'
                     ? [
                           {
                               지역: (s.인도자지역 ?? '').trim(),
@@ -166,23 +181,36 @@ export const calculateAchievements = (
                         const { start, end } = getWeekDateRange(selectedMonth, year, index);
                         if (!date.isBetween(start, end, 'day', '[]')) return;
 
-                        weeklyAchievements[지역] = weeklyAchievements[지역] ?? {};
-                        weeklyAchievements[지역][teamNumber] = weeklyAchievements[지역][teamNumber] ?? {};
-                        weeklyAchievements[지역][teamNumber][week] = weeklyAchievements[지역][teamNumber][week] ?? {};
+                        weeklyAchievements[지역] ??= {};
+                        weeklyAchievements[지역][teamNumber] ??= {};
+                        weeklyAchievements[지역][teamNumber][week] ??= {};
                         weeklyAchievements[지역][teamNumber][week][mappedStep] =
                             (weeklyAchievements[지역][teamNumber][week][mappedStep] ?? 0) + 점수;
                     });
                 } else if (date.month() + 1 === selectedMonth) {
-                    monthlyAchievements[지역] = monthlyAchievements[지역] ?? {};
-                    monthlyAchievements[지역][팀] = monthlyAchievements[지역][팀] ?? {};
+                    monthlyAchievements[지역] ??= {};
+                    monthlyAchievements[지역][팀] ??= {};
                     monthlyAchievements[지역][팀][mappedStep] = (monthlyAchievements[지역][팀][mappedStep] ?? 0) + 점수;
                 }
             });
         });
+
+        // (선택) 탈락 점수 추가 가능 지점
+        // const 탈락일 = s.탈락;
+        // if (mode === 'monthly' && 탈락일) {
+        //     const 탈락 = dayjs(탈락일);
+        //     if (탈락.isValid() && 탈락.year() === year && 탈락.month() + 1 === selectedMonth) {
+        //         monthlyAchievements[인도자지역] ??= {};
+        //         monthlyAchievements[인도자지역][인도자팀] ??= {};
+        //         monthlyAchievements[인도자지역][인도자팀]['탈락'] =
+        //             (monthlyAchievements[인도자지역][인도자팀]['탈락'] ?? 0) + 1;
+        //     }
+        // }
     });
 
     if (mode === 'monthly') {
         const tableData: TableRow[] = [];
+
         REGIONS.forEach((region) => {
             const teams = fixedTeams.filter((t) => monthlyAchievements[region]?.[t]);
             teams.forEach((team) => {
@@ -192,7 +220,7 @@ export const calculateAchievements = (
                     지역: region,
                     팀: team,
                     탈락: stepData['탈락'] ?? 0,
-                    ...['A', 'B', 'C', 'D', 'F'].reduce(
+                    ...['발', '찾', '합', '섭', '복', '예정'].reduce(
                         (acc, step) => ({
                             ...acc,
                             [step]: stepData[step] ?? 0,
@@ -207,17 +235,23 @@ export const calculateAchievements = (
         });
 
         tableData.forEach((row) => {
-            ['A', 'B', 'C', 'D', 'F'].forEach((step) => {
-                monthlyTotalRow[step] = (monthlyTotalRow[step] as number) + (row[step] as number);
+            ['발', '찾', '합', '섭', '복', '예정'].forEach((step) => {
+                monthlyTotalRow[step] = Number(monthlyTotalRow[step] ?? 0) + Number(row[step] ?? 0);
                 monthlyTotalRow[`${step}_탈락`] =
-                    (monthlyTotalRow[`${step}_탈락`] as number) + (row[`${step}_탈락`] as number);
+                    Number(monthlyTotalRow[`${step}_탈락`] ?? 0) + Number(row[`${step}_탈락`] ?? 0);
                 monthlyTotalRow[`${step}_보유`] =
-                    (monthlyTotalRow[`${step}_보유`] as number) + (row[`${step}_보유`] as number);
+                    Number(monthlyTotalRow[`${step}_보유`] ?? 0) + Number(row[`${step}_보유`] ?? 0);
             });
-            monthlyTotalRow.탈락 += row.탈락;
+            monthlyTotalRow.탈락 = (monthlyTotalRow.탈락 ?? 0) + (row.탈락 ?? 0);
         });
 
-        return { weekly: weeklyAchievements, monthly: { achievements: tableData, totalRow: monthlyTotalRow } };
+        return {
+            weekly: weeklyAchievements,
+            monthly: {
+                achievements: tableData,
+                totalRow: monthlyTotalRow,
+            },
+        };
     }
 
     return { weekly: weeklyAchievements };

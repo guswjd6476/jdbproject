@@ -22,7 +22,7 @@ interface RegionConfig {
     region: string;
     month: number;
     year: number;
-    f_goals: Record<string, string>;
+    예정_goals: Record<string, string>;
 }
 
 export default function DashboardPage() {
@@ -126,8 +126,8 @@ export default function DashboardPage() {
             }
 
             if (!STEPS2.includes(단계 as STEP2)) return;
-            const isCFStep = ['C', 'D-1', 'D-2', 'E', 'F'].includes(단계);
-            const isABStep = ['A', 'B'].includes(단계);
+            const isCFStep = ['섭', '복', '예정'].includes(단계);
+            const isABStep = ['발', '찾', '합'].includes(단계);
 
             if (isABStep) {
                 const 인도자지역 = (s.인도자지역 ?? '').trim();
@@ -168,7 +168,7 @@ export default function DashboardPage() {
                 const config = regionConfigs.find(
                     (c) => c.region === region && c.year === selectedYear && c.month === selectedTargetMonth
                 );
-                const fGoal = config?.f_goals?.[`team${team}`] ? parseFloat(config.f_goals[`team${team}`]) : 0;
+                const fGoal = config?.예정_goals?.[`team${team}`] ? parseFloat(config.예정_goals[`team${team}`]) : 0;
 
                 const row: TableRow3 = {
                     key: `${selectedTargetMonth ?? '전체'}-${region}-${team}`,
@@ -176,7 +176,7 @@ export default function DashboardPage() {
                     지역: region,
                     팀: team,
                     재적: enrollmentMap[keyBase] ?? 0,
-                    f_goal: fGoal,
+                    예정_goal: fGoal,
                     last_month_result: lastMonthScoreMap[keyBase] ?? 0,
                     탈락: 0,
                     gospel_score: 0,
@@ -189,10 +189,7 @@ export default function DashboardPage() {
                 });
 
                 const gospelScore =
-                    Number(row['D-1_보유'] ?? 0) +
-                    Number(row['D-2_보유'] ?? 0) +
-                    Number(row['E_보유'] ?? 0) +
-                    Number(row['F_보유'] ?? 0);
+                    Number(row['섭_보유'] ?? 0) + Number(row['복_보유'] ?? 0) + Number(row['예정_보유'] ?? 0);
                 row.gospel_score = Math.round(gospelScore * 10) / 10;
                 row.gospel_rate = fGoal > 0 ? Math.round((gospelScore / fGoal) * 100) : 0; // %로 표시
 
@@ -208,7 +205,7 @@ export default function DashboardPage() {
             지역: '',
             팀: '',
             재적: 0,
-            f_goal: 0,
+            예정_goal: 0,
             last_month_result: 0,
             탈락: 0,
             ...Object.fromEntries(STEPS2.map((s) => [`${s}_보유`, 0])),
@@ -218,7 +215,7 @@ export default function DashboardPage() {
 
         rows.forEach((row) => {
             totalRow['재적'] += Number(row['재적'] ?? 0);
-            totalRow['f_goal'] = Number(totalRow['f_goal'] ?? 0) + Number(row['f_goal'] ?? 0);
+            totalRow['예정_goals'] = Number(totalRow['예정_goals'] ?? 0) + Number(row['예정_goals'] ?? 0);
             totalRow['last_month_result'] =
                 Number(totalRow['last_month_result'] ?? 0) + Number(row['last_month_result'] ?? 0);
             totalRow['gospel_score'] = Number(totalRow['gospel_score'] ?? 0) + Number(row['gospel_score'] ?? 0);
@@ -233,7 +230,7 @@ export default function DashboardPage() {
             totalRow[`${step}_보유`] = Math.round(totalScore * 10) / 10;
         });
 
-        const totalFGoal = Number(totalRow['f_goal']);
+        const totalFGoal = Number(totalRow['예정_goals']);
         const totalGospelScore = Number(totalRow['gospel_score']);
         totalRow['gospel_rate'] = totalFGoal > 0 ? Math.round((totalGospelScore / totalFGoal) * 100) : 0;
 
@@ -252,7 +249,7 @@ export default function DashboardPage() {
                     acc[step] = Number(row[`${step}_보유`] ?? 0);
                     return acc;
                 }, {} as Record<string, number>),
-                '개강 목표': row.f_goal,
+                '개강 목표': row.예정_goals,
                 '지난달 결과': row.last_month_result,
                 '복음방 점수': row.gospel_score,
                 '목표 달성률(%)': row.gospel_rate,
@@ -264,7 +261,6 @@ export default function DashboardPage() {
             : `${selectedYear}년_전체_개강점검`;
         exportToExcel(dataToExport, title);
     };
-
     return (
         <div className="w-full mx-auto p-6">
             <Title level={2}>개강 점검</Title>
@@ -324,7 +320,13 @@ export default function DashboardPage() {
                                 width: 60,
                                 align: 'center' as const,
                             })),
-                            { title: '개강 목표', dataIndex: 'f_goal', key: 'f_goal', width: 90, align: 'center' },
+                            {
+                                title: '개강 목표',
+                                dataIndex: '예정_goal',
+                                key: '예정_goal',
+                                width: 90,
+                                align: 'center',
+                            },
                             {
                                 title: '지난달결과',
                                 dataIndex: 'last_month_result',

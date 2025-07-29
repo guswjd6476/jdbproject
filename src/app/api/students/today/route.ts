@@ -20,13 +20,13 @@ export async function GET(req: NextRequest) {
                 s.id,
                 s.이름,
                 s.단계,
-                s.a_완료일,
-                s.b_완료일,
-                s.c_완료일,
-                s.d_1_완료일,
-                s.d_2_완료일,
-                s.e_완료일,
-                s.f_완료일,
+                s.발_완료일,
+                s.찾_완료일,
+                s.합_완료일,
+                s.섭_완료일,
+                s.복_완료일,
+                s.예정_완료일,
+                s.센확_완료일,
                 s.탈락,
                 m1.지역 AS 인도자지역,
                 m1.구역 AS 인도자구역,
@@ -38,13 +38,13 @@ export async function GET(req: NextRequest) {
             LEFT JOIN members m1 ON s.인도자_고유번호 = m1.고유번호
             LEFT JOIN members m2 ON s.교사_고유번호 = m2.고유번호
             WHERE (
-                s.a_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.b_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.c_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.d_1_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.d_2_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.e_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.f_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
+                s.발_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
+                OR s.찾_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
+                OR s.합_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
+                OR s.섭_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
+                OR s.복_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
+                OR s.예정_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
+                OR s.센확_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
                 OR s.탈락 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
             )
             ORDER BY s.id DESC

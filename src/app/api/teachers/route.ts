@@ -108,21 +108,17 @@ export async function GET(request: NextRequest) {
                       AND (
                           (
                               CURRENT_DATE < '2025-09-01' AND (
-                                  s.d_1_완료일 >= '2025-06-01' OR
-                                  s.d_2_완료일 >= '2025-06-01' OR
-                                  s.e_완료일   >= '2025-06-01' OR
-                                  s.f_완료일   >= '2025-06-01' OR
-                                  s.센확_완료일 >= '2025-06-01'
+                                  s.복_완료일 >= '2025-06-01' OR
+                                  s.예정_완료일 >= '2025-06-01' OR
+                                  s.센확_완료일   >= '2025-06-01'
                               )
                           )
                           OR
                           (
                               CURRENT_DATE >= '2025-09-01' AND (
-                                  s.d_1_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                                  s.d_2_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                                  s.e_완료일   >= CURRENT_DATE - INTERVAL '3 months' OR
-                                  s.f_완료일   >= CURRENT_DATE - INTERVAL '3 months' OR
-                                  s.센확_완료일 >= CURRENT_DATE - INTERVAL '3 months'
+                                  s.복_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
+                                  s.예정_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
+                                  s.센확_완료일   >= CURRENT_DATE - INTERVAL '3 months' 
                               )
                           )
                       )
@@ -136,7 +132,7 @@ export async function GET(request: NextRequest) {
                     FROM students s
                     WHERE ( s.교사_고유번호 = m.고유번호)
                       AND (
-                          s.단계 IN ('C', 'D-1', 'D-2', 'E', 'F','센확')
+                          s.단계 IN ('섭', '복', '예정', '센확')
                       )
                 ) AS c이상건수
 

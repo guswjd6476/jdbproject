@@ -7,30 +7,31 @@ import { useUser } from '@/app/hook/useUser';
 interface RowData {
     month: number;
     region: string;
-    a: number;
-    b: number;
-    c: number;
-    d_1: number;
-    d_2: number;
-    f: number;
+    발: number;
+    찾: number;
+    합: number;
+    섭: number;
+    복: number;
+    예정: number;
     센확: number;
     센등: number;
-    aToB?: number;
-    bToC?: number;
-    cToD1?: number;
-    d1ToF?: number;
+    발To찾?: number;
+    찾To합?: number;
+    합To섭?: number;
+    섭To복?: number;
+    복To예정?: number;
     isTotal?: boolean;
 }
 
 const INITIAL_ROW = (month: number): RowData => ({
     month,
     region: '',
-    a: 0,
-    b: 0,
-    c: 0,
-    d_1: 0,
-    d_2: 0,
-    f: 0,
+    발: 0,
+    찾: 0,
+    합: 0,
+    섭: 0,
+    복: 0,
+    예정: 0,
     센확: 0,
     센등: 0,
 });
@@ -87,7 +88,7 @@ function MultiRegionInputForm({ month, onSubmit }: { month: number; onSubmit: (r
                                         onChange={(e) => handleChange(idx, 'region', e.target.value)}
                                     />
                                 </td>
-                                {['a', 'b', 'c', 'd_1', 'd_2', 'f', '센확', '센등'].map((key) => (
+                                {['발', '찾', '합', '섭', '복', '예정', '센확', '센등'].map((key) => (
                                     <td
                                         className="border p-1"
                                         key={key}
@@ -127,7 +128,6 @@ export default function MonthlyDashboard() {
         fetchData();
     }, []);
 
-    // 서버에서 최신 데이터 받아오기 함수
     const fetchData = () => {
         fetch('/api/monthly')
             .then((res) => res.json())
@@ -148,29 +148,30 @@ export default function MonthlyDashboard() {
 
         Object.entries(monthMap).forEach(([monthStr, rows]) => {
             const month = Number(monthStr);
-            let sumA = 0,
-                sumB = 0,
-                sumC = 0,
-                sumD1 = 0,
-                sumD2 = 0,
-                sumF = 0,
+            let sum발 = 0,
+                sum찾 = 0,
+                sum합 = 0,
+                sum섭 = 0,
+                sum복 = 0,
+                sum예정 = 0,
                 sum센확 = 0,
                 sum센등 = 0;
 
             const rowsWithRates = rows.map((row) => {
                 const newRow = {
                     ...row,
-                    aToB: row.a ? (row.b / row.a) * 100 : 0,
-                    bToC: row.b ? (row.c / row.b) * 100 : 0,
-                    cToD1: row.c ? (row.d_1 / row.c) * 100 : 0,
-                    d1ToF: row.d_1 ? (row.f / row.d_1) * 100 : 0,
+                    발To찾: row.발 ? (row.찾 / row.발) * 100 : 0,
+                    찾To합: row.찾 ? (row.합 / row.찾) * 100 : 0,
+                    합To섭: row.합 ? (row.섭 / row.합) * 100 : 0,
+                    섭To복: row.복 ? (row.복 / row.섭) * 100 : 0,
+                    복To예정: row.예정 ? (row.예정 / row.복) * 100 : 0,
                 };
-                sumA += row.a;
-                sumB += row.b;
-                sumC += row.c;
-                sumD1 += row.d_1;
-                sumD2 += row.d_2;
-                sumF += row.f;
+                sum발 += row.발;
+                sum찾 += row.찾;
+                sum합 += row.합;
+                sum섭 += row.섭;
+                sum복 += row.복;
+                sum예정 += row.예정;
                 sum센확 += row.센확;
                 sum센등 += row.센등;
                 return newRow;
@@ -179,18 +180,19 @@ export default function MonthlyDashboard() {
             const totalRow: RowData = {
                 month,
                 region: '총합',
-                a: sumA,
-                b: sumB,
-                c: sumC,
-                d_1: sumD1,
-                d_2: sumD2,
-                f: sumF,
+                발: sum발,
+                찾: sum찾,
+                합: sum합,
+                섭: sum섭,
+                복: sum복,
+                예정: sum예정,
                 센확: sum센확,
                 센등: sum센등,
-                aToB: sumA ? (sumB / sumA) * 100 : 0,
-                bToC: sumB ? (sumC / sumB) * 100 : 0,
-                cToD1: sumC ? (sumD1 / sumC) * 100 : 0,
-                d1ToF: sumD1 ? (sumF / sumD1) * 100 : 0,
+                발To찾: sum발 ? (sum찾 / sum발) * 100 : 0,
+                찾To합: sum찾 ? (sum합 / sum찾) * 100 : 0,
+                합To섭: sum합 ? (sum섭 / sum합) * 100 : 0,
+                섭To복: sum섭 ? (sum복 / sum섭) * 100 : 0,
+                복To예정: sum복 ? (sum예정 / sum복) * 100 : 0,
                 isTotal: true,
             };
 
@@ -224,12 +226,12 @@ export default function MonthlyDashboard() {
     const columns = [
         { title: '월', dataIndex: 'month', sorter: (a: any, b: any) => a.month - b.month, width: 70 },
         { title: '지역', dataIndex: 'region', width: 80 },
-        { title: 'A', dataIndex: 'a', width: 70 },
-        { title: 'B', dataIndex: 'b', width: 60 },
-        { title: 'C', dataIndex: 'c', width: 60 },
-        { title: 'D-1', dataIndex: 'd_1', width: 60 },
-        { title: 'D-2', dataIndex: 'd_2', width: 60 },
-        { title: 'F', dataIndex: 'f', width: 60 },
+        { title: '발', dataIndex: '발', width: 70 },
+        { title: '찾', dataIndex: '찾', width: 60 },
+        { title: '합', dataIndex: '합', width: 60 },
+        { title: '섭', dataIndex: '섭', width: 60 },
+        { title: '복', dataIndex: '복', width: 60 },
+        { title: '예정', dataIndex: '예정', width: 60 },
         { title: '센확', dataIndex: '센확', width: 60 },
         { title: '센등', dataIndex: '센등', width: 60 },
         {

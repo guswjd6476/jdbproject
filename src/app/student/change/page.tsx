@@ -84,7 +84,7 @@ export default function MentorChanger() {
         }
 
         const 단계 = (selectedStudent.단계 || '').toUpperCase();
-        const 단계상위 = ['C', 'D', 'E', 'F', 'D-1', 'D-2'];
+        const 단계상위 = ['합', '섭', '복', '예정'];
 
         const 교사이름 = safeTrim(selectedTeacherName);
         const 교사팀 = extractTeamNumber(selectedTeacherTeam);

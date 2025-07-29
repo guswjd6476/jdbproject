@@ -24,8 +24,7 @@ export default function TableRow({ row, index, onChange, onDelete, errors, selec
         '교사팀',
         '교사이름',
     ];
-
-    const allowedStages = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F', '탈락'];
+    const allowedStages = ['발', '찾', '합', '섭', '복', '예정', '탈락'];
     const isInvalidStage = row.단계 && !allowedStages.includes(row.단계.trim().toUpperCase());
 
     return (

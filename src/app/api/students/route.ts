@@ -5,23 +5,7 @@ import { PoolClient } from 'pg';
 import { verifyToken } from '@/app/lib/auth';
 import type { JwtPayload } from 'jsonwebtoken';
 
-const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F', '탈락'];
-
-// 사용자가 제공한 헬퍼 함수 (수정 없음)
-async function getMemberUniqueId(client: PoolClient, 지역: string, 팀: string, 이름: string): Promise<string | null> {
-    if (!지역 || !팀 || !이름) return null;
-    const prefix = 팀.charAt(0);
-    const query = `
-        SELECT 고유번호 FROM members
-        WHERE 지역 = $1 AND 구역 LIKE $2 AND 이름 = $3
-        LIMIT 1
-    `;
-    const values = [지역, prefix + '%', 이름];
-    const res = await client.query(query, values);
-    return res.rows.length > 0 ? res.rows[0].고유번호 : null;
-}
-
-// 사용자가 제공한 헬퍼 함수 (수정 없음)
+const 단계순서 = ['발', '찾', '합', '섭', '복', '예정', '탈락'];
 async function getOrInsertMemberUniqueId(
     client: PoolClient,
     지역: string,
@@ -81,13 +65,12 @@ async function getOrInsertMemberUniqueId(
 }
 
 const 단계완료일컬럼: Record<string, string> = {
-    A: 'a_완료일',
-    B: 'b_완료일',
-    C: 'c_완료일',
-    'D-1': 'd_1_완료일',
-    'D-2': 'd_2_완료일',
-    E: 'e_완료일',
-    F: 'f_완료일',
+    발: '발_완료일',
+    찾: '찾_완료일',
+    합: '합_완료일',
+    섭: '섭_완료일',
+    복: '복_완료일',
+    예정: '예정_완료일',
     탈락: 'g',
     센확: '센확_완료일',
 };
@@ -115,9 +98,9 @@ export async function GET(request: NextRequest) {
             SELECT 
                 s.id AS 번호, s.단계, s.이름, s.연락처, s.생년월일, s.target,
                 s.인도자_고유번호, s.교사_고유번호,
-                s.a_완료일 AS "a", s.b_완료일 AS "b", s.c_완료일 AS "c",
-                s.d_1_완료일 AS "d-1", s.d_2_완료일 AS "d-2", s.e_완료일 AS "e",
-                s.f_완료일 AS "f", s.센확_완료일 AS "센확", s.탈락 AS "g",
+                s.발_완료일 AS "발", s.찾_완료일 AS "찾", s.합_완료일 AS "합",
+                s.섭_완료일 AS "섭", s.복_완료일 AS "복", s.예정_완료일 AS "예정",
+  s.센확_완료일 AS "센확", s.탈락 AS "g",
                 m_ind.지역 AS 인도자지역, m_ind.구역 AS 인도자팀, m_ind.이름 AS 인도자이름,
                 m_tch.지역 AS 교사지역, m_tch.구역 AS 교사팀, m_tch.이름 AS 교사이름
             FROM students s
@@ -202,7 +185,7 @@ export async function POST(request: NextRequest) {
         for (const row of data) {
             const 단계 = row.단계.trim().toUpperCase();
             row.인도자_고유번호 = await getOrInsertMemberUniqueId(client, row.인도자지역, row.인도자팀, row.인도자이름);
-            row.교사_고유번호 = ['A', 'B'].includes(단계)
+            row.교사_고유번호 = ['발', '찾'].includes(단계)
                 ? null
                 : await getOrInsertMemberUniqueId(client, row.교사지역, row.교사팀, row.교사이름);
 
@@ -247,13 +230,12 @@ export async function POST(request: NextRequest) {
             // --- ✨ 로직 종료 ---
 
             const 완료일: { [key: string]: Date | null } = {
-                a_완료일: null,
-                b_완료일: null,
-                c_완료일: null,
-                d_1_완료일: null,
-                d_2_완료일: null,
-                e_완료일: null,
-                f_완료일: null,
+                발_완료일: null,
+                찾_완료일: null,
+                합_완료일: null,
+                섭_완료일: null,
+                복_완료일: null,
+                예정_완료일: null,
                 센확_완료일: null,
                 g: null,
             };
@@ -265,25 +247,24 @@ export async function POST(request: NextRequest) {
                     `UPDATE students SET
                         단계 = $1, 연락처 = COALESCE($2, 연락처), 생년월일 = COALESCE($3, 생년월일),
                         인도자_고유번호 = COALESCE($4, 인도자_고유번호), 교사_고유번호 = COALESCE($5, 교사_고유번호),
-                        a_완료일 = COALESCE(a_완료일, $6), b_완료일 = COALESCE(b_완료일, $7),
-                        c_완료일 = COALESCE(c_완료일, $8), d_1_완료일 = COALESCE(d_1_완료일, $9),
-                        d_2_완료일 = COALESCE(d_2_완료일, $10), e_완료일 = COALESCE(e_완료일, $11),
-                        f_완료일 = COALESCE(f_완료일, $12), 센확_완료일 = COALESCE(센확_완료일, $13),
-                        탈락 = COALESCE(탈락, $14)
-                    WHERE id = $15`,
+                        발_완료일 = COALESCE(발_완료일, $6), 찾_완료일 = COALESCE(찾_완료일, $7),
+                        합_완료일 = COALESCE(합_완료일, $8), 섭_완료일 = COALESCE(섭_완료일, $9),
+                        복_완료일 = COALESCE(복_완료일, $10), 예정_완료일 = COALESCE(예정_완료일, $11),
+                       센확_완료일 = COALESCE(센확_완료일, $12),
+                        탈락 = COALESCE(탈락, $13)
+                    WHERE id = $14`,
                     [
                         단계,
                         row.연락처,
                         row.생년월일,
                         row.인도자_고유번호,
                         row.교사_고유번호,
-                        완료일.a_완료일,
-                        완료일.b_완료일,
-                        완료일.c_완료일,
-                        완료일.d_1_완료일,
-                        완료일.d_2_완료일,
-                        완료일.e_완료일,
-                        완료일.f_완료일,
+                        완료일.발_완료일,
+                        완료일.찾_완료일,
+                        완료일.합_완료일,
+                        완료일.섭_완료일,
+                        완료일.복_완료일,
+                        완료일.예정_완료일,
                         완료일.센확_완료일,
                         완료일.g,
                         existing.id,
@@ -292,8 +273,8 @@ export async function POST(request: NextRequest) {
             } else {
                 await client.query(
                     `INSERT INTO students
-                        (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, a_완료일, b_완료일, c_완료일, d_1_완료일, d_2_완료일, e_완료일, f_완료일, 센확_완료일, 탈락)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+                        (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일,  센확_완료일, 탈락)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
                     [
                         단계,
                         row.이름.trim(),
@@ -301,13 +282,12 @@ export async function POST(request: NextRequest) {
                         row.생년월일,
                         row.인도자_고유번호,
                         row.교사_고유번호,
-                        완료일.a_완료일,
-                        완료일.b_완료일,
-                        완료일.c_완료일,
-                        완료일.d_1_완료일,
-                        완료일.d_2_완료일,
-                        완료일.e_완료일,
-                        완료일.f_완료일,
+                        완료일.발_완료일,
+                        완료일.찾_완료일,
+                        완료일.합_완료일,
+                        완료일.섭_완료일,
+                        완료일.복_완료일,
+                        완료일.예정_완료일,
                         완료일.센확_완료일,
                         완료일.g,
                     ]

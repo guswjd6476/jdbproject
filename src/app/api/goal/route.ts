@@ -30,11 +30,11 @@ export async function POST(request: Request) {
         // Upsert configuration
         const result = await client.query(
             `
-      INSERT INTO region_configs (region, month, year, f_goals, conversion_rates, weekly_percentages, updated_at)
+      INSERT INTO region_configs (region, month, year, 예정_goals, conversion_rates, weekly_percentages, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
       ON CONFLICT (region, month, year)
       DO UPDATE SET
-        f_goals = EXCLUDED.f_goals,
+        예정_goals = EXCLUDED.예정_goals,
         conversion_rates = EXCLUDED.conversion_rates,
         weekly_percentages = EXCLUDED.weekly_percentages,
         updated_at = CURRENT_TIMESTAMP
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
         // Fetch configuration
         const result = await client.query(
             `
-      SELECT f_goals, conversion_rates, weekly_percentages
+      SELECT 예정_goals, conversion_rates, weekly_percentages
       FROM region_configs
       WHERE region = $1 AND month = $2 AND year = $3;
     `,

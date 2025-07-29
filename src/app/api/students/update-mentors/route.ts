@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
         }
 
         const upperStep = (단계 ?? '').toUpperCase();
-        const 교사필요 = !['A', 'B'].includes(upperStep);
+        const 교사필요 = !['발', '찾'].includes(upperStep);
 
         // 인도자 고유번호 조회
         const 인도자_고유번호 = await getMemberUniqueId(client, 인도자지역, 인도자팀, 인도자이름);

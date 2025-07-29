@@ -25,7 +25,7 @@ interface TeacherSummaryRow {
 
 export default function TeacherDashboard() {
     const [data, setData] = useState<TeacherSummaryRow[]>([]);
-    console.log(data, '?data');
+
     useEffect(() => {
         fetch('/api/teachers/teacher-summary')
             .then((res) => res.json())
@@ -103,7 +103,10 @@ export default function TeacherDashboard() {
             dataIndex: '팀장',
             key: '팀장',
             render: (_: string, __: TeacherSummaryRow, index: number) => (
-                <Input value={data[index]?.팀장} onChange={(e) => handleInputChange(e.target.value, index, '팀장')} />
+                <Input
+                    value={data[index]?.팀장}
+                    onChange={(e) => handleInputChange(e.target.value, index, '팀장')}
+                />
             ),
         },
         {
@@ -111,7 +114,10 @@ export default function TeacherDashboard() {
             dataIndex: '교관',
             key: '교관',
             render: (_: string, __: TeacherSummaryRow, index: number) => (
-                <Input value={data[index]?.교관} onChange={(e) => handleInputChange(e.target.value, index, '교관')} />
+                <Input
+                    value={data[index]?.교관}
+                    onChange={(e) => handleInputChange(e.target.value, index, '교관')}
+                />
             ),
         },
         { title: '교사재적', dataIndex: '교사재적', key: '교사재적' },
@@ -127,10 +133,19 @@ export default function TeacherDashboard() {
         <>
             <Typography.Title level={4}>교사 활동 현황 (관리자용)</Typography.Title>
             <TeamLeaderEditor />
-            <Button type="primary" onClick={exportToExcel} style={{ marginBottom: 16 }}>
+            <Button
+                type="primary"
+                onClick={exportToExcel}
+                style={{ marginBottom: 16 }}
+            >
                 엑셀로 내보내기
             </Button>
-            <Table columns={columns} dataSource={data} rowKey={(row) => `${row.지역}-${row.팀}`} pagination={false} />
+            <Table
+                columns={columns}
+                dataSource={data}
+                rowKey={(row) => `${row.지역}-${row.팀}`}
+                pagination={false}
+            />
         </>
     );
 }

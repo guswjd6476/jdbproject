@@ -14,13 +14,12 @@ export async function GET() {
 type RowData = {
     month: string;
     region: string;
-    a: number;
-    b: number;
-    c: number;
-    d_1: number;
-    d_2: number;
-    e: number;
-    f: number;
+    발: number;
+    찾: number;
+    합: number;
+    섭: number;
+    복: number;
+    예정: number;
     센확: number;
     센등: number;
 };
@@ -37,27 +36,27 @@ export async function POST(req: NextRequest) {
         const results = [];
 
         for (const row of rows) {
-            const { month, region, a = 0, b = 0, c = 0, d_1 = 0, d_2 = 0, f = 0, 센확 = 0, 센등 = 0 } = row;
+            const { month, region, 발 = 0, 찾 = 0, 합 = 0, 섭 = 0, 복 = 0, 예정 = 0, 센확 = 0, 센등 = 0 } = row;
 
             if (!month || !region) continue;
 
             const result = await pool.query(
                 `
-                INSERT INTO monthly (month, region, a, b, c, d_1, d_2, f, "센확", "센등")
+                INSERT INTO monthly (month, region, 발, 찾, 합, 섭, 복, 예정, "센확", "센등")
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 ON CONFLICT (month, region)
                 DO UPDATE SET
-                    a = EXCLUDED.a,
-                    b = EXCLUDED.b,
-                    c = EXCLUDED.c,
-                    d_1 = EXCLUDED.d_1,
-                    d_2 = EXCLUDED.d_2,
-                    f = EXCLUDED.f,
+                    "발" = EXCLUDED.발,
+                    "찾" = EXCLUDED.찾,
+                    "합" = EXCLUDED.합,
+                    "섭" = EXCLUDED.섭,
+                    "복" = EXCLUDED.복,
+                    "예정" = EXCLUDED.예정,
                     "센확" = EXCLUDED."센확",
                     "센등" = EXCLUDED."센등"
                 RETURNING *;
                 `,
-                [month, region, a, b, c, d_1, d_2, f, 센확, 센등]
+                [month, region, 발, 찾, 합, 섭, 복, 예정, 센확, 센등]
             );
 
             results.push(result.rows[0]);

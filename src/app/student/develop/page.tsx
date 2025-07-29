@@ -97,7 +97,7 @@ export default function RegionWiseRemarks() {
 
     const filtered = useMemo(() => {
         return students.filter((s) => {
-            const 기준지역 = s.단계?.toLowerCase() === 'b' ? String(s.인도자지역 ?? '') : String(s.교사지역 ?? '');
+            const 기준지역 = s.단계?.toLowerCase() === '찾' ? String(s.인도자지역 ?? '') : String(s.교사지역 ?? '');
             const matchesRegion = !selectedRegion || 기준지역 === selectedRegion;
             const matchesSearch = !searchText || (s.이름?.includes(searchText) ?? false);
             return matchesRegion && matchesSearch;

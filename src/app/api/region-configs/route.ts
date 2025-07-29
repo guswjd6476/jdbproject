@@ -7,7 +7,7 @@ export async function GET() {
 
     try {
         const result = await client.query(`
-            SELECT id, region, month, year, f_goals
+            SELECT id, region, month, year, 예정_goals
             FROM region_configs
         `);
 

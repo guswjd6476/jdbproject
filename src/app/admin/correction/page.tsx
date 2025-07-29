@@ -7,25 +7,23 @@ import dayjs, { Dayjs } from 'dayjs';
 import { useUser } from '@/app/hook/useUser';
 
 const COMPLETION_FIELDS = [
-    'a_완료일',
-    'b_완료일',
-    'c_완료일',
-    'd_1_완료일',
-    'd_2_완료일',
-    'e_완료일',
-    'f_완료일',
+    '발_완료일',
+    '찾_완료일',
+    '합_완료일',
+    '섭_완료일',
+    '복_완료일',
+    '예정_완료일',
     '센확_완료일',
     '탈락',
 ] as const;
 
 const STAGE_OPTIONS = [
-    'A',
-    'B',
-    'C',
-    'D-1',
-    'D-2',
-    'E',
-    'F',
+    '발',
+    '찾',
+    '합',
+    '섭',
+    '복',
+    '예정',
     '탈락',
     ...Array.from({ length: 3 }, (_, i) => {
         const date = dayjs().add(i - 1, 'month'); // -1,0,+1개월
@@ -274,16 +272,26 @@ export default function AdminStudentManager() {
                 const isEditing = editingId === record.id;
                 return isEditing ? (
                     <Space>
-                        <Button size="small" type="primary" onClick={() => handleSave(record.id)}>
+                        <Button
+                            size="small"
+                            type="primary"
+                            onClick={() => handleSave(record.id)}
+                        >
                             저장
                         </Button>
-                        <Button size="small" onClick={() => setEditingId(null)}>
+                        <Button
+                            size="small"
+                            onClick={() => setEditingId(null)}
+                        >
                             취소
                         </Button>
                     </Space>
                 ) : (
                     <Space>
-                        <Button size="small" onClick={() => handleEdit(record)}>
+                        <Button
+                            size="small"
+                            onClick={() => handleEdit(record)}
+                        >
                             수정
                         </Button>
                         <Popconfirm
@@ -292,7 +300,10 @@ export default function AdminStudentManager() {
                             okText="삭제"
                             cancelText="취소"
                         >
-                            <Button danger size="small">
+                            <Button
+                                danger
+                                size="small"
+                            >
                                 삭제
                             </Button>
                         </Popconfirm>
@@ -330,13 +341,20 @@ export default function AdminStudentManager() {
                     showSearch
                     optionFilterProp="label"
                 />
-                <Button type="primary" onClick={handleSearch}>
+                <Button
+                    type="primary"
+                    onClick={handleSearch}
+                >
                     검색
                 </Button>
             </div>
 
             {/* 일괄 변경 UI */}
-            <Space align="center" wrap className="mb-4">
+            <Space
+                align="center"
+                wrap
+                className="mb-4"
+            >
                 <Select
                     placeholder="일괄 단계 선택"
                     style={{ width: 150 }}
@@ -360,7 +378,12 @@ export default function AdminStudentManager() {
                     showSearch
                     optionFilterProp="label"
                 />
-                <DatePicker value={bulkDate} onChange={setBulkDate} format="YYYY.MM.DD" allowClear />
+                <DatePicker
+                    value={bulkDate}
+                    onChange={setBulkDate}
+                    format="YYYY.MM.DD"
+                    allowClear
+                />
                 <Button
                     type="primary"
                     disabled={selectedRowKeys.length === 0 || (!bulkStage && !bulkDateField)}

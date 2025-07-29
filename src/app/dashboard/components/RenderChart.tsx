@@ -64,17 +64,17 @@ const RenderChart: React.FC<RenderChartProps> = ({ view, data, achievements, sel
                 const stepsToShow = (() => {
                     switch (weekIndex) {
                         case 0:
-                            return ['A'];
+                            return ['발'];
                         case 1:
-                            return ['A', 'B'];
+                            return ['발', '찾'];
                         case 2:
-                            return ['C'];
+                            return ['합'];
                         case 3:
-                            return ['D'];
+                            return ['복'];
                         case 4:
-                            return ['A', 'B', 'C', 'D', 'F'];
+                            return ['발', '찾', '합', '섭', '복', '예정'];
                         default:
-                            return ['A', 'B', 'C', 'D', 'F'];
+                            return ['발', '찾', '합', '섭', '복', '예정'];
                     }
                 })();
 
@@ -121,7 +121,10 @@ const RenderChart: React.FC<RenderChartProps> = ({ view, data, achievements, sel
                 };
 
                 return (
-                    <div key={week} className="mb-8">
+                    <div
+                        key={week}
+                        className="mb-8"
+                    >
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="text-md font-medium">
                                 {weekIndex + 1}주차 ({display})
@@ -133,8 +136,14 @@ const RenderChart: React.FC<RenderChartProps> = ({ view, data, achievements, sel
                                 이미지로 저장
                             </button>
                         </div>
-                        <div ref={chartRefs[week]} className="chart-container">
-                            <Bar data={chartData} options={options} />
+                        <div
+                            ref={chartRefs[week]}
+                            className="chart-container"
+                        >
+                            <Bar
+                                data={chartData}
+                                options={options}
+                            />
                         </div>
                     </div>
                 );

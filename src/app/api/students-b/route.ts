@@ -30,13 +30,13 @@ export async function GET(request: NextRequest) {
 				s.trydate,
                 s.numberofweek,
                 s.생년월일,
-                s.a_완료일 AS "a",
-                s.b_완료일 AS "b",
-                s.c_완료일 AS "c",
-                s.d_1_완료일 AS "d-1",
-                s.d_2_완료일 AS "d-2",
-                s.e_완료일 AS "e",
-                s.f_완료일 AS "f",
+                s.발_완료일 AS "발",
+                s.찾_완료일 AS "찾",
+                s.합_완료일 AS "합",
+                s.섭_완료일 AS "섭",
+                s.복_완료일 AS "복",
+                s.예정_완료일 AS "예정",
+                s.센확_완료일 AS "센확",
                 s.탈락 AS "g",
                 s.target, s.trydate,
                 m_ind.지역 AS 인도자지역, 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
             FROM students s
             LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
             LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
-            WHERE s.단계 IN ('B', 'C', 'D-1', 'D-2', 'E','F')
+            WHERE s.단계 IN ('합', '섭', '복','예정')
         `;
 
         if (userEmail.includes('nowon')) {

@@ -12,53 +12,49 @@ export async function GET(request: NextRequest) {
             tl.교관,
             COUNT(DISTINCT t.uid) AS 교사재적,
             COUNT(DISTINCT CASE
-                WHEN s.단계 IN ('D-1','D-2','E','F','센확')
+                WHEN s.단계 IN ('복', '예정', '센확')
                 AND (
                     (
                         CURRENT_DATE < '2025-09-01'
                         AND (
-                            s.d_1_완료일 >= '2025-06-01' OR
-                            s.d_2_완료일 >= '2025-06-01' OR
-                            s.e_완료일   >= '2025-06-01' OR
-                            s.f_완료일   >= '2025-06-01' OR
-                            s.센확_완료일 >= '2025-06-01'
+                            s.복_완료일 >= '2025-06-01' OR
+                            s.예정_완료일 >= '2025-06-01' OR
+                            s.센확_완료일   >= '2025-06-01' 
                         )
                     )
                     OR
                     (
                         CURRENT_DATE >= '2025-09-01'
                         AND (
-                            s.d_1_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                            s.d_2_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                            s.e_완료일   >= CURRENT_DATE - INTERVAL '3 months' OR
-                            s.f_완료일   >= CURRENT_DATE - INTERVAL '3 months' OR
-                            s.센확_완료일 >= CURRENT_DATE - INTERVAL '3 months'
+                            s.복_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
+                            s.예정_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
+                            s.센확_완료일   >= CURRENT_DATE - INTERVAL '3 months' 
                         )
                     )
                 )
                 THEN m.고유번호 ELSE NULL
             END) AS 활동교사,
             COUNT(CASE 
-                WHEN s.단계 IN ('D-1','D-2','E','F','센확') THEN 1 ELSE NULL
+                WHEN s.단계 IN ('복', '예정', '센확') THEN 1 ELSE NULL
             END) AS 교사건,
             SUM(CASE 
                 WHEN s.numberofweek = '1회' 
-                AND s.단계 IN ('D-1','D-2','E','F','센확') THEN 1 
+                AND s.단계 IN ('복', '예정', '센확') THEN 1 
                 ELSE 0
             END) AS 횟수1회,
             SUM(CASE 
                 WHEN s.numberofweek = '2회' 
-                AND s.단계 IN ('D-1','D-2','E','F','센확') THEN 1 
+                AND s.단계 IN ('복', '예정', '센확') THEN 1 
                 ELSE 0
             END) AS 횟수2회,
             SUM(CASE 
                 WHEN s.numberofweek IN ('3회','4회이상') 
-                AND s.단계 IN ('D-1','D-2','E','F','센확') THEN 1 
+                AND s.단계 IN ('복', '예정', '센확') THEN 1 
                 ELSE 0
             END) AS 횟수3회이상,
             SUM(CASE 
                 WHEN (s.numberofweek IS NULL OR s.numberofweek = '' OR s.numberofweek = '미수강') 
-                AND s.단계 IN ('D-1','D-2','E','F','센확') THEN 1 
+                AND s.단계 IN ('복', '예정', '센확') THEN 1 
                 ELSE 0
             END) AS 미수강
         FROM members m

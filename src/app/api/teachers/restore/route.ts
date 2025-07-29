@@ -5,7 +5,6 @@ export async function POST(req: NextRequest) {
     const client = await pool.connect();
     try {
         const { keys } = await req.json();
-        console.log(keys, '?kesy');
         if (!Array.isArray(keys) || keys.length === 0) {
             return NextResponse.json({ error: '삭제할 고유번호가 없습니다.' }, { status: 400 });
         }

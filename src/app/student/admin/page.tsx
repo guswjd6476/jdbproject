@@ -9,13 +9,13 @@ import { useUser } from '@/app/hook/useUser';
 const { Search } = Input;
 
 const COMPLETION_FIELDS = [
-    'a_완료일',
-    'b_완료일',
-    'c_완료일',
-    'd_1_완료일',
-    'd_2_완료일',
-    'e_완료일',
-    'f_완료일',
+    '발_완료일',
+    '찾_완료일',
+    '합_완료일',
+    '섭_완료일',
+    '복_완료일',
+    '예정_완료일',
+    '센확_완료일',
 ] as const;
 
 type Student = {

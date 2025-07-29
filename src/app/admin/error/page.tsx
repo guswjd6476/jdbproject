@@ -16,13 +16,12 @@ type Student = {
     교사팀?: string;
     교사이름?: string;
     단계?: string;
-    a?: string;
-    b?: string;
-    c?: string;
-    'd-1'?: string;
-    'd-2'?: string;
-    e?: string;
-    f?: string;
+    발?: string;
+    찾: string;
+    합?: string;
+    섭?: string;
+    복?: string;
+    예정: string;
     센확?: string;
     g?: string;
     [key: string]: string | number | undefined;
@@ -118,13 +117,12 @@ export default function DuplicateStudentByNameAndLeader() {
         { title: '교사팀', dataIndex: '교사팀', key: '교사팀', width: 50 },
         { title: '교사이름', dataIndex: '교사이름', key: '교사이름', width: 50 },
 
-        { title: 'A', dataIndex: 'a', key: 'a', width: 110, render: renderDate },
-        { title: 'B', dataIndex: 'b', key: 'b', width: 110, render: renderDate },
-        { title: 'C', dataIndex: 'c', key: 'c', width: 110, render: renderDate },
-        { title: 'D-1', dataIndex: 'd-1', key: 'd-1', width: 110, render: renderDate },
-        { title: 'D-2', dataIndex: 'd-2', key: 'd-2', width: 110, render: renderDate },
-        { title: 'E', dataIndex: 'e', key: 'e', width: 110, render: renderDate },
-        { title: 'F', dataIndex: 'f', key: 'f', width: 110, render: renderDate },
+        { title: '발', dataIndex: '발', key: '발', width: 110, render: renderDate },
+        { title: '찾', dataIndex: '찾', key: '찾', width: 110, render: renderDate },
+        { title: '합', dataIndex: '합', key: '합', width: 110, render: renderDate },
+        { title: '섭', dataIndex: '섭', key: '섭', width: 110, render: renderDate },
+        { title: '복', dataIndex: '복', key: '복', width: 110, render: renderDate },
+        { title: '예정', dataIndex: '예정', key: '예정', width: 110, render: renderDate },
         { title: '센확', dataIndex: '센확', key: '센확', width: 110, render: renderDate },
         { title: '탈락일', dataIndex: 'g', key: 'g', width: 110, render: renderDate },
     ];
@@ -141,7 +139,10 @@ export default function DuplicateStudentByNameAndLeader() {
                     cancelText="취소"
                     disabled={selectedRowKeys.length === 0}
                 >
-                    <Button danger disabled={selectedRowKeys.length === 0}>
+                    <Button
+                        danger
+                        disabled={selectedRowKeys.length === 0}
+                    >
                         선택 삭제
                     </Button>
                 </Popconfirm>

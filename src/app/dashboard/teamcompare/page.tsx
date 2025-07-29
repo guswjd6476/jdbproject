@@ -95,7 +95,7 @@ export default function DashboardPage() {
                 const month = (date.month() + 1).toString();
                 const targets =
                     scoreMode === 'count'
-                        ? step === 'A' || step === 'B'
+                        ? step === '발' || step === '찾'
                             ? [
                                   {
                                       지역: (s.인도자지역 ?? '').trim(),
@@ -112,7 +112,7 @@ export default function DashboardPage() {
                                       점수: 1,
                                   },
                               ]
-                        : step === 'A' || step === 'B'
+                        : step === '발' || step === '찾'
                         ? [
                               {
                                   지역: (s.인도자지역 ?? '').trim(),
@@ -430,15 +430,25 @@ export default function DashboardPage() {
         <div className="w-full mx-auto p-6">
             <Title level={2}>월별 · 지역별 · 팀별 대시보드</Title>
 
-            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
-                <Space wrap size="middle">
+            <Space
+                direction="vertical"
+                size="large"
+                style={{ marginBottom: 24, width: '100%' }}
+            >
+                <Space
+                    wrap
+                    size="middle"
+                >
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
                         style={{ width: 100 }}
                         options={yearOptions}
                     />
-                    <Radio.Group value={scoreMode} onChange={(e) => setScoreMode(e.target.value)}>
+                    <Radio.Group
+                        value={scoreMode}
+                        onChange={(e) => setScoreMode(e.target.value)}
+                    >
                         <Radio.Button value="score">점수로 보기</Radio.Button>
                         <Radio.Button value="count">건수로 보기</Radio.Button>
                     </Radio.Group>
@@ -510,12 +520,18 @@ export default function DashboardPage() {
                     )}
 
                     <Button onClick={handleReset}>초기화</Button>
-                    <Button onClick={handleExportToExcel} type="primary">
+                    <Button
+                        onClick={handleExportToExcel}
+                        type="primary"
+                    >
                         엑셀로 내보내기
                     </Button>
                 </Space>
 
-                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
+                <Spin
+                    spinning={isLoading}
+                    tip="데이터를 불러오는 중입니다..."
+                >
                     <Table<TableRow>
                         columns={columns}
                         dataSource={[...tableData, totalRow]}

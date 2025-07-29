@@ -22,13 +22,12 @@ interface StudentBrief {
     교사지역: string | null;
     교사구역: string | null;
     교사이름: string | null;
-    a_완료일: string | null;
-    b_완료일: string | null;
-    c_완료일: string | null;
-    d_1_완료일: string | null;
-    d_2_완료일: string | null;
-    e_완료일: string | null;
-    f_완료일: string | null;
+    발_완료일: string | null;
+    찾_완료일: string | null;
+    합_완료일: string | null;
+    섭_완료일: string | null;
+    복_완료일: string | null;
+    예정_완료일: string | null;
     탈락: string | null;
 }
 
@@ -162,13 +161,14 @@ export default function TodayStudentList() {
             responsive: ['xs'] as Breakpoint[],
             render: (_, record) => (
                 <div className="text-xs whitespace-pre-line">
-                    A:{formatDate(record.a_완료일)} B:{formatDate(record.b_완료일)} C:{formatDate(record.c_완료일)}
-                    {'\n'}D1:{formatDate(record.d_1_완료일)} D2:{formatDate(record.d_2_완료일)} E:
-                    {formatDate(record.e_완료일)} F:{formatDate(record.f_완료일)} 탈:{formatDate(record.탈락)}
+                    발:{formatDate(record.발_완료일)} 찾:{formatDate(record.찾_완료일)} 합:
+                    {formatDate(record.합_완료일)}
+                    {'\n'} 섭:{formatDate(record.섭_완료일)} 복:{formatDate(record.복_완료일)} 예정:
+                    {formatDate(record.예정_완료일)} 탈:{formatDate(record.탈락)}
                 </div>
             ),
         },
-        ...(['a', 'b', 'c', 'd_1', 'd_2', 'e', 'f'] as const).map((key) => ({
+        ...(['발', '찾', '합', '섭', '복', '예정'] as const).map((key) => ({
             title: `${key.toUpperCase().replace('_', '-')} 완료일`,
             dataIndex: `${key}_완료일`,
             key: `${key}_완료일`,

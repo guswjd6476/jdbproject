@@ -187,7 +187,6 @@ export default function TeacherUploadPage() {
             setLoading(false);
         }
     };
-    console.log(deleteKeys, '?d');
     const filteredData = useMemo(() => {
         if (!searchText) return data;
         const lower = searchText.toLowerCase();

@@ -11,7 +11,7 @@ import { Spin, Alert, Modal } from 'antd';
 
 const INITIAL_ROWS = 100;
 const ADDITIONAL_ROWS = 10;
-const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F', '탈락'];
+const 단계순서 = ['발', '찾', '합', '섭', '복', '예정', '탈락'];
 
 const initialRow: Student = {
     id: '',
@@ -83,7 +83,7 @@ function StudentTracker() {
         const stageRaw = row.단계.trim();
         const stage = stageRaw.toUpperCase() === '탈락' ? '탈락' : stageRaw.toUpperCase();
 
-        const 단계순서 = ['A', 'B', 'C', 'D-1', 'D-2', 'E', 'F'];
+        const 단계순서 = ['발', '찾', '합', '섭', '복', '예정'];
 
         if (stage !== '탈락' && !단계순서.includes(stage)) {
             errors.push('유효한 단계가 아닙니다.');
@@ -96,10 +96,42 @@ function StudentTracker() {
         }
 
         if (stage === '탈락') {
-            // ... (탈락 로직은 동일)
+            const hasFullIndo = row.인도자지역 && row.인도자팀 && row.인도자이름;
+            const hasFullTeacher = row.교사지역 && row.교사팀 && row.교사이름;
+
+            if (!hasFullIndo && !hasFullTeacher) {
+                errors.push('탈락 시 인도자 정보 또는 교사 정보가 필요합니다.');
+            }
+
+            // '탈락' 유효성 검사를 위해 API를 직접 호출하여 상세한 오류를 확인합니다.
+            try {
+                const query = new URLSearchParams({
+                    name: row.이름.trim(),
+                    stage: '탈락',
+                    region: row.인도자지역.trim(),
+                    team: row.인도자팀.trim(),
+                    name2: row.인도자이름.trim(),
+                    teacherRegion: row.교사지역.trim(),
+                    teacherTeam: row.교사팀.trim(),
+                    teacherName: row.교사이름.trim(),
+                });
+                const res = await fetch(`/api/students/checkPreviousStage?${query.toString()}`);
+                const json = await res.json();
+
+                if (!res.ok) {
+                    // 백엔드에서 400 오류와 함께 보낸 메시지를 오류 배열에 추가합니다.
+                    // (예: "탈락 처리할 기존 학생 기록이 없습니다.")
+                    errors.push(json.message || '유효성 검사 중 오류가 발생했습니다.');
+                } else if (json.exists === true) {
+                    // 이미 '탈락'으로 등록된 경우
+                    errors.push('이미 탈락으로 등록된 학생입니다.');
+                }
+            } catch (e) {
+                errors.push('서버 통신 중 오류가 발생했습니다.');
+            }
+
             return errors;
         }
-
         const currentStageIndex = 단계순서.indexOf(stage);
         if (currentStageIndex > 0) {
             const previousStage = 단계순서[currentStageIndex - 1];
@@ -107,7 +139,6 @@ function StudentTracker() {
                 (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === previousStage
             );
 
-            // ✨ checkPreviousStageExists의 반환 값 사용
             const { exists: existsInDB, completedToday } = await checkPreviousStageExists(
                 row.이름,
                 previousStage,
@@ -119,7 +150,6 @@ function StudentTracker() {
                 row.교사이름
             );
 
-            // ✨ 오늘 완료했는지 확인하는 로직 추가
             if (completedToday) {
                 errors.push(`${previousStage} 단계를 오늘 완료하여 현재 단계 등록이 불가능합니다.`);
             } else if (!existsInUI && !existsInDB) {
@@ -127,13 +157,13 @@ function StudentTracker() {
             }
         }
 
-        if (stage === 'A' && !row.연락처.trim()) {
-            errors.push('A단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
+        if (stage === '발' && !row.연락처.trim()) {
+            errors.push('발굴단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
         }
-        if (stage === 'B' && !row.생년월일.trim()) {
-            errors.push('B단계는 생년월일이 필요합니다.');
+        if (stage === '찾' && !row.생년월일.trim()) {
+            errors.push('찾기단계는 생년월일이 필요합니다.');
         }
-        if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
+        if (['섭', '복', '예정'].includes(stage)) {
             const skip = isSkipTeamCheck(row.교사팀);
             if (!skip && (!row.교사지역 || !row.교사팀 || !row.교사이름)) {
                 errors.push('C~F단계는 교사 정보가 필요합니다.');
@@ -143,7 +173,6 @@ function StudentTracker() {
         return errors;
     }
 
-    // ... (나머지 코드는 이전과 동일)
     function validateRow(row: Student, allRows: Student[]): string[] {
         const errors: string[] = [];
         const stage = row.단계.trim().toUpperCase();
@@ -158,9 +187,9 @@ function StudentTracker() {
             return errors;
         }
 
-        if (stage === 'A' && !row.연락처.trim()) errors.push('A단계는 연락처가 필요합니다.');
-        if (stage === 'B' && !row.생년월일.trim()) errors.push('B단계는 생년월일이 필요합니다.');
-        if (['C', 'D-1', 'D-2', 'E', 'F'].includes(stage)) {
+        if (stage === '발' && !row.연락처.trim()) errors.push('A단계는 연락처가 필요합니다.');
+        if (stage === '찾' && !row.생년월일.trim()) errors.push('B단계는 생년월일이 필요합니다.');
+        if (['섭', '복', '예정'].includes(stage)) {
             const skip = isSkipTeamCheck(row.교사팀);
             if (!skip && (!row.교사지역 || !row.교사팀 || !row.교사이름)) {
                 errors.push('교사 정보가 필요합니다.');
@@ -211,17 +240,17 @@ function StudentTracker() {
 
                 const newRow: Student = { ...initialRow, 단계, 이름 };
 
-                if (단계 === 'A') {
+                if (단계 === '발') {
                     newRow.연락처 = safe(cols, 2);
                     newRow.인도자지역 = safe(cols, 3);
                     newRow.인도자팀 = safe(cols, 4);
                     newRow.인도자이름 = safe(cols, 5);
-                } else if (단계 === 'B') {
+                } else if (단계 === '찾') {
                     newRow.생년월일 = safe(cols, 2);
                     newRow.인도자지역 = safe(cols, 3);
                     newRow.인도자팀 = safe(cols, 4);
                     newRow.인도자이름 = safe(cols, 5);
-                } else if (['C', 'D-1', 'D-2', 'E', 'F'].includes(단계)) {
+                } else if (['섭', '복', '예정'].includes(단계)) {
                     newRow.인도자지역 = safe(cols, 2);
                     newRow.인도자팀 = safe(cols, 3);
                     newRow.인도자이름 = safe(cols, 4);
@@ -327,7 +356,7 @@ function StudentTracker() {
                     <AddRowButton onClick={addRows} />
                     <button
                         onClick={handleSubmit}
-                        disabled
+                        disabled={loading || isSaveDisabledByTime}
                         className={`px-4 py-2 rounded text-white ${
                             loading || isSaveDisabledByTime ? 'bg-gray-400' : 'bg-blue-600'
                         }`}
@@ -335,14 +364,29 @@ function StudentTracker() {
                         저장하기
                     </button>
                     <div className="min-w-[200px] whitespace-pre-line">
-                        {error && <Alert message={error} type="error" showIcon />}
-                        {success && <Alert message={success} type="success" showIcon />}
+                        {error && (
+                            <Alert
+                                message={error}
+                                type="error"
+                                showIcon
+                            />
+                        )}
+                        {success && (
+                            <Alert
+                                message={success}
+                                type="success"
+                                showIcon
+                            />
+                        )}
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
                 <Spin spinning={loading}>
-                    <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
+                    <table
+                        className="border-collapse border border-slate-400"
+                        onPaste={handlePaste}
+                    >
                         <TableHeader />
                         <tbody>
                             {data.map((row, i) => (
