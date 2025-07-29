@@ -327,7 +327,7 @@ function StudentTracker() {
                     <AddRowButton onClick={addRows} />
                     <button
                         onClick={handleSubmit}
-                        disabled={loading || isSaveDisabledByTime}
+                        disabled
                         className={`px-4 py-2 rounded text-white ${
                             loading || isSaveDisabledByTime ? 'bg-gray-400' : 'bg-blue-600'
                         }`}
