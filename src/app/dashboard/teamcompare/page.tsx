@@ -8,6 +8,8 @@ import dayjs, { Dayjs } from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
 import { useUser } from '@/app/hook/useUser';
 import { STEPS, REGIONS, fixedTeams, Student, TableRow, STEP } from '@/app/lib/types';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -391,6 +393,39 @@ export default function DashboardPage() {
         setSelectedDateRange([null, null]);
     };
 
+    const handleExportToExcel = () => {
+        const dataToExport = [...tableData, totalRow].map((row) => {
+            const newRow: any = {
+                월: row.월,
+            };
+
+            if (isRegionalAccount) {
+                newRow['팀'] = row.팀;
+                newRow['구역'] = row.구역;
+            } else {
+                newRow['지역'] = row.지역;
+                newRow['팀'] = row.팀;
+            }
+
+            STEPS.forEach((step) => {
+                newRow[step] = row[step];
+                newRow[`${step}_탈락`] = row[`${step}_탈락`];
+                newRow[`${step}_보유`] = row[`${step}_보유`];
+            });
+
+            newRow['탈락'] = row.탈락;
+
+            return newRow;
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Dashboard');
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
+        saveAs(data, 'dashboard_data.xlsx');
+    };
+
     return (
         <div className="w-full mx-auto p-6">
             <Title level={2}>월별 · 지역별 · 팀별 대시보드</Title>
@@ -475,6 +510,9 @@ export default function DashboardPage() {
                     )}
 
                     <Button onClick={handleReset}>초기화</Button>
+                    <Button onClick={handleExportToExcel} type="primary">
+                        엑셀로 내보내기
+                    </Button>
                 </Space>
 
                 <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">

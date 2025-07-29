@@ -1,14 +1,17 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Table, Input, Typography, message } from 'antd';
+import { Table, Input, Typography, message, Button } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import TeamLeaderEditor from '../components/TeamLeaderEditor';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 interface TeacherSummaryRow {
+    id: number;
     지역: string;
     팀: string;
-    구역?: string; // 선택적 필드로 변경 (API에 따라)
+    구역?: string;
     팀장: string;
     교관: string;
     교사재적: number;
@@ -22,7 +25,7 @@ interface TeacherSummaryRow {
 
 export default function TeacherDashboard() {
     const [data, setData] = useState<TeacherSummaryRow[]>([]);
-
+    console.log(data, '?data');
     useEffect(() => {
         fetch('/api/teachers/teacher-summary')
             .then((res) => res.json())
@@ -48,11 +51,11 @@ export default function TeacherDashboard() {
 
         rawData.forEach((row) => {
             const teamKey = row.팀 || (row.구역 ? `${row.구역.split('-')[0]}팀` : '알수없음');
-
             const key = `${row.지역}-${teamKey}`;
 
             if (!map.has(key)) {
                 map.set(key, {
+                    id: row.id,
                     지역: row.지역,
                     팀: teamKey,
                     팀장: row.팀장,
@@ -83,6 +86,15 @@ export default function TeacherDashboard() {
         return Array.from(map.values());
     };
 
+    const exportToExcel = () => {
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'TeacherSummary');
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const file = new Blob([excelBuffer], { type: 'application/octet-stream' });
+        saveAs(file, '교사활동현황.xlsx');
+    };
+
     const columns: ColumnsType<TeacherSummaryRow> = [
         { title: '지역', dataIndex: '지역', key: '지역' },
         { title: '팀', dataIndex: '팀', key: '팀' },
@@ -91,10 +103,7 @@ export default function TeacherDashboard() {
             dataIndex: '팀장',
             key: '팀장',
             render: (_: string, __: TeacherSummaryRow, index: number) => (
-                <Input
-                    value={data[index]?.팀장}
-                    onChange={(e) => handleInputChange(e.target.value, index, '팀장')}
-                />
+                <Input value={data[index]?.팀장} onChange={(e) => handleInputChange(e.target.value, index, '팀장')} />
             ),
         },
         {
@@ -102,10 +111,7 @@ export default function TeacherDashboard() {
             dataIndex: '교관',
             key: '교관',
             render: (_: string, __: TeacherSummaryRow, index: number) => (
-                <Input
-                    value={data[index]?.교관}
-                    onChange={(e) => handleInputChange(e.target.value, index, '교관')}
-                />
+                <Input value={data[index]?.교관} onChange={(e) => handleInputChange(e.target.value, index, '교관')} />
             ),
         },
         { title: '교사재적', dataIndex: '교사재적', key: '교사재적' },
@@ -121,12 +127,10 @@ export default function TeacherDashboard() {
         <>
             <Typography.Title level={4}>교사 활동 현황 (관리자용)</Typography.Title>
             <TeamLeaderEditor />
-            <Table
-                columns={columns}
-                dataSource={data}
-                rowKey={(row) => `${row.지역}-${row.팀}`}
-                pagination={false}
-            />
+            <Button type="primary" onClick={exportToExcel} style={{ marginBottom: 16 }}>
+                엑셀로 내보내기
+            </Button>
+            <Table columns={columns} dataSource={data} rowKey={(row) => `${row.지역}-${row.팀}`} pagination={false} />
         </>
     );
 }
