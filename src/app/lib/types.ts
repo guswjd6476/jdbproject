@@ -41,14 +41,7 @@ export interface WeeklyGoals {
     복: number;
     예정: number;
 }
-
-export interface WeeklyPercentages {
-    week1: WeeklyGoals;
-    week2: WeeklyGoals;
-    week3: WeeklyGoals;
-    week4: WeeklyGoals;
-    week5: WeeklyGoals;
-}
+export type WeeklyPercentages = Record<string, WeeklyGoals>;
 
 export interface ConversionRates {
     발To찾: number;

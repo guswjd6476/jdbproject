@@ -17,7 +17,6 @@ import isBetween from 'dayjs/plugin/isBetween';
 import { Students } from '../hook/useStudentsQuery';
 dayjs.extend(isBetween);
 
-type Step = (typeof STEPS)[number];
 export const initializeResults = (
     예정Goals: 예정Goals,
     conversionRates: ConversionRates,
@@ -54,13 +53,14 @@ export const initializeResults = (
         return { team: index + 1, goals: { 발: 발, 찾: 찾, 합: 합, 섭: 섭, 복: 복, 예정: 예정Value }, weeks };
     });
 
+    // DEBUG: '복'의 총합이 '예정' 값으로 더해지던 오류 수정 및 acc 타입 명시
     const totals: WeeklyGoals = teamResults.reduce(
         (acc: WeeklyGoals, team: TeamResult) => ({
             발: acc.발 + team.goals.발,
             찾: acc.찾 + team.goals.찾,
             합: acc.합 + team.goals.합,
             섭: acc.섭 + team.goals.섭,
-            복: acc.복 + team.goals.예정,
+            복: acc.복 + team.goals.복, // 'team.goals.예정' -> 'team.goals.복' 으로 수정
             예정: acc.예정 + team.goals.예정,
         }),
         { 발: 0, 찾: 0, 합: 0, 섭: 0, 복: 0, 예정: 0 }
@@ -77,7 +77,10 @@ export const getWeekDateRange = (
     const firstDay = dayjs(new Date(year, month - 1, 1));
     const firstMonday = firstDay.add((8 - firstDay.day()) % 7 || 7, 'day');
 
-    const startDate = firstMonday.add(weekIndex * 7 - 14, 'day');
+    // 2025년 9월부터는 3주 전, 그 전은 2주 전으로 기준 변경
+    const baseOffset = year === 2025 && month >= 9 ? -35 : -14;
+
+    const startDate = firstMonday.add(weekIndex * 7 + baseOffset, 'day');
     const endDate = startDate.add(6, 'day');
 
     return {
@@ -86,6 +89,7 @@ export const getWeekDateRange = (
         display: `${startDate.format('M.D')}~${endDate.format('M.D')}`,
     };
 };
+
 export const getTeamName = (team?: string | null): string => {
     if (!team) return '기타팀';
     const prefix = team.split('-')[0];
@@ -126,7 +130,6 @@ export const calculateAchievements = (
         const 인도자팀 = getTeamName(s.인도자팀);
         if (!REGIONS.includes(인도자지역 as Region) || !fixedTeams.includes(인도자팀)) return;
 
-        // 보유 수 카운트용
         if (mode === 'monthly') {
             ['발', '찾', '합', '섭', '복', '예정'].forEach((step) => {
                 const key = step.toLowerCase() as keyof Student;
@@ -139,7 +142,6 @@ export const calculateAchievements = (
             });
         }
 
-        // 각 단계별 점수 누적
         ['발', '찾', '합', '섭', '복', '예정'].forEach((step) => {
             const key = step.toLowerCase() as keyof Student;
             const dateStr = s[key] as string | null | undefined;
@@ -194,26 +196,16 @@ export const calculateAchievements = (
                 }
             });
         });
-
-        // (선택) 탈락 점수 추가 가능 지점
-        // const 탈락일 = s.탈락;
-        // if (mode === 'monthly' && 탈락일) {
-        //     const 탈락 = dayjs(탈락일);
-        //     if (탈락.isValid() && 탈락.year() === year && 탈락.month() + 1 === selectedMonth) {
-        //         monthlyAchievements[인도자지역] ??= {};
-        //         monthlyAchievements[인도자지역][인도자팀] ??= {};
-        //         monthlyAchievements[인도자지역][인도자팀]['탈락'] =
-        //             (monthlyAchievements[인도자지역][인도자팀]['탈락'] ?? 0) + 1;
-        //     }
-        // }
     });
 
     if (mode === 'monthly') {
         const tableData: TableRow[] = [];
 
         REGIONS.forEach((region) => {
-            const teams = fixedTeams.filter((t) => monthlyAchievements[region]?.[t]);
-            teams.forEach((team) => {
+            const teamsInRegion = fixedTeams.filter(
+                (t) => monthlyAchievements[region] && monthlyAchievements[region][t]
+            );
+            teamsInRegion.forEach((team) => {
                 const stepData = monthlyAchievements[region]?.[team] || {};
                 const row: TableRow = {
                     key: `${region}-${team}`,
@@ -235,14 +227,21 @@ export const calculateAchievements = (
         });
 
         tableData.forEach((row) => {
-            ['발', '찾', '합', '섭', '복', '예정'].forEach((step) => {
-                monthlyTotalRow[step] = Number(monthlyTotalRow[step] ?? 0) + Number(row[step] ?? 0);
-                monthlyTotalRow[`${step}_탈락`] =
-                    Number(monthlyTotalRow[`${step}_탈락`] ?? 0) + Number(row[`${step}_탈락`] ?? 0);
-                monthlyTotalRow[`${step}_보유`] =
-                    Number(monthlyTotalRow[`${step}_보유`] ?? 0) + Number(row[`${step}_보유`] ?? 0);
+            (Object.keys(row) as Array<keyof TableRow>).forEach((key) => {
+                if (key !== 'key' && key !== '지역' && key !== '팀') {
+                    monthlyTotalRow[key] = (Number(monthlyTotalRow[key]) || 0) + (Number(row[key]) || 0);
+                }
             });
-            monthlyTotalRow.탈락 = (monthlyTotalRow.탈락 ?? 0) + (row.탈락 ?? 0);
+        });
+
+        // DEBUG: 사용자 요청에 따라 모든 총합 값을 정수로 반올림 처리
+        (Object.keys(monthlyTotalRow) as Array<keyof TableRow>).forEach((key) => {
+            if (key !== 'key' && key !== '지역' && key !== '팀') {
+                const value = monthlyTotalRow[key];
+                if (typeof value === 'number') {
+                    monthlyTotalRow[key] = Math.round(value);
+                }
+            }
         });
 
         return {

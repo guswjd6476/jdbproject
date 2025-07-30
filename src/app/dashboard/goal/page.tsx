@@ -27,54 +27,64 @@ import { useUser } from '@/app/hook/useUser';
 dayjs.extend(isBetween);
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'] as (keyof WeeklyPercentages)[];
+const getWeekCount = (year: number, month: string): number => {
+    if (year < 2025) return 5;
+    if (year === 2025 && Number(month) <= 8) return 5;
+    return 8;
+};
+
 const steps = ['발', '찾', '합', '섭', '복', '예정'] as const;
 type Step = (typeof steps)[number];
-
-const WeeklyGoalsTable = ({
-    data,
-    achievements,
-    selectedMonth,
-    year,
-    view,
-}: {
+interface WeeklyGoalsTableProps {
     data: { region: string; results: Results }[];
     achievements: Record<string, Record<string, Record<string, Record<Step, number>>>>;
-    selectedMonth: number;
+    selectedMonth: string;
+    selectedYear: number;
     year: number;
     view: 'region' | 'month';
-}) => {
-    const [stepFilterToggle, setStepFilterToggle] = useState<Record<(typeof weeks)[number], boolean>>({
-        week1: false,
-        week2: false,
-        week3: false,
-        week4: false,
-        week5: false,
-    });
+}
+const WeeklyGoalsTable = ({ data, achievements, selectedYear, selectedMonth, year, view }: WeeklyGoalsTableProps) => {
+    const weekNamesByMonth: string[] =
+        getWeekCount(selectedYear, selectedMonth) === 5
+            ? ['발집주', '발집주', '상따주', '복따주', '센띄주']
+            : ['발집주', '발집주', '육따주', '상담주', '영따주', '복음방주', '복음방주', '센띄,그룹복'];
+
+    const weeks = weekNamesByMonth.map((name, index) => ({
+        weekNumber: index + 1,
+        weekKey: `week${index + 1}`, // 키 형식을 'week1', 'week2' 등으로 일관성 있게 수정
+        label: `${index + 1}주차 (${name})`,
+    }));
+
+    const [stepFilterToggle, setStepFilterToggle] = useState<Record<string, boolean>>(
+        weeks.reduce((acc, w) => {
+            acc[w.weekKey] = false;
+            return acc;
+        }, {} as Record<string, boolean>)
+    );
 
     const tableRefs = useMemo(() => {
         return weeks.reduce((acc, week) => {
-            acc[week] = React.createRef<HTMLDivElement>();
+            acc[week.weekKey] = React.createRef<HTMLDivElement>();
             return acc;
-        }, {} as Record<(typeof weeks)[number], React.RefObject<HTMLDivElement | null>>);
-    }, []);
+        }, {} as Record<string, React.RefObject<HTMLDivElement | null>>);
+    }, [weeks]);
 
     const weekTitleTextRefs = useMemo(() => {
         return weeks.reduce((acc, week) => {
-            acc[week] = React.createRef<HTMLDivElement>();
+            acc[week.weekKey] = React.createRef<HTMLDivElement>();
             return acc;
-        }, {} as Record<(typeof weeks)[number], React.RefObject<HTMLDivElement | null>>);
-    }, []);
+        }, {} as Record<string, React.RefObject<HTMLDivElement | null>>);
+    }, [weeks]);
 
-    const toggleStepFilter = useCallback((week: (typeof weeks)[number]) => {
+    const toggleStepFilter = useCallback((weekKey: string) => {
         setStepFilterToggle((prev) => ({
             ...prev,
-            [week]: !prev[week],
+            [weekKey]: !prev[weekKey],
         }));
     }, []);
 
     const saveTableAsImage = useCallback(
-        async (week: (typeof weeks)[number], weekIndex: number) => {
+        async (weekKey: string, weekIndex: number) => {
             const tempContainer = document.createElement('div');
             tempContainer.style.padding = '24px';
             tempContainer.style.backgroundColor = '#f0f5ff';
@@ -84,7 +94,7 @@ const WeeklyGoalsTable = ({
             tempContainer.style.fontSize = '30px';
             tempContainer.style.boxShadow = '0 0 10px rgba(100, 120, 160, 0.15)';
 
-            const titleEl = weekTitleTextRefs[week].current;
+            const titleEl = weekTitleTextRefs[weekKey]?.current;
             if (titleEl) {
                 const titleClone = titleEl.cloneNode(true) as HTMLElement;
                 titleClone.style.marginBottom = '8px';
@@ -93,7 +103,7 @@ const WeeklyGoalsTable = ({
                 tempContainer.appendChild(titleClone);
             }
 
-            const originalContainer = tableRefs[week].current;
+            const originalContainer = tableRefs[weekKey]?.current;
             if (!originalContainer) return;
             const tableClone = originalContainer.cloneNode(true) as HTMLElement;
 
@@ -169,8 +179,10 @@ const WeeklyGoalsTable = ({
     return (
         <>
             {weeks.map((week, weekIndex) => {
-                const { display } = getWeekDateRange(selectedMonth, year, weekIndex);
-                const stepFilter: Step[] = stepFilterToggle[week]
+                const { weekKey } = week;
+                const { display } = getWeekDateRange(Number(selectedMonth), year, weekIndex);
+
+                const stepFilter: Step[] = stepFilterToggle[weekKey]
                     ? ['발', '찾', '합', '섭', '복', '예정']
                     : weekIndex === 0
                     ? ['발']
@@ -185,20 +197,23 @@ const WeeklyGoalsTable = ({
                 const flatTeams = data.flatMap(
                     ({ region, results }) =>
                         results?.teams?.map((team) => {
-                            const teamAch = achievements[region]?.[team.team]?.[week] || {};
+                            const teamAch = achievements[region]?.[team.team]?.[weekKey] || {};
                             const goals = team.weeks[weekIndex];
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             const record: Record<string, any> = {
                                 key: `${region}-${team.team}`,
                                 team: `${region} ${team.team}팀`,
                             };
                             stepFilter.forEach((step) => {
-                                const goal = goals[step] || 0;
-                                const ach = teamAch[step] || 0;
+                                const goal = goals?.[step] || 0;
+                                const ach = teamAch?.[step] || 0;
                                 const rate = goal > 0 ? (ach / goal) * 100 : 0;
                                 let colorStyle: React.CSSProperties = {};
 
-                                if (!stepFilterToggle[week] && (weekIndex === 0 || weekIndex === 1) && step !== '발') {
+                                if (
+                                    !stepFilterToggle[weekKey] &&
+                                    (weekIndex === 0 || weekIndex === 1) &&
+                                    step !== '발'
+                                ) {
                                     colorStyle = {};
                                 } else {
                                     if (rate >= 100) {
@@ -221,16 +236,13 @@ const WeeklyGoalsTable = ({
                         }) ?? []
                 );
 
-                // ... (keep your existing flatTeams and totalRecord logic)
-
-                // Update columns to reflect the toggled stepFilter
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const columns: ColumnsType<any> = [
                     {
                         title: '순위',
                         dataIndex: 'no',
                         width: 70,
                         align: 'center',
+                        render: (_: any, __: any, index: number) => index + 1,
                     },
                     {
                         title: view === 'region' ? '지역' : '지역/팀',
@@ -266,36 +278,21 @@ const WeeklyGoalsTable = ({
                 ];
 
                 return (
-                    <div
-                        key={week}
-                        className="mb-10"
-                    >
-                        <div
-                            ref={weekTitleTextRefs[week]}
-                            style={{ marginBottom: 8, fontWeight: 'bold' }}
-                        >
+                    <div key={weekKey} className="mb-10">
+                        <div ref={weekTitleTextRefs[weekKey]} style={{ marginBottom: 8, fontWeight: 'bold' }}>
                             {weekIndex + 1}주차 ({display})
                         </div>
 
                         <div className="flex justify-end mb-2 space-x-2">
-                            <Button
-                                type="primary"
-                                onClick={() => toggleStepFilter(week)}
-                            >
-                                {stepFilterToggle[week] ? '필터된 보기' : '전체 보기'}
+                            <Button type="primary" onClick={() => toggleStepFilter(weekKey)}>
+                                {stepFilterToggle[weekKey] ? '필터된 보기' : '전체 보기'}
                             </Button>
-                            <Button
-                                type="primary"
-                                onClick={() => saveTableAsImage(week, weekIndex)}
-                            >
+                            <Button type="primary" onClick={() => saveTableAsImage(weekKey, weekIndex)}>
                                 이미지로 저장
                             </Button>
                         </div>
 
-                        <div
-                            ref={tableRefs[week]}
-                            className="bg-white p-4 rounded-md shadow-md"
-                        >
+                        <div ref={tableRefs[weekKey]} className="bg-white p-4 rounded-md shadow-md">
                             <Table
                                 columns={columns}
                                 dataSource={flatTeams}
@@ -325,24 +322,40 @@ const RenderChart = ({
     selectedMonth: number;
     year: number;
 }) => {
-    const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'] as (keyof WeeklyPercentages)[];
+    // 'weeks' 변수를 찾을 수 없는 오류 해결을 위해 컴포넌트 내에서 weeks 정의
+    const weekNamesByMonth: string[] =
+        getWeekCount(year, String(selectedMonth)) === 5
+            ? ['발집주', '발집주', '상따주', '복따주', '센띄주']
+            : ['발집주', '발집주', '육따주', '상담주', '영따주', '복음방주', '복음방주', '센띄,그룹복'];
+
+    const weeks = useMemo(
+        () =>
+            weekNamesByMonth.map((name, index) => ({
+                weekNumber: index + 1,
+                weekKey: `week${index + 1}` as keyof WeeklyPercentages,
+                label: `${index + 1}주차 (${name})`,
+            })),
+        [weekNamesByMonth]
+    );
+
     const labels =
         view === 'region'
             ? data[0].results.teams.map((team) => `${data[0].region} ${team.team}팀`)
             : data.flatMap(({ region, results }) => results.teams.map((team) => `${region} ${team.team}팀`));
 
+    // 'any' 타입 오류 해결을 위해 명시적 타입 지정
     const chartRefs = useMemo(() => {
-        return weeks.reduce((acc, week) => {
-            acc[week] = React.createRef<HTMLDivElement>();
+        return weeks.reduce((acc: Record<string, React.RefObject<HTMLDivElement | null>>, week) => {
+            acc[week.weekKey] = React.createRef<HTMLDivElement>();
             return acc;
-        }, {} as Record<keyof WeeklyPercentages, React.RefObject<HTMLDivElement | null>>);
-    }, []);
+        }, {});
+    }, [weeks]);
 
     const saveChartAsImage = useCallback(
-        async (week: keyof WeeklyPercentages, weekIndex: number) => {
-            const chartContainer = chartRefs[week].current;
+        async (weekKey: keyof WeeklyPercentages, weekIndex: number) => {
+            const chartContainer = chartRefs[weekKey]?.current;
             if (!chartContainer) {
-                console.error('Chart ref is null for week:', week);
+                console.error('Chart ref is null for week:', weekKey);
                 return;
             }
 
@@ -364,96 +377,91 @@ const RenderChart = ({
         [chartRefs, selectedMonth]
     );
 
-    return weeks.map((week, weekIndex) => {
-        const { display } = getWeekDateRange(selectedMonth, year, weekIndex);
+    // 'any' 타입 오류 해결을 위해 map 콜백에 타입 지정
+    return weeks.map(
+        (week: { weekNumber: number; weekKey: keyof WeeklyPercentages; label: string }, weekIndex: number) => {
+            const { display } = getWeekDateRange(selectedMonth, year, weekIndex);
 
-        const stepsToShow = (() => {
-            switch (weekIndex) {
-                case 0:
-                    return ['발'];
-                case 1:
-                    return ['발', '찾'];
-                case 2:
-                    return ['합'];
-                case 3:
-                    return ['섭'];
-                case 4:
-                    return ['발', '찾', '합', '섭', '복', '예정'];
-                default:
-                    return ['발', '찾', '합', '섭', '복', '예정'];
-            }
-        })();
+            const stepsToShow = (() => {
+                switch (weekIndex) {
+                    case 0:
+                        return ['발'];
+                    case 1:
+                        return ['발', '찾'];
+                    case 2:
+                        return ['합'];
+                    case 3:
+                        return ['섭'];
+                    case 4:
+                    default:
+                        return ['발', '찾', '합', '섭', '복', '예정'];
+                }
+            })();
 
-        const chartData = {
-            labels,
-            datasets: stepsToShow
-                .map((step, i) => [
-                    {
-                        label: `${step} 단계 목표`,
-                        data: data.flatMap(({ results }) =>
-                            results.teams.map((team) => team.weeks[weekIndex][step as keyof WeeklyGoals])
-                        ),
-                        backgroundColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 0.3)`,
-                        borderColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 0.8)`,
-                        borderWidth: 1,
-                    },
-                    {
-                        label: `${step} 단계 달성`,
-                        data: data.flatMap(({ region, results }) =>
-                            results.teams.map((team) => achievements[region]?.[`${team.team}`]?.[week]?.[step] || 0)
-                        ),
-                        backgroundColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 0.7)`,
-                        borderColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 1)`,
-                        borderWidth: 1,
-                    },
-                ])
-                .flat(),
-        };
+            const chartData = {
+                labels,
+                datasets: stepsToShow
+                    .map((step, i) => [
+                        {
+                            label: `${step} 단계 목표`,
+                            data: data.flatMap(({ results }) =>
+                                results.teams.map((team) => team.weeks[weekIndex]?.[step as keyof WeeklyGoals] || 0)
+                            ),
+                            backgroundColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 0.3)`,
+                            borderColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 0.8)`,
+                            borderWidth: 1,
+                        },
+                        {
+                            label: `${step} 단계 달성`,
+                            data: data.flatMap(({ region, results }) =>
+                                results.teams.map(
+                                    (team) => achievements[region]?.[`${team.team}`]?.[week.weekKey]?.[step] || 0
+                                )
+                            ),
+                            backgroundColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 0.7)`,
+                            borderColor: `rgba(${54 + i * 50}, ${162 - i * 30}, ${235 - i * 40}, 1)`,
+                            borderWidth: 1,
+                        },
+                    ])
+                    .flat(),
+            };
 
-        const options = {
-            scales: {
-                y: { beginAtZero: true, title: { display: true, text: '수' } },
-                x: { title: { display: true, text: view === 'region' ? '팀' : '지역 및 팀' } },
-            },
-            plugins: {
-                legend: { position: 'top' as const },
-                title: {
-                    display: true,
-                    text: `${selectedMonth}월 ${weekIndex + 1}주차 (${display}) ${
-                        view === 'region' ? data[0].region : '전체 지역'
-                    } ${stepsToShow.join(', ')} 단계 목표 vs 달성`,
+            const options = {
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: '수' } },
+                    x: { title: { display: true, text: view === 'region' ? '팀' : '지역 및 팀' } },
                 },
-            },
-        };
+                plugins: {
+                    legend: { position: 'top' as const },
+                    title: {
+                        display: true,
+                        text: `${selectedMonth}월 ${weekIndex + 1}주차 (${display}) ${
+                            view === 'region' ? data[0].region : '전체 지역'
+                        } ${stepsToShow.join(', ')} 단계 목표 vs 달성`,
+                    },
+                },
+            };
 
-        return (
-            <div
-                key={week}
-                className="mb-8"
-            >
-                <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-md font-medium">
-                        {weekIndex + 1}주차 ({display})
-                    </h3>
-                    <button
-                        onClick={() => saveChartAsImage(week, weekIndex)}
-                        className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                        이미지로 저장
-                    </button>
+            return (
+                <div key={week.weekKey} className="mb-8">
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-md font-medium">
+                            {weekIndex + 1}주차 ({display})
+                        </h3>
+                        <button
+                            onClick={() => saveChartAsImage(week.weekKey, weekIndex)}
+                            className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                            이미지로 저장
+                        </button>
+                    </div>
+                    <div ref={chartRefs[week.weekKey]} className="chart-container bg-white p-4 rounded-md shadow-md">
+                        <Bar data={chartData} options={options} />
+                    </div>
                 </div>
-                <div
-                    ref={chartRefs[week]}
-                    className="chart-container"
-                >
-                    <Bar
-                        data={chartData}
-                        options={options}
-                    />
-                </div>
-            </div>
-        );
-    });
+            );
+        }
+    );
 };
 
 export default function GoalCalculatorTable() {
@@ -483,7 +491,6 @@ export default function GoalCalculatorTable() {
         []
     );
 
-    // Initialize states as null to avoid premature defaults
     const [view, setView] = useState<'region' | 'month'>('region');
     const [displayMode, setDisplayMode] = useState<'table' | 'graph'>('table');
     const [region, setRegion] = useState<Region | null>(null);
@@ -495,11 +502,12 @@ export default function GoalCalculatorTable() {
     const [apiError, setApiError] = useState<string>('');
     const [successMessage, setSuccessMessage] = useState<string>('');
     const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().month() + 1 + '');
+    const [selectedYear, setSelectedYear] = useState<number>(2025);
     const [allRegionsResults, setAllRegionsResults] = useState<{ region: Region; results: Results }[]>([]);
 
     const { weekly: weeklyAchievements, monthly } = useMemo(
-        () => calculateAchievements(students, parseInt(selectedMonth), year, 'weekly'),
-        [students, selectedMonth]
+        () => calculateAchievements(students, parseInt(selectedMonth), selectedYear, 'weekly'),
+        [students, selectedMonth, selectedYear]
     );
 
     useEffect(() => {
@@ -513,78 +521,6 @@ export default function GoalCalculatorTable() {
             setView(user === 'all' ? 'region' : 'region');
         }
     }, [isUserLoading, user, defaultConversionRates, defaultWeeklyPercentages]);
-
-    useEffect(() => {
-        if (!region || !fGoals) return;
-
-        const fetchConfig = async () => {
-            try {
-                const response = await fetch(`/api/goal?region=${region}&month=${selectedMonth}&year=${year}`);
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch config: ${response.statusText}`);
-                }
-                const result = await response.json();
-                if (result.data) {
-                    setFGoals(result.data.예정_goals);
-                    setConversionRates(result.data.conversion_rates);
-                    setWeeklyPercentages(result.data.weekly_percentages);
-                    calculateGoals(
-                        result.data.예정_goals,
-                        result.data.conversion_rates,
-                        result.data.weekly_percentages
-                    );
-                } else {
-                    setFGoals(DEFAULT_예정_goals[region]);
-                    setConversionRates(defaultConversionRates);
-                    setWeeklyPercentages(defaultWeeklyPercentages);
-                    calculateGoals(DEFAULT_예정_goals[region], defaultConversionRates, defaultWeeklyPercentages);
-                }
-                setApiError('');
-            } catch (err) {
-                setApiError('서버에서 설정을 가져오지 못했습니다.');
-                console.error('Fetch config error:', err);
-                setFGoals(DEFAULT_예정_goals[region]);
-                calculateGoals(DEFAULT_예정_goals[region], defaultConversionRates, defaultWeeklyPercentages);
-            }
-        };
-        fetchConfig();
-    }, [region, selectedMonth, defaultConversionRates, defaultWeeklyPercentages]);
-
-    useEffect(() => {
-        if (!region || user === '노원') {
-            setAllRegionsResults([{ region: '노원', results: results! }]);
-            return;
-        }
-
-        const fetchAllRegionsResults = async () => {
-            const resultsByRegion: { region: Region; results: Results }[] = [];
-            for (const reg of REGIONS) {
-                try {
-                    const response = await fetch(`/api/goal?region=${reg}&month=${selectedMonth}&year=${year}`);
-                    if (!response.ok) {
-                        throw new Error(`Failed to fetch config for ${reg}: ${response.statusText}`);
-                    }
-                    const result = await response.json();
-                    const results = initializeResults(
-                        result.data?.예정_goals || DEFAULT_예정_goals[reg],
-                        result.data?.conversion_rates || defaultConversionRates,
-                        result.data?.weekly_percentages || defaultWeeklyPercentages
-                    );
-                    resultsByRegion.push({ region: reg, results });
-                } catch (err) {
-                    console.error(`Fetch config error for ${reg}:`, err);
-                    const results = initializeResults(
-                        DEFAULT_예정_goals[reg],
-                        defaultConversionRates,
-                        defaultWeeklyPercentages
-                    );
-                    resultsByRegion.push({ region: reg, results });
-                }
-            }
-            setAllRegionsResults(resultsByRegion);
-        };
-        fetchAllRegionsResults();
-    }, [region, selectedMonth, defaultConversionRates, defaultWeeklyPercentages, user, results]);
 
     const calculateGoals = useCallback(
         (
@@ -610,21 +546,87 @@ export default function GoalCalculatorTable() {
             }
 
             const newResults = initializeResults(currentFGoals, currentConversionRates, currentWeeklyPercentages);
-            setResults((prev) => {
-                if (!prev || JSON.stringify(prev) === JSON.stringify(newResults)) return prev;
-                return {
-                    teams: newResults.teams.map((team) => ({
-                        ...team,
-                        goals: { ...team.goals },
-                        weeks: team.weeks.map((week) => ({ ...week })),
-                    })),
-                    totals: { ...newResults.totals },
-                };
-            });
+            setResults(newResults);
             setError('');
         },
         []
     );
+
+    useEffect(() => {
+        if (!region || !fGoals) return;
+
+        const fetchConfig = async () => {
+            try {
+                const response = await fetch(`/api/goal?region=${region}&month=${selectedMonth}&year=${selectedYear}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch config: ${response.statusText}`);
+                }
+                const result = await response.json();
+                let loadedFGoals, loadedConvRates, loadedWeeklyPerc;
+                if (result.data) {
+                    loadedFGoals = result.data.예정_goals;
+                    loadedConvRates = result.data.conversion_rates;
+                    loadedWeeklyPerc = result.data.weekly_percentages;
+                    setFGoals(loadedFGoals);
+                    setConversionRates(loadedConvRates);
+                    setWeeklyPercentages(loadedWeeklyPerc);
+                } else {
+                    loadedFGoals = DEFAULT_예정_goals[region];
+                    loadedConvRates = defaultConversionRates;
+                    loadedWeeklyPerc = defaultWeeklyPercentages;
+                    setFGoals(loadedFGoals);
+                    setConversionRates(loadedConvRates);
+                    setWeeklyPercentages(loadedWeeklyPerc);
+                }
+                calculateGoals(loadedFGoals, loadedConvRates, loadedWeeklyPerc);
+                setApiError('');
+            } catch (err) {
+                setApiError('서버에서 설정을 가져오지 못했습니다.');
+                console.error('Fetch config error:', err);
+                const defaultFGoals = DEFAULT_예정_goals[region];
+                setFGoals(defaultFGoals);
+                calculateGoals(defaultFGoals, defaultConversionRates, defaultWeeklyPercentages);
+            }
+        };
+        fetchConfig();
+    }, [region, selectedMonth, selectedYear, defaultConversionRates, defaultWeeklyPercentages, calculateGoals]);
+
+    useEffect(() => {
+        if (user === 'all') {
+            const fetchAllRegionsResults = async () => {
+                const resultsByRegion: { region: Region; results: Results }[] = [];
+                for (const reg of REGIONS) {
+                    try {
+                        const response = await fetch(
+                            `/api/goal?region=${reg}&month=${selectedMonth}&year=${selectedYear}`
+                        );
+                        if (!response.ok) {
+                            throw new Error(`Failed to fetch config for ${reg}: ${response.statusText}`);
+                        }
+                        const result = await response.json();
+                        const results = initializeResults(
+                            result.data?.예정_goals || DEFAULT_예정_goals[reg],
+                            result.data?.conversion_rates || defaultConversionRates,
+                            result.data?.weekly_percentages || defaultWeeklyPercentages
+                        );
+                        resultsByRegion.push({ region: reg, results });
+                    } catch (err) {
+                        console.error(`Fetch config error for ${reg}:`, err);
+                        const results = initializeResults(
+                            DEFAULT_예정_goals[reg],
+                            defaultConversionRates,
+                            defaultWeeklyPercentages
+                        );
+                        resultsByRegion.push({ region: reg, results });
+                    }
+                }
+                setAllRegionsResults(resultsByRegion);
+            };
+            fetchAllRegionsResults();
+        } else if (region && results) {
+            setAllRegionsResults([{ region, results }]);
+        }
+    }, [region, results, selectedMonth, selectedYear, defaultConversionRates, defaultWeeklyPercentages, user]);
 
     const saveConfig = useCallback(async () => {
         if (!region || !fGoals) {
@@ -645,7 +647,7 @@ export default function GoalCalculatorTable() {
                 body: JSON.stringify({
                     region,
                     month: parseInt(selectedMonth),
-                    year,
+                    year: selectedYear,
                     fGoals,
                     conversionRates,
                     weeklyPercentages,
@@ -668,7 +670,7 @@ export default function GoalCalculatorTable() {
             setSuccessMessage('');
             console.error('Save config error:', err);
         }
-    }, [region, selectedMonth, fGoals, conversionRates, weeklyPercentages]);
+    }, [region, selectedMonth, selectedYear, fGoals, conversionRates, weeklyPercentages]);
 
     const handleInputChange = useCallback(
         (
@@ -679,10 +681,14 @@ export default function GoalCalculatorTable() {
         ) => {
             if (!fGoals) return;
 
+            let newFGoals = fGoals;
+            let newConversionRates = conversionRates;
+            let newWeeklyPercentages = weeklyPercentages;
+
             if (type === 'fGoal') {
-                const regex = /^\d*\.?\d?$/;
+                const regex = /^\d*\.?\d*$/;
                 if (!regex.test(value) && value !== '') {
-                    setError('F 목표는 양수이며 소수점 한 자리까지만 입력 가능합니다.');
+                    setError('F 목표는 양수만 입력 가능합니다.');
                     return;
                 }
                 const numValue = parseFloat(value);
@@ -690,56 +696,57 @@ export default function GoalCalculatorTable() {
                     setError('F 목표는 유효한 양수이어야 합니다.');
                     return;
                 }
-                setFGoals((prev) => {
-                    if (!prev) return prev;
-                    const newFGoals = { ...prev, [key]: value };
-                    calculateGoals(newFGoals, conversionRates, weeklyPercentages);
-                    return newFGoals;
-                });
+                newFGoals = { ...fGoals, [key]: value };
+                setFGoals(newFGoals);
             } else if (type === 'conversionRate') {
-                const numValue = parseInt(value) / 100;
-                if (isNaN(numValue) || numValue <= 0 || numValue > 1 || !Number.isInteger(parseFloat(value))) {
-                    setError('단계향상률은 1~100% 사이의 정수 백분율이어야 합니다.');
+                const numValue = parseInt(value, 10);
+                if (isNaN(numValue) || numValue < 1 || numValue > 100 || !Number.isInteger(parseFloat(value))) {
+                    setError('단계향상률은 1~100 사이의 정수 백분율이어야 합니다.');
                     return;
                 }
-                setConversionRates((prev) => {
-                    const newConversionRates = { ...prev, [key]: numValue };
-                    calculateGoals(fGoals, newConversionRates, weeklyPercentages);
-                    return newConversionRates;
-                });
+                newConversionRates = { ...conversionRates, [key]: numValue / 100 };
+                setConversionRates(newConversionRates);
             } else if (type === 'weeklyPercentage' && week) {
                 const num = Number(value);
                 if (isNaN(num) || num < 0 || num > 100 || !Number.isInteger(num)) {
-                    setError('비율은 0~100% 사이의 정수 백분율이어야 합니다.');
+                    setError('비율은 0~100 사이의 정수 백분율이어야 합니다.');
                     return;
                 }
-                setWeeklyPercentages((prev) => {
-                    const currentWeek = { ...(prev[week] ?? { 발: 0, 찾: 0, 합: 0, 섭: 0, 복: 0, 예정: 0 }) };
-                    const newValue = num / 100;
-                    currentWeek[key as keyof WeeklyGoals] = newValue;
-                    if (newValue === 1) {
-                        (['발', '찾', '합', '섭', '복', '예정'] as (keyof WeeklyGoals)[]).forEach((k) => {
-                            if (k !== key) currentWeek[k] = 0;
-                        });
-                    }
-                    const newWeeklyPercentages = { ...prev, [week]: currentWeek };
-                    calculateGoals(fGoals, conversionRates, newWeeklyPercentages);
-                    return newWeeklyPercentages;
-                });
+                const currentWeek = { ...(weeklyPercentages[week] ?? { 발: 0, 찾: 0, 합: 0, 섭: 0, 복: 0, 예정: 0 }) };
+                const newValue = num / 100;
+                currentWeek[key as keyof WeeklyGoals] = newValue;
+                if (newValue === 1) {
+                    (steps as ReadonlyArray<keyof WeeklyGoals>).forEach((k) => {
+                        if (k !== key) currentWeek[k] = 0;
+                    });
+                }
+                newWeeklyPercentages = { ...weeklyPercentages, [week]: currentWeek };
+                setWeeklyPercentages(newWeeklyPercentages);
             }
+
             setError('');
+            calculateGoals(newFGoals, newConversionRates, newWeeklyPercentages);
         },
         [fGoals, conversionRates, weeklyPercentages, calculateGoals]
     );
 
-    const handleRegionChange = useCallback(
-        (e: React.ChangeEvent<HTMLSelectElement>) => {
-            const newRegion = e.target.value as Region;
-            setRegion(newRegion);
-            setFGoals(DEFAULT_예정_goals[newRegion]);
-            calculateGoals(DEFAULT_예정_goals[newRegion], defaultConversionRates, defaultWeeklyPercentages);
-        },
-        [defaultConversionRates, defaultWeeklyPercentages, calculateGoals]
+    const handleRegionChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newRegion = e.target.value as Region;
+        setRegion(newRegion);
+    }, []);
+    const weekNamesByMonth: string[] =
+        getWeekCount(selectedYear, selectedMonth) === 5
+            ? ['발집주', '발집주', '상따주', '복따주', '센띄주']
+            : ['발집주', '발집주', '육따주', '상담주', '영따주', '복음방주', '복음방주', '센띄,그룹복'];
+
+    const weeks = useMemo(
+        () =>
+            weekNamesByMonth.map((name, index) => ({
+                weekNumber: index + 1,
+                weekKey: `week${index + 1}` as keyof WeeklyPercentages,
+                label: `${index + 1}주차 (${name})`,
+            })),
+        [weekNamesByMonth]
     );
 
     const handleMonthChange = useCallback(
@@ -768,7 +775,6 @@ export default function GoalCalculatorTable() {
 
     return (
         <div className="w-full mx-auto p-6">
-            {/* Show view toggle buttons only for users with access to all regions */}
             {user === 'all' && (
                 <div className="flex justify-center mb-4">
                     <button
@@ -818,13 +824,9 @@ export default function GoalCalculatorTable() {
                         청년회 {selectedMonth}월 {region} 그룹 복음방 개강 4주 플랜 목표 설정
                     </h1>
                     <div className="grid grid-cols-2 gap-4 mb-4">
-                        {/* Hide region select for users restricted to a specific region */}
                         {user === 'all' && (
                             <div>
-                                <label
-                                    htmlFor="region-select"
-                                    className="block text-sm font-medium text-gray-700"
-                                >
+                                <label htmlFor="region-select" className="block text-sm font-medium text-gray-700">
                                     지역 선택:
                                 </label>
                                 <select
@@ -834,10 +836,7 @@ export default function GoalCalculatorTable() {
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                 >
                                     {REGIONS.map((reg) => (
-                                        <option
-                                            key={reg}
-                                            value={reg}
-                                        >
+                                        <option key={reg} value={reg}>
                                             {reg}
                                         </option>
                                     ))}
@@ -845,10 +844,7 @@ export default function GoalCalculatorTable() {
                             </div>
                         )}
                         <div>
-                            <label
-                                htmlFor="month-select"
-                                className="block text-sm font-medium text-gray-700"
-                            >
+                            <label htmlFor="month-select" className="block text-sm font-medium text-gray-700">
                                 월 선택:
                             </label>
                             <select
@@ -858,10 +854,7 @@ export default function GoalCalculatorTable() {
                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                             >
                                 {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                                    <option
-                                        key={month}
-                                        value={month}
-                                    >
+                                    <option key={month} value={month}>
                                         {month}월
                                     </option>
                                 ))}
@@ -871,10 +864,7 @@ export default function GoalCalculatorTable() {
                     <div className="grid grid-cols-2 gap-4 mb-4">
                         {Object.keys(fGoals).map((team, index) => (
                             <div key={team}>
-                                <label
-                                    htmlFor={team}
-                                    className="block text-sm font-medium text-gray-700"
-                                >
+                                <label htmlFor={team} className="block text-sm font-medium text-gray-700">
                                     {region} {index + 1}팀 F 목표:
                                 </label>
                                 <input
@@ -914,22 +904,26 @@ export default function GoalCalculatorTable() {
                                                 <td className="border p-2">
                                                     {region} {team.team}팀
                                                 </td>
-                                                <td className="border p-2 text-center">{team.goals.발}</td>
-                                                <td className="border p-2 text-center">{team.goals.찾}</td>
-                                                <td className="border p-2 text-center">{team.goals.합}</td>
-                                                <td className="border p-2 text-center">{team.goals.섭}</td>
-                                                <td className="border p-2 text-center">{team.goals.복}</td>
-                                                <td className="border p-2 text-center">{team.goals.예정}</td>
+                                                <td className="border p-2 text-center">{Math.round(team.goals.발)}</td>
+                                                <td className="border p-2 text-center">{Math.round(team.goals.찾)}</td>
+                                                <td className="border p-2 text-center">{Math.round(team.goals.합)}</td>
+                                                <td className="border p-2 text-center">{Math.round(team.goals.섭)}</td>
+                                                <td className="border p-2 text-center">{Math.round(team.goals.복)}</td>
+                                                <td className="border p-2 text-center">
+                                                    {Math.round(team.goals.예정)}
+                                                </td>
                                             </tr>
                                         ))}
                                         <tr className="font-bold">
                                             <td className="border p-2">계</td>
-                                            <td className="border p-2 text-center">{results.totals.발}</td>
-                                            <td className="border p-2 text-center">{results.totals.찾}</td>
-                                            <td className="border p-2 text-center">{results.totals.합}</td>
-                                            <td className="border p-2 text-center">{results.totals.섭}</td>
-                                            <td className="border p-2 text-center">{results.totals.복}</td>
-                                            <td className="border p-2 text-center">{results.totals.예정}</td>
+                                            <td className="border p-2 text-center">{Math.round(results.totals.발)}</td>
+                                            <td className="border p-2 text-center">{Math.round(results.totals.찾)}</td>
+                                            <td className="border p-2 text-center">{Math.round(results.totals.합)}</td>
+                                            <td className="border p-2 text-center">{Math.round(results.totals.섭)}</td>
+                                            <td className="border p-2 text-center">{Math.round(results.totals.복)}</td>
+                                            <td className="border p-2 text-center">
+                                                {Math.round(results.totals.예정)}
+                                            </td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -947,22 +941,11 @@ export default function GoalCalculatorTable() {
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            {(
-                                                [
-                                                    '발To찾',
-                                                    '찾To합',
-                                                    '합To섭',
-                                                    '섭To복',
-                                                    '복To예정',
-                                                ] as (keyof ConversionRates)[]
-                                            ).map((key) => (
-                                                <td
-                                                    key={key}
-                                                    className="border p-2 text-center"
-                                                >
+                                            {(Object.keys(conversionRates) as (keyof ConversionRates)[]).map((key) => (
+                                                <td key={key} className="border p-2 text-center">
                                                     <input
                                                         type="number"
-                                                        value={(conversionRates[key] * 100).toFixed(0)}
+                                                        value={Math.round(conversionRates[key] * 100)}
                                                         onChange={(e) =>
                                                             handleInputChange('conversionRate', key, e.target.value)
                                                         }
@@ -992,59 +975,52 @@ export default function GoalCalculatorTable() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {Object.keys(weeklyPercentages).map((week, index) => (
-                                            <tr key={week}>
-                                                <td className="border p-2">{index + 1}주차</td>
-                                                {(['발', '찾', '합', '섭', '복', '예정'] as (keyof WeeklyGoals)[]).map(
-                                                    (key) => (
-                                                        <td
-                                                            key={key}
-                                                            className="border p-2 text-center"
-                                                        >
-                                                            <input
-                                                                type="number"
-                                                                value={(
-                                                                    weeklyPercentages[week as keyof WeeklyPercentages][
-                                                                        key
-                                                                    ] * 100
-                                                                ).toFixed(0)}
-                                                                onChange={(e) =>
-                                                                    handleInputChange(
-                                                                        'weeklyPercentage',
-                                                                        key,
-                                                                        e.target.value,
-                                                                        week as keyof WeeklyPercentages
-                                                                    )
-                                                                }
-                                                                className="w-16 px-2 py-1 border rounded-md text-center"
-                                                                step="1"
-                                                                min="0"
-                                                                max="100"
-                                                            />
-                                                            %
-                                                        </td>
-                                                    )
-                                                )}
+                                        {weeks.map(({ weekKey, label }) => (
+                                            <tr key={weekKey}>
+                                                <td className="border p-2">{label}</td>
+                                                {(steps as ReadonlyArray<keyof WeeklyGoals>).map((key) => (
+                                                    <td key={key} className="border p-2 text-center">
+                                                        <input
+                                                            type="number"
+                                                            value={Math.round(
+                                                                (weeklyPercentages[
+                                                                    weekKey as keyof WeeklyPercentages
+                                                                ]?.[key] || 0) * 100
+                                                            )}
+                                                            onChange={(e) =>
+                                                                handleInputChange(
+                                                                    'weeklyPercentage',
+                                                                    key,
+                                                                    e.target.value,
+                                                                    weekKey
+                                                                )
+                                                            }
+                                                            className="w-16 px-2 py-1 border rounded-md text-center"
+                                                            step="1"
+                                                            min="0"
+                                                            max="100"
+                                                        />
+                                                        %
+                                                    </td>
+                                                ))}
                                             </tr>
                                         ))}
                                         <tr className="font-bold">
                                             <td className="border p-2">총합</td>
-                                            {(['발', '찾', '합', '섭', '복', '예정'] as (keyof WeeklyGoals)[]).map(
-                                                (key) => (
-                                                    <td
-                                                        key={key}
-                                                        className="border p-2 text-center"
-                                                    >
-                                                        {(
-                                                            Object.values(weeklyPercentages).reduce(
-                                                                (sum: number, week: WeeklyGoals) => sum + week[key],
-                                                                0
-                                                            ) * 100
-                                                        ).toFixed(0)}
-                                                        %
+                                            {(steps as ReadonlyArray<keyof WeeklyGoals>).map((key) => {
+                                                const total = weeks.reduce((sum, { weekKey }) => {
+                                                    const value =
+                                                        weeklyPercentages[weekKey as keyof WeeklyPercentages]?.[key] ??
+                                                        0;
+                                                    return sum + value;
+                                                }, 0);
+
+                                                return (
+                                                    <td key={key} className="border p-2 text-center">
+                                                        {Math.round(total * 100)}%
                                                     </td>
-                                                )
-                                            )}
+                                                );
+                                            })}
                                         </tr>
                                     </tbody>
                                 </table>
@@ -1062,7 +1038,8 @@ export default function GoalCalculatorTable() {
                                 <WeeklyGoalsTable
                                     data={[{ region, results }]}
                                     achievements={weeklyAchievements}
-                                    selectedMonth={parseInt(selectedMonth)}
+                                    selectedMonth={selectedMonth}
+                                    selectedYear={selectedYear}
                                     year={year}
                                     view="region"
                                 />
@@ -1074,7 +1051,7 @@ export default function GoalCalculatorTable() {
                                     data={[{ region, results }]}
                                     achievements={weeklyAchievements}
                                     selectedMonth={parseInt(selectedMonth)}
-                                    year={year}
+                                    year={selectedYear}
                                 />
                             </div>
                         )}
@@ -1087,10 +1064,7 @@ export default function GoalCalculatorTable() {
                     </h1>
                     <div className="grid grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label
-                                htmlFor="month-select"
-                                className="block text-sm font-medium text-gray-700"
-                            >
+                            <label htmlFor="month-select" className="block text-sm font-medium text-gray-700">
                                 월 선택:
                             </label>
                             <select
@@ -1100,10 +1074,7 @@ export default function GoalCalculatorTable() {
                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                             >
                                 {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                                    <option
-                                        key={month}
-                                        value={month}
-                                    >
+                                    <option key={month} value={month}>
                                         {month}월
                                     </option>
                                 ))}
@@ -1119,7 +1090,8 @@ export default function GoalCalculatorTable() {
                                 <WeeklyGoalsTable
                                     data={allRegionsResults}
                                     achievements={weeklyAchievements}
-                                    selectedMonth={parseInt(selectedMonth)}
+                                    selectedMonth={selectedMonth}
+                                    selectedYear={selectedYear}
                                     year={year}
                                     view="month"
                                 />
@@ -1132,9 +1104,7 @@ export default function GoalCalculatorTable() {
                                                 <tr className="bg-gray-100">
                                                     <th className="border p-2">지역</th>
                                                     <th className="border p-2">팀</th>
-                                                    {(
-                                                        ['발', '찾', '합', '섭', '복', '예정'] as (keyof WeeklyGoals)[]
-                                                    ).map((step) => (
+                                                    {(steps as ReadonlyArray<keyof WeeklyGoals>).map((step) => (
                                                         <React.Fragment key={step}>
                                                             <th className="border p-2">{step}</th>
                                                             <th className="border p-2">{`${step}_탈락`}</th>
@@ -1149,16 +1119,7 @@ export default function GoalCalculatorTable() {
                                                     <tr key={row.key}>
                                                         <td className="border p-2">{row.지역}</td>
                                                         <td className="border p-2">{row.팀}</td>
-                                                        {(
-                                                            [
-                                                                '발',
-                                                                '찾',
-                                                                '합',
-                                                                '섭',
-                                                                '복',
-                                                                '예정',
-                                                            ] as (keyof WeeklyGoals)[]
-                                                        ).map((step) => (
+                                                        {(steps as ReadonlyArray<keyof WeeklyGoals>).map((step) => (
                                                             <React.Fragment key={step}>
                                                                 <td className="border p-2 text-center">{row[step]}</td>
                                                                 <td className="border p-2 text-center">
@@ -1173,28 +1134,30 @@ export default function GoalCalculatorTable() {
                                                     </tr>
                                                 ))}
                                                 <tr className="font-bold">
-                                                    <td
-                                                        className="border p-2"
-                                                        colSpan={2}
-                                                    >
+                                                    <td className="border p-2" colSpan={2}>
                                                         계
                                                     </td>
-                                                    {(
-                                                        ['발', '찾', '합', '섭', '복', '예정'] as (keyof WeeklyGoals)[]
-                                                    ).map((step) => (
+                                                    {(steps as ReadonlyArray<keyof WeeklyGoals>).map((step) => (
                                                         <React.Fragment key={step}>
                                                             <td className="border p-2 text-center">
-                                                                {monthly.totalRow[step]}
+                                                                {Math.round(Number(monthly.totalRow[step] ?? 0))}
                                                             </td>
                                                             <td className="border p-2 text-center">
-                                                                {monthly.totalRow[`${step}_탈락`]}
+                                                                {Math.round(
+                                                                    Number(monthly.totalRow[`${step}_탈락`] ?? 0)
+                                                                )}
                                                             </td>
                                                             <td className="border p-2 text-center">
-                                                                {monthly.totalRow[`${step}_보유`]}
+                                                                {Math.round(
+                                                                    Number(monthly.totalRow[`${step}_보유`] ?? 0)
+                                                                )}
                                                             </td>
                                                         </React.Fragment>
                                                     ))}
-                                                    <td className="border p-2 text-center">{monthly.totalRow.탈락}</td>
+
+                                                    <td className="border p-2 text-center">
+                                                        {Math.round(monthly.totalRow.탈락)}
+                                                    </td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -1208,7 +1171,7 @@ export default function GoalCalculatorTable() {
                                     data={allRegionsResults}
                                     achievements={weeklyAchievements}
                                     selectedMonth={parseInt(selectedMonth)}
-                                    year={year}
+                                    year={selectedYear}
                                 />
                             </div>
                         )}

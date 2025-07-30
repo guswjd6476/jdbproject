@@ -34,16 +34,13 @@ export default function TableRow({ row, index, onChange, onDelete, errors, selec
 
             {/* 입력 필드 */}
             {editableFields.map((field) => (
-                <td
-                    key={field}
-                    className="border p-1"
-                >
+                <td key={field} className="border p-1">
                     {field === '단계' ? (
                         <AntInput
                             className={`text-sm ${isInvalidStage ? 'border-red-500 border' : ''}`}
                             value={row.단계 || ''}
                             onChange={(e) => onChange(index, field, e.target.value)}
-                            placeholder="A, B, C 등"
+                            placeholder="발,찾,합 등"
                         />
                     ) : (
                         <AntInput
