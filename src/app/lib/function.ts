@@ -5,7 +5,6 @@ import {
     Region,
     REGIONS,
     Results,
-    STEPS,
     Student,
     TableRow,
     TeamResult,
