@@ -97,8 +97,14 @@ export default function RegionWiseRemarks() {
 
     const filtered = useMemo(() => {
         return students.filter((s) => {
-            const 기준지역 = s.단계?.toLowerCase() === '찾' ? String(s.인도자지역 ?? '') : String(s.교사지역 ?? '');
-            const matchesRegion = !selectedRegion || 기준지역 === selectedRegion;
+            // --- 수정된 부분 ---
+            // 선택된 지역이 없으면 모든 학생을 보여주고,
+            // 선택된 지역이 있으면 학생의 '인도자지역' 또는 '교사지역' 중 하나라도 일치하는 경우 true를 반환합니다.
+            const matchesRegion =
+                !selectedRegion ||
+                String(s.인도자지역 ?? '') === selectedRegion ||
+                String(s.교사지역 ?? '') === selectedRegion;
+
             const matchesSearch = !searchText || (s.이름?.includes(searchText) ?? false);
             return matchesRegion && matchesSearch;
         });
@@ -168,6 +174,7 @@ export default function RegionWiseRemarks() {
             render: (name: string, record) => {
                 const isVisible = visibleId === record.번호;
                 const maskedName = (() => {
+                    if (!name) return '';
                     const len = name.length;
                     if (len === 2) return name[0] + 'O';
                     if (len === 3) return name[0] + 'O' + name[2];
