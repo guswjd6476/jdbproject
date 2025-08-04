@@ -90,7 +90,7 @@ export default function TeacherUploadPage() {
             return;
         }
 
-        const teacher = data.find((t) => t.고유번호 + t.등록구분 === dropoutKey);
+        const teacher = data.find((t) => t.고유번호 === dropoutKey); // 단순 비교
         if (!teacher) {
             message.error('교사를 찾을 수 없습니다.');
             return;
@@ -192,19 +192,13 @@ export default function TeacherUploadPage() {
         const lower = searchText.toLowerCase();
         return data.filter(
             (row) =>
-                row.고유번호.toLowerCase().includes(lower) ||
+                (row.고유번호?.toString() || '').includes(lower) ||
                 (row.이름?.toLowerCase().includes(lower) ?? false) ||
                 (row.지역?.toLowerCase().includes(lower) ?? false) ||
                 (row.구역?.toLowerCase().includes(lower) ?? false) ||
                 (row.교사형태?.toLowerCase().includes(lower) ?? false)
         );
     }, [data, searchText]);
-
-    const isSelectedTeacherFailed = () => {
-        if (!dropoutKey) return false;
-        const teacher = data.find((t) => t.고유번호 + t.등록구분 === dropoutKey);
-        return teacher?.fail ?? false;
-    };
 
     const columns: ColumnsType<TeacherRow> = [
         { title: '고유번호', dataIndex: '고유번호', key: '고유번호' },
@@ -240,21 +234,11 @@ export default function TeacherUploadPage() {
                 disabled={loading}
             />
 
-            <Button
-                type="primary"
-                onClick={handleUpload}
-                loading={loading}
-                className="my-4"
-            >
+            <Button type="primary" onClick={handleUpload} loading={loading} className="my-4">
                 업로드 및 조회
             </Button>
 
-            <Space
-                direction="vertical"
-                style={{ width: '100%' }}
-                size="middle"
-                className="mb-4"
-            >
+            <Space direction="vertical" style={{ width: '100%' }} size="middle" className="mb-4">
                 <Input.Search
                     placeholder="고유번호, 이름, 지역 등으로 검색"
                     allowClear
@@ -267,27 +251,15 @@ export default function TeacherUploadPage() {
                 />
 
                 <Space wrap>
-                    <Button
-                        danger
-                        onClick={handleDropout}
-                        disabled={!dropoutKey || loading}
-                    >
+                    <Button danger onClick={handleDropout} disabled={!dropoutKey || loading}>
                         선택 교사 탈락처리
                     </Button>
 
-                    <Button
-                        type="default"
-                        onClick={handleRestore}
-                        disabled={deleteKeys.length === 0 || loading}
-                    >
+                    <Button type="default" onClick={handleRestore} disabled={deleteKeys.length === 0 || loading}>
                         선택 교사 복귀처리
                     </Button>
 
-                    <Button
-                        type="default"
-                        onClick={handleDelete}
-                        disabled={deleteKeys.length === 0 || loading}
-                    >
+                    <Button type="default" onClick={handleDelete} disabled={deleteKeys.length === 0 || loading}>
                         선택 교사 삭제
                     </Button>
                 </Space>

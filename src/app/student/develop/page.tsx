@@ -259,10 +259,7 @@ export default function RegionWiseRemarks() {
                     key={`month-select-${record.번호}`}
                 >
                     {monthOptions.map((m) => (
-                        <Option
-                            key={m}
-                            value={m}
-                        >
+                        <Option key={m} value={m}>
                             {m}
                         </Option>
                     ))}
@@ -341,19 +338,13 @@ export default function RegionWiseRemarks() {
     };
 
     return (
-        <Spin
-            spinning={isLoading || saving}
-            tip={saving ? '저장 중입니다...' : '데이터를 불러오는 중입니다...'}
-        >
+        <Spin spinning={isLoading || saving} tip={saving ? '저장 중입니다...' : '데이터를 불러오는 중입니다...'}>
             <div className="p-6">
-                <h2 className="text-xl font-bold mb-4">지역별 B 이상 특이사항 관리</h2>
+                <h2 className="text-xl font-bold mb-4">지역별 합등 이상 특이사항 관리</h2>
 
                 <div className="sticky top-0 z-50 bg-white border-b border-gray-300 flex flex-wrap items-center justify-between gap-2 px-2 py-3">
                     <div className="flex flex-wrap gap-2 flex-1 min-w-0 overflow-x-auto">
-                        <Button
-                            type={!selectedRegion ? 'primary' : 'default'}
-                            onClick={() => setSelectedRegion(null)}
-                        >
+                        <Button type={!selectedRegion ? 'primary' : 'default'} onClick={() => setSelectedRegion(null)}>
                             전체
                         </Button>
                         {allRegions.map((region) => (
@@ -378,11 +369,7 @@ export default function RegionWiseRemarks() {
                         />
                         {savedMessage && <Text type="success">✅ 저장 완료</Text>}
                         <Button onClick={handleExportExcel}>엑셀 다운로드</Button>
-                        <Button
-                            type="primary"
-                            onClick={handleSave}
-                            disabled={saving}
-                        >
+                        <Button type="primary" onClick={handleSave} disabled={saving}>
                             저장
                         </Button>
                     </div>

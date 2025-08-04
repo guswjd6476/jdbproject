@@ -33,7 +33,7 @@ const menuItems = [
     {
         key: 'develop',
         icon: <AppstoreOutlined />,
-        label: <Link href="/student/develop">B 이상 관리</Link>,
+        label: <Link href="/student/develop">합등 이상 관리</Link>,
     },
     {
         key: 'target',

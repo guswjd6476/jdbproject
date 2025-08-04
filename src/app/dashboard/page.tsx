@@ -89,10 +89,7 @@ function MultiRegionInputForm({ month, onSubmit }: { month: number; onSubmit: (r
                                     />
                                 </td>
                                 {['발', '찾', '합', '섭', '복', '예정', '센확', '센등'].map((key) => (
-                                    <td
-                                        className="border p-1"
-                                        key={key}
-                                    >
+                                    <td className="border p-1" key={key}>
                                         <InputNumber
                                             value={row[key as keyof RowData] as number}
                                             onChange={(val) => handleChange(idx, key as keyof RowData, val || 0)}
@@ -108,10 +105,7 @@ function MultiRegionInputForm({ month, onSubmit }: { month: number; onSubmit: (r
 
             <div className="mt-2 flex gap-2">
                 <Button onClick={handleAddRow}>+ 행 추가</Button>
-                <Button
-                    type="primary"
-                    onClick={handleSubmit}
-                >
+                <Button type="primary" onClick={handleSubmit}>
                     저장
                 </Button>
             </div>
@@ -235,23 +229,23 @@ export default function MonthlyDashboard() {
         { title: '센확', dataIndex: '센확', width: 60 },
         { title: '센등', dataIndex: '센등', width: 60 },
         {
-            title: 'A→B(%)',
-            dataIndex: 'aToB',
+            title: '발→찾(%)',
+            dataIndex: '발To찾',
             render: (v: number) => v?.toFixed(1),
         },
         {
-            title: 'B→C(%)',
-            dataIndex: 'bToC',
+            title: '찾→합(%)',
+            dataIndex: '찾To합',
             render: (v: number) => v?.toFixed(1),
         },
         {
-            title: 'C→D-1(%)',
-            dataIndex: 'cToD1',
+            title: '합→섭(%)',
+            dataIndex: '합To섭',
             render: (v: number) => v?.toFixed(1),
         },
         {
-            title: 'D-1→F(%)',
-            dataIndex: 'd1ToF',
+            title: '섭→복(%)',
+            dataIndex: '섭To복',
             render: (v: number) => v?.toFixed(1),
         },
     ];
@@ -271,10 +265,7 @@ export default function MonthlyDashboard() {
                             onChange={(v) => setSelectedMonth(v || 1)}
                         />
                     </Space>
-                    <MultiRegionInputForm
-                        month={selectedMonth}
-                        onSubmit={handleSaveRows}
-                    />
+                    <MultiRegionInputForm month={selectedMonth} onSubmit={handleSaveRows} />
                 </div>
             )}
 
