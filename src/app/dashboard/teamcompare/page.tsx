@@ -93,48 +93,17 @@ export default function DashboardPage() {
                     return;
 
                 const month = (date.month() + 1).toString();
-                const targets =
-                    scoreMode === 'count'
-                        ? step === '발' || step === '찾'
-                            ? [
-                                  {
-                                      지역: (s.인도자지역 ?? '').trim(),
-                                      팀,
-                                      구역,
-                                      점수: 1,
-                                  },
-                              ]
-                            : [
-                                  {
-                                      지역: (s.교사지역 ?? '').trim(),
-                                      팀: s.교사팀 ? s.교사팀.trim().split('-')[0] : '',
-                                      구역: s.교사팀 ? s.교사팀.trim() : '',
-                                      점수: 1,
-                                  },
-                              ]
-                        : step === '발' || step === '찾'
-                        ? [
-                              {
-                                  지역: (s.인도자지역 ?? '').trim(),
-                                  팀,
-                                  구역,
-                                  점수: 1,
-                              },
-                          ]
-                        : [
-                              {
-                                  지역: (s.인도자지역 ?? '').trim(),
-                                  팀,
-                                  구역,
-                                  점수: 0.5,
-                              },
-                              {
-                                  지역: (s.교사지역 ?? '').trim(),
-                                  팀: s.교사팀 ? s.교사팀.trim().split('-')[0] : '',
-                                  구역: s.교사팀 ? s.교사팀.trim() : '',
-                                  점수: 0.5,
-                              },
-                          ];
+
+                const useTeacher = step === '섭' || step === '복' || step === '예정';
+
+                const targets = [
+                    {
+                        지역: useTeacher ? (s.교사지역 ?? '').trim() : (s.인도자지역 ?? '').trim(),
+                        팀: useTeacher ? (s.교사팀 ? s.교사팀.trim().split('-')[0] : '') : 팀,
+                        구역: useTeacher ? (s.교사팀 ? s.교사팀.trim() : '') : 구역,
+                        점수: 1,
+                    },
+                ];
 
                 targets.forEach(({ 지역, 팀, 구역, 점수 }) => {
                     if (!REGIONS.includes(지역) || !fixedTeams.includes(팀)) return;
@@ -162,6 +131,8 @@ export default function DashboardPage() {
                     }
                 });
             });
+
+            // ... 나머지 코드는 그대로 ...
 
             const 탈락일Str = s.g;
             if (탈락일Str) {
@@ -430,25 +401,15 @@ export default function DashboardPage() {
         <div className="w-full mx-auto p-6">
             <Title level={2}>월별 · 지역별 · 팀별 대시보드</Title>
 
-            <Space
-                direction="vertical"
-                size="large"
-                style={{ marginBottom: 24, width: '100%' }}
-            >
-                <Space
-                    wrap
-                    size="middle"
-                >
+            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
+                <Space wrap size="middle">
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
                         style={{ width: 100 }}
                         options={yearOptions}
                     />
-                    <Radio.Group
-                        value={scoreMode}
-                        onChange={(e) => setScoreMode(e.target.value)}
-                    >
+                    <Radio.Group value={scoreMode} onChange={(e) => setScoreMode(e.target.value)}>
                         <Radio.Button value="score">점수로 보기</Radio.Button>
                         <Radio.Button value="count">건수로 보기</Radio.Button>
                     </Radio.Group>
@@ -520,18 +481,12 @@ export default function DashboardPage() {
                     )}
 
                     <Button onClick={handleReset}>초기화</Button>
-                    <Button
-                        onClick={handleExportToExcel}
-                        type="primary"
-                    >
+                    <Button onClick={handleExportToExcel} type="primary">
                         엑셀로 내보내기
                     </Button>
                 </Space>
 
-                <Spin
-                    spinning={isLoading}
-                    tip="데이터를 불러오는 중입니다..."
-                >
+                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
                     <Table<TableRow>
                         columns={columns}
                         dataSource={[...tableData, totalRow]}

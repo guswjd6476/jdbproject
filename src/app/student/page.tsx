@@ -107,28 +107,24 @@ export default function DashboardPage() {
             const 단계 = (s.단계 ?? '').toUpperCase().trim();
             if (!단계) return;
 
+            // ✅ 센확: 교사 기준만 1점
             if (lastMonthSearchTerm && 단계.includes('센확')) {
-                const 인도자지역 = (s.인도자지역 ?? '').trim();
-                const 인도자팀Raw = (s.인도자팀 ?? '').replace(/\s/g, '');
-                if (인도자지역 && 인도자팀Raw && REGIONS.includes(인도자지역)) {
-                    const 인도자팀 = 인도자팀Raw.includes('-') ? 인도자팀Raw.split('-')[0] : 인도자팀Raw;
-                    const leaderKey = `${인도자지역}-${인도자팀}`;
-                    lastMonthScoreMap[leaderKey] = (lastMonthScoreMap[leaderKey] ?? 0) + 0.5;
-                }
-
                 const 교사지역 = (s.교사지역 ?? '').trim();
                 const 교사팀Raw = (s.교사팀 ?? '').replace(/\s/g, '');
                 if (교사지역 && 교사팀Raw && REGIONS.includes(교사지역)) {
                     const 교사팀 = 교사팀Raw.includes('-') ? 교사팀Raw.split('-')[0] : 교사팀Raw;
                     const teacherKey = `${교사지역}-${교사팀}`;
-                    lastMonthScoreMap[teacherKey] = (lastMonthScoreMap[teacherKey] ?? 0) + 0.5;
+                    lastMonthScoreMap[teacherKey] = (lastMonthScoreMap[teacherKey] ?? 0) + 1;
                 }
             }
 
             if (!STEPS2.includes(단계 as STEP2)) return;
-            const isCFStep = ['합', '섭', '복', '예정'].includes(단계);
-            const isABStep = ['발', '찾'].includes(단계);
 
+            const isABStep = ['발', '찾'].includes(단계);
+            const isLeaderHalfStep = 단계 === '합';
+            const isTeacherHalfStep = ['섭', '복', '예정'].includes(단계);
+
+            // ✅ 발/찾: 인도자 기준 +1
             if (isABStep) {
                 const 인도자지역 = (s.인도자지역 ?? '').trim();
                 const 인도자팀Raw = (s.인도자팀 ?? '').replace(/\s/g, '');
@@ -138,7 +134,7 @@ export default function DashboardPage() {
                 scoreMap[key] = (scoreMap[key] ?? 0) + 1;
             }
 
-            if (isCFStep && selectedTargetMonth) {
+            if (isLeaderHalfStep && selectedTargetMonth) {
                 const targetMonth = `${selectedTargetMonth}월`;
                 if (s.target?.trim() === targetMonth) {
                     const 인도자지역 = (s.인도자지역 ?? '').trim();
@@ -146,14 +142,20 @@ export default function DashboardPage() {
                     if (인도자지역 && 인도자팀Raw && REGIONS.includes(인도자지역)) {
                         const 인도자팀 = 인도자팀Raw.includes('-') ? 인도자팀Raw.split('-')[0] : 인도자팀Raw;
                         const leaderKey = `${인도자지역}-${인도자팀}-${단계}`;
-                        scoreMap[leaderKey] = (scoreMap[leaderKey] ?? 0) + 0.5;
+                        scoreMap[leaderKey] = (scoreMap[leaderKey] ?? 0) + 1;
                     }
+                }
+            }
+
+            if (isTeacherHalfStep && selectedTargetMonth) {
+                const targetMonth = `${selectedTargetMonth}월`;
+                if (s.target?.trim() === targetMonth) {
                     const 교사지역 = (s.교사지역 ?? '').trim();
                     const 교사팀Raw = (s.교사팀 ?? '').replace(/\s/g, '');
                     if (교사지역 && 교사팀Raw && REGIONS.includes(교사지역)) {
                         const 교사팀 = 교사팀Raw.includes('-') ? 교사팀Raw.split('-')[0] : 교사팀Raw;
                         const teacherKey = `${교사지역}-${교사팀}-${단계}`;
-                        scoreMap[teacherKey] = (scoreMap[teacherKey] ?? 0) + 0.5;
+                        scoreMap[teacherKey] = (scoreMap[teacherKey] ?? 0) + 1;
                     }
                 }
             }

@@ -149,29 +149,25 @@ export const calculateAchievements = (
             const date = dayjs(dateStr);
             if (!date.isValid() || date.year() !== year) return;
 
-            const mappedStep = step;
+            let targets: { 지역: string; 팀: string; 점수: number }[] = [];
 
-            const targets =
-                step === '발' || step === '찾'
-                    ? [
-                          {
-                              지역: (s.인도자지역 ?? '').trim(),
-                              팀: getTeamName(s.인도자팀),
-                              점수: 1,
-                          },
-                      ]
-                    : [
-                          {
-                              지역: (s.인도자지역 ?? '').trim(),
-                              팀: getTeamName(s.인도자팀),
-                              점수: 0.5,
-                          },
-                          {
-                              지역: (s.교사지역 ?? '').trim(),
-                              팀: getTeamName(s.교사팀),
-                              점수: 0.5,
-                          },
-                      ];
+            if (['발', '찾', '합'].includes(step)) {
+                targets = [
+                    {
+                        지역: (s.인도자지역 ?? '').trim(),
+                        팀: getTeamName(s.인도자팀),
+                        점수: 1,
+                    },
+                ];
+            } else {
+                targets = [
+                    {
+                        지역: (s.교사지역 ?? '').trim(),
+                        팀: getTeamName(s.교사팀),
+                        점수: 1,
+                    },
+                ];
+            }
 
             targets.forEach(({ 지역, 팀, 점수 }) => {
                 if (!REGIONS.includes(지역 as Region) || !fixedTeams.includes(팀)) return;
@@ -185,13 +181,13 @@ export const calculateAchievements = (
                         weeklyAchievements[지역] ??= {};
                         weeklyAchievements[지역][teamNumber] ??= {};
                         weeklyAchievements[지역][teamNumber][week] ??= {};
-                        weeklyAchievements[지역][teamNumber][week][mappedStep] =
-                            (weeklyAchievements[지역][teamNumber][week][mappedStep] ?? 0) + 점수;
+                        weeklyAchievements[지역][teamNumber][week][step] =
+                            (weeklyAchievements[지역][teamNumber][week][step] ?? 0) + 점수;
                     });
                 } else if (date.month() + 1 === selectedMonth) {
                     monthlyAchievements[지역] ??= {};
                     monthlyAchievements[지역][팀] ??= {};
-                    monthlyAchievements[지역][팀][mappedStep] = (monthlyAchievements[지역][팀][mappedStep] ?? 0) + 점수;
+                    monthlyAchievements[지역][팀][step] = (monthlyAchievements[지역][팀][step] ?? 0) + 점수;
                 }
             });
         });
