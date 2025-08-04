@@ -126,8 +126,8 @@ export default function DashboardPage() {
             }
 
             if (!STEPS2.includes(단계 as STEP2)) return;
-            const isCFStep = ['섭', '복', '예정'].includes(단계);
-            const isABStep = ['발', '찾', '합'].includes(단계);
+            const isCFStep = ['합', '섭', '복', '예정'].includes(단계);
+            const isABStep = ['발', '찾'].includes(단계);
 
             if (isABStep) {
                 const 인도자지역 = (s.인도자지역 ?? '').trim();

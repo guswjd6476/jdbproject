@@ -39,7 +39,6 @@ const INITIAL_ROW = (month: number): RowData => ({
 function MultiRegionInputForm({ month, onSubmit }: { month: number; onSubmit: (rows: RowData[]) => void }) {
     const [rows, setRows] = useState<RowData[]>([INITIAL_ROW(month)]);
 
-    // month가 바뀌면 rows 초기화
     React.useEffect(() => {
         setRows([INITIAL_ROW(month)]);
     }, [month]);
