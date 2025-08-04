@@ -80,13 +80,13 @@ export interface RawStudent {
 export type Region = (typeof REGIONS)[number];
 
 export const DEFAULT_예정_goals: Record<Region, 예정Goals> = {
-    도봉: { team1: '8', team2: '8' },
-    성북: { team1: '4.0', team2: '4.0', team3: '3.5', team4: '3.0' },
-    노원: { team1: '4.0', team2: '4.0', team3: '4.0', team4: '4.0' },
-    중랑: { team1: '4.0', team2: '3.5', team3: '3.5', team4: '4' },
-    강북: { team1: '4', team2: '4', team3: '4', team4: '4' },
+    도봉: { team1: '2.5', team2: '2.0', team3: '1.5', team4: '1', team5: '1' },
+    성북: { team1: '2', team2: '2', team3: '2', team4: '2' },
+    노원: { team1: '2', team2: '2', team3: '2', team4: '2' },
+    중랑: { team1: '2', team2: '2', team3: '2', team4: '2' },
+    강북: { team1: '2', team2: '2', team3: '2', team4: '2' },
     대학: { team1: '5', team2: '5', team3: '5', team4: '5' },
-    새신자: { team1: '1.5', team2: '1.5' },
+    새신자: { team1: '0.5', team2: '0.5' },
 };
 
 export interface TableRow {

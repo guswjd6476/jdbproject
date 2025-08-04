@@ -30,7 +30,7 @@ export const initializeResults = (
         const 찾 = Math.ceil(합 / conversionRates.찾To합);
         const 발 = Math.ceil(찾 / conversionRates.발To찾);
 
-        const weeks = ['week1', 'week2', 'week3', 'week4', 'week5'].map((week) => {
+        const weeks = ['week1', 'week2', 'week3', 'week4', 'week5', 'week6', 'week7', 'week8'].map((week) => {
             const percentages = weeklyPercentages[week as keyof WeeklyPercentages] ?? {
                 발: 0,
                 찾: 0,
