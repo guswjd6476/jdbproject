@@ -115,3 +115,5 @@ export interface TableRow2 {
     팀: string;
     [key: string]: string | number | undefined;
 }
+
+export const mondaycell = ['중랑-6', '도봉-6', '성북-5', '노원-5', '강북-5', '대학-5'];

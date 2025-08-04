@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Table, Select, Typography, Space, Spin, Button } from 'antd';
 import dayjs from 'dayjs';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
-import { REGIONS } from '@/app/lib/types';
+import { mondaycell, REGIONS } from '@/app/lib/types';
 import type { STEP2, TableRow3 } from '@/app/lib/types';
 import { STEPS2 } from '@/app/lib/types';
 import { exportToExcel } from '@/utills/exportToExcel';
@@ -193,7 +193,7 @@ export default function DashboardPage() {
                 row.gospel_score = Math.round(gospelScore * 10) / 10;
                 row.gospel_rate = fGoal > 0 ? Math.round((gospelScore / fGoal) * 100) : 0; // %로 표시
 
-                if (!['중랑-5', '도봉-3'].includes(`${region}-${team}`)) {
+                if (!mondaycell.includes(`${region}-${team}`)) {
                     rows.push(row);
                 }
             });
@@ -264,15 +264,8 @@ export default function DashboardPage() {
     return (
         <div className="w-full mx-auto p-6">
             <Title level={2}>개강 점검</Title>
-            <Space
-                direction="vertical"
-                size="large"
-                style={{ marginBottom: 24, width: '100%' }}
-            >
-                <Space
-                    wrap
-                    size="middle"
-                >
+            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
+                <Space wrap size="middle">
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
@@ -297,10 +290,7 @@ export default function DashboardPage() {
                     </Button>
                     <Button onClick={handleExportExcel}>엑셀 다운로드</Button>
                 </Space>
-                <Spin
-                    spinning={isLoading}
-                    tip="데이터를 불러오는 중입니다..."
-                >
+                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
                     <Table<TableRow3>
                         columns={[
                             {
