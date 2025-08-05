@@ -33,25 +33,28 @@ export default function TargetFilterPage() {
             번호: s.번호,
             단계: s.단계,
             이름: s.이름,
-            인도자지역: s.인도자지역,
-            인도자팀: s.인도자팀,
-            인도자이름: s.인도자이름,
-            교사지역: s.교사지역,
-            교사팀: s.교사팀,
-            교사이름: s.교사이름,
-            Target: s.target,
-            TryDate: s.trydate,
+
+            인도자지역: s.인도자지역 ?? '',
+            인도자팀: s.인도자팀 ? `${String(s.인도자팀).trim()}` : '',
+            인도자이름: s.인도자이름 ?? '',
+
+            교사지역: s.교사지역 ?? '',
+            교사팀: s.교사팀 ? `${String(s.교사팀).trim()}` : '',
+            교사이름: s.교사이름 ?? '',
+
+            Target: s.target ?? '',
+            TryDate: s.trydate ?? '',
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(exportData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
 
-        // UTF-8 with BOM 설정
         const excelBuffer = XLSX.write(workbook, {
             bookType: 'xlsx',
             type: 'array',
         });
+
         const dataBlob = new Blob([excelBuffer], {
             type: 'application/octet-stream',
         });
@@ -179,10 +182,7 @@ export default function TargetFilterPage() {
     ];
 
     return (
-        <Spin
-            spinning={isLoading}
-            tip="데이터 불러오는 중..."
-        >
+        <Spin spinning={isLoading} tip="데이터 불러오는 중...">
             <div className="p-6">
                 <h2 className="text-xl font-bold mb-4">개강별 기준 학생 필터링</h2>
 
@@ -194,10 +194,7 @@ export default function TargetFilterPage() {
                         onChange={(e) => setSearchText(e.target.value.trim())}
                         style={{ width: 200 }}
                     />
-                    <Button
-                        onClick={exportToExcel}
-                        type="primary"
-                    >
+                    <Button onClick={exportToExcel} type="primary">
                         엑셀로 내보내기
                     </Button>
                 </div>

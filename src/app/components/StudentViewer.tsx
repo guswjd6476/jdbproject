@@ -146,11 +146,11 @@ export default function StudentViewer() {
                 생년월일: student.생년월일,
 
                 인도자지역: student.인도자지역 ?? '',
-                인도자구역: student.인도자팀 ?? '',
+                인도자구역: student.인도자팀 ? `${String(student.인도자팀).trim()}` : '',
                 인도자이름: student.인도자이름 ?? '',
 
                 교사지역: student.교사지역 ?? '',
-                교사구역: student.교사팀 ?? '',
+                교사구역: student.교사팀 ? `${String(student.교사팀).trim()}` : '',
                 교사이름: student.교사이름 ?? '',
             };
 
@@ -210,10 +210,7 @@ export default function StudentViewer() {
                 <CardContent>
                     {/* 지역 필터 버튼 */}
                     <div className="mb-4 flex flex-wrap gap-2">
-                        <Button
-                            type={!selectedRegion ? 'primary' : 'default'}
-                            onClick={() => setSelectedRegion(null)}
-                        >
+                        <Button type={!selectedRegion ? 'primary' : 'default'} onClick={() => setSelectedRegion(null)}>
                             전체
                         </Button>
                         {allRegions.map((region) => (
@@ -228,17 +225,11 @@ export default function StudentViewer() {
                     </div>
 
                     <div className="mb-4 flex gap-2 flex-wrap">
-                        <Button
-                            onClick={handleExportForUser}
-                            type="default"
-                        >
+                        <Button onClick={handleExportForUser} type="default">
                             엑셀로 내보내기 (일반)
                         </Button>
                         {isAdmin && (
-                            <Button
-                                onClick={handleExportForAdmin}
-                                type="dashed"
-                            >
+                            <Button onClick={handleExportForAdmin} type="dashed">
                                 엑셀로 내보내기 (관리자용)
                             </Button>
                         )}

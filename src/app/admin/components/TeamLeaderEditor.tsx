@@ -88,10 +88,7 @@ export default function TeamLeaderEditor() {
                     allowClear
                 >
                     {REGION_OPTIONS.map((region) => (
-                        <Option
-                            key={region}
-                            value={region}
-                        >
+                        <Option key={region} value={region}>
                             {region}
                         </Option>
                     ))}
@@ -145,10 +142,7 @@ export default function TeamLeaderEditor() {
                     cancelText="아니오"
                     disabled={data.length === 1}
                 >
-                    <Button
-                        danger
-                        disabled={data.length === 1}
-                    >
+                    <Button danger disabled={data.length === 1}>
                         삭제
                     </Button>
                 </Popconfirm>
@@ -169,12 +163,7 @@ export default function TeamLeaderEditor() {
             />
             <Space style={{ marginTop: 16 }}>
                 <Button onClick={handleAddRow}>행 추가</Button>
-                <Button
-                    type="primary"
-                    onClick={handleSave}
-                    loading={saving}
-                    disabled={!edited}
-                >
+                <Button type="primary" onClick={handleSave} loading={saving} disabled={!edited}>
                     저장하기
                 </Button>
             </Space>
