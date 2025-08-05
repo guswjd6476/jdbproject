@@ -100,40 +100,42 @@ export async function GET(request: NextRequest) {
                 t.fail,
                 to_char(t.updated_at, 'YYYY-MM-DD') AS "마지막업데이트",
 
-                CASE 
-                WHEN EXISTS (
-                    SELECT 1
-                    FROM students s
-                    WHERE s.교사_고유번호 = m.고유번호
-                      AND (
-                          (
-                              CURRENT_DATE < '2025-09-01' AND (
-                                  s.복_완료일 >= '2025-06-01' OR
-                                  s.예정_완료일 >= '2025-06-01' OR
-                                  s.센확_완료일   >= '2025-06-01'
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM students s
+                        WHERE s.교사_고유번호 = m.고유번호
+                          AND (
+                              (
+                                  CURRENT_DATE < '2025-09-01' AND (
+                                      s.복_완료일 >= '2025-06-01' OR
+                                      s.예정_완료일 >= '2025-06-01' OR
+                                      s.센확_완료일 >= '2025-06-01'
+                                  )
+                              )
+                              OR
+                              (
+                                  CURRENT_DATE >= '2025-09-01' AND (
+                                      s.복_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
+                                      s.예정_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
+                                      s.센확_완료일 >= CURRENT_DATE - INTERVAL '3 months'
+                                  )
+                              )
+                              OR
+                              (
+                                  s.단계 IN ('복', '예정', '센확')
                               )
                           )
-                          OR
-                          (
-                              CURRENT_DATE >= '2025-09-01' AND (
-                                  s.복_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                                  s.예정_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                                  s.센확_완료일   >= CURRENT_DATE - INTERVAL '3 months' 
-                              )
-                          )
-                      )
-                ) THEN '활동'
-                ELSE '비활동'
-            END AS 활동여부,
-            
+                    )
+                    THEN '활동'
+                    ELSE '비활동'
+                END AS 활동여부,
 
                 (
                     SELECT COUNT(*)
                     FROM students s
-                    WHERE ( s.교사_고유번호 = m.고유번호)
-                      AND (
-                          s.단계 IN ('섭', '복', '예정', '센확')
-                      )
+                    WHERE s.교사_고유번호 = m.고유번호
+                      AND s.단계 IN ('섭', '복', '예정', '센확')
                 ) AS c이상건수
 
             FROM teachers t

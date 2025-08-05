@@ -214,13 +214,13 @@ export default function AdminStudentManager() {
     };
 
     const columns: ColumnsType<Student> = [
-        { title: 'id', dataIndex: 'id', key: 'id', width: 70, fixed: 'left' },
+        { title: 'id', dataIndex: 'id', key: 'id', width: 50, fixed: 'left' },
         {
             title: '단계',
             dataIndex: '단계',
             key: '단계',
             fixed: 'left',
-            width: 160,
+            width: 70,
             sorter: (a, b) => {
                 const valA = a.단계 || '';
                 const valB = b.단계 || '';
@@ -245,7 +245,7 @@ export default function AdminStudentManager() {
             title: '이름',
             dataIndex: '이름',
             key: '이름',
-            width: 100,
+            width: 70,
             fixed: 'left',
             render: (value: string | undefined, record: Student) => {
                 const isEditing = editingId === record.id;
@@ -260,14 +260,18 @@ export default function AdminStudentManager() {
                 );
             },
         },
-        { title: '연락처', dataIndex: '연락처', key: '연락처', width: 120 },
-        { title: '인도자이름', dataIndex: '인도자이름', key: '인도자이름', width: 120 },
-        { title: '교사이름', dataIndex: '교사이름', key: '교사이름', width: 120 },
+        { title: '연락처', dataIndex: '연락처', key: '연락처', width: 60 },
+        { title: '인도자지역', dataIndex: '인도자지역', key: '인도자지역', width: 40 },
+        { title: '인도자팀', dataIndex: '인도자팀', key: '인도자팀', width: 40 },
+        { title: '인도자이름', dataIndex: '인도자이름', key: '인도자이름', width: 70 },
+        { title: '교사지역', dataIndex: '교사지역', key: '교사지역', width: 40 },
+        { title: '교사팀', dataIndex: '교사팀', key: '교사팀', width: 40 },
+        { title: '교사이름', dataIndex: '교사이름', key: '교사이름', width: 70 },
         ...COMPLETION_FIELDS.map((key) => ({
             title: key.replace('_완료일', '').toUpperCase(),
             dataIndex: key,
             key,
-            width: 150,
+            width: 70,
             render: (value: string | null, record: Student) => {
                 const isEditing = editingId === record.id;
                 if (!isEditing) {
