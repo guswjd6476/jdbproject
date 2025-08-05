@@ -53,7 +53,7 @@ export default function AdminStudentManager() {
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editingDates, setEditingDates] = useState<Partial<Record<string, Dayjs | null>>>({});
     const [editingStages, setEditingStages] = useState<Partial<Record<number, string>>>({});
-
+    const [editingNames, setEditingNames] = useState<Partial<Record<number, string>>>({});
     const [searchName, setSearchName] = useState('');
     const [searchStage, setSearchStage] = useState<string | null>(null);
     const [filteredKeyword, setFilteredKeyword] = useState({ name: '', stage: '' });
@@ -83,10 +83,10 @@ export default function AdminStudentManager() {
         fetchStudents();
     }, []);
 
-    // 단일 수정: 수정 시작
     const handleEdit = (record: Student) => {
         setEditingId(record.id);
         setEditingStages((prev) => ({ ...prev, [record.id]: record.단계 ?? '' }));
+        setEditingNames((prev) => ({ ...prev, [record.id]: record.이름 ?? '' })); // ← 추가
 
         const newDates: Partial<Record<string, Dayjs | null>> = {};
         COMPLETION_FIELDS.forEach((field) => {
@@ -105,7 +105,6 @@ export default function AdminStudentManager() {
         setEditingStages((prev) => ({ ...prev, [id]: value }));
     };
 
-    // 단일 수정: 저장
     const handleSave = async (번호: number) => {
         try {
             const payload: Record<string, string | null> = {};
@@ -113,6 +112,7 @@ export default function AdminStudentManager() {
                 payload[key] = editingDates[key]?.format('YYYY-MM-DD') ?? null;
             }
             payload['단계'] = editingStages[번호] ?? null;
+            payload['이름'] = editingNames[번호] ?? null; // ← 추가
 
             const res = await fetch(`/api/students/update-date`, {
                 method: 'POST',
@@ -241,8 +241,28 @@ export default function AdminStudentManager() {
                 );
             },
         },
-        { title: '이름', dataIndex: '이름', key: '이름', width: 100, fixed: 'left' },
+        {
+            title: '이름',
+            dataIndex: '이름',
+            key: '이름',
+            width: 100,
+            fixed: 'left',
+            render: (value: string | undefined, record: Student) => {
+                const isEditing = editingId === record.id;
+                if (!isEditing) return value || '';
+                return (
+                    <Input
+                        value={editingNames[record.id] ?? value ?? ''}
+                        onChange={(e) => setEditingNames((prev) => ({ ...prev, [record.id]: e.target.value }))}
+                        size="small"
+                        style={{ width: 90 }}
+                    />
+                );
+            },
+        },
         { title: '연락처', dataIndex: '연락처', key: '연락처', width: 120 },
+        { title: '인도자이름', dataIndex: '인도자이름', key: '인도자이름', width: 120 },
+        { title: '교사이름', dataIndex: '교사이름', key: '교사이름', width: 120 },
         ...COMPLETION_FIELDS.map((key) => ({
             title: key.replace('_완료일', '').toUpperCase(),
             dataIndex: key,
@@ -272,26 +292,16 @@ export default function AdminStudentManager() {
                 const isEditing = editingId === record.id;
                 return isEditing ? (
                     <Space>
-                        <Button
-                            size="small"
-                            type="primary"
-                            onClick={() => handleSave(record.id)}
-                        >
+                        <Button size="small" type="primary" onClick={() => handleSave(record.id)}>
                             저장
                         </Button>
-                        <Button
-                            size="small"
-                            onClick={() => setEditingId(null)}
-                        >
+                        <Button size="small" onClick={() => setEditingId(null)}>
                             취소
                         </Button>
                     </Space>
                 ) : (
                     <Space>
-                        <Button
-                            size="small"
-                            onClick={() => handleEdit(record)}
-                        >
+                        <Button size="small" onClick={() => handleEdit(record)}>
                             수정
                         </Button>
                         <Popconfirm
@@ -300,10 +310,7 @@ export default function AdminStudentManager() {
                             okText="삭제"
                             cancelText="취소"
                         >
-                            <Button
-                                danger
-                                size="small"
-                            >
+                            <Button danger size="small">
                                 삭제
                             </Button>
                         </Popconfirm>
@@ -341,20 +348,13 @@ export default function AdminStudentManager() {
                     showSearch
                     optionFilterProp="label"
                 />
-                <Button
-                    type="primary"
-                    onClick={handleSearch}
-                >
+                <Button type="primary" onClick={handleSearch}>
                     검색
                 </Button>
             </div>
 
             {/* 일괄 변경 UI */}
-            <Space
-                align="center"
-                wrap
-                className="mb-4"
-            >
+            <Space align="center" wrap className="mb-4">
                 <Select
                     placeholder="일괄 단계 선택"
                     style={{ width: 150 }}
@@ -378,12 +378,7 @@ export default function AdminStudentManager() {
                     showSearch
                     optionFilterProp="label"
                 />
-                <DatePicker
-                    value={bulkDate}
-                    onChange={setBulkDate}
-                    format="YYYY.MM.DD"
-                    allowClear
-                />
+                <DatePicker value={bulkDate} onChange={setBulkDate} format="YYYY.MM.DD" allowClear />
                 <Button
                     type="primary"
                     disabled={selectedRowKeys.length === 0 || (!bulkStage && !bulkDateField)}

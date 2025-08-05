@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { 번호, 단계, ...dateFields } = body;
+        const { 번호, 단계, 이름, ...dateFields } = body;
 
         const allowedFields = [
             '발_완료일',
@@ -18,13 +18,23 @@ export async function POST(req: NextRequest) {
             '센확_완료일',
         ];
 
-        const fields = Object.entries(dateFields)
-            .filter(([key]) => allowedFields.includes(key))
-            .map(([key, value]) => `${key} = ${value ? `'${value}'` : 'NULL'}`);
+        const fields: string[] = [];
 
-        // 단계도 포함시키기
+        // 완료일 필드 처리
+        for (const [key, value] of Object.entries(dateFields)) {
+            if (allowedFields.includes(key)) {
+                fields.push(`${key} = ${value ? `'${value}'` : 'NULL'}`);
+            }
+        }
+
+        // 단계 필드 처리
         if (단계 !== undefined) {
             fields.push(`단계 = '${단계}'`);
+        }
+
+        // 이름 필드 처리
+        if (이름 !== undefined) {
+            fields.push(`이름 = '${이름}'`);
         }
 
         if (fields.length === 0) {
