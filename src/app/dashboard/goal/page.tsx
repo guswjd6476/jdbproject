@@ -206,13 +206,21 @@ const WeeklyGoalsTable = ({
         const stepFilter: Step[] = stepFilterToggle[weekKey]
             ? ['발', '찾', '합', '섭', '복', '예정']
             : weekIndex === 0
-            ? ['발']
-            : weekIndex === 1
             ? ['발', '찾']
+            : weekIndex === 1
+            ? ['발', '찾', '합']
             : weekIndex === 2
             ? ['합']
             : weekIndex === 3
+            ? ['섭']
+            : weekIndex === 4
+            ? ['섭']
+            : weekIndex === 5
             ? ['복']
+            : weekIndex === 6
+            ? ['복', '예정']
+            : weekIndex === 7
+            ? ['예정']
             : steps.slice();
 
         const flatTeams = weekData.flatMap(
