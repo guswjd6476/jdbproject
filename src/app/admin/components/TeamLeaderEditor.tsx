@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Input, Typography, Button, message, Space, Spin, Popconfirm, Select } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { REGIONS } from '@/app/lib/types';
 
 const { Option } = Select;
 
@@ -10,10 +11,7 @@ interface TeamLeaderRow {
     지역: string;
     팀: string;
     팀장: string;
-    교관: string;
 }
-
-const REGION_OPTIONS = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자'];
 
 export default function TeamLeaderEditor() {
     const [data, setData] = useState<TeamLeaderRow[]>([]);
@@ -26,13 +24,16 @@ export default function TeamLeaderEditor() {
         fetch('/api/members/teamleader')
             .then((res) => res.json())
             .then((result: TeamLeaderRow[]) => {
-                setData([...result, { 지역: '', 팀: '', 팀장: '', 교관: '' }]);
+                // 초기 데이터 설정 시 '교관' 필드 제외
+                setData([...result, { 지역: '', 팀: '', 팀장: '' }]);
                 setEdited(false);
             })
-            .catch(() => message.error('팀장/교관 데이터를 불러오지 못했습니다.'))
+            // 에러 메시지 수정
+            .catch(() => message.error('팀장 데이터를 불러오지 못했습니다.'))
             .finally(() => setLoading(false));
     }, []);
 
+    // handleInputChange에서 '교관' 키 제거
     const handleInputChange = (value: string, rowIndex: number, key: keyof TeamLeaderRow) => {
         setData((prev) => {
             const newData = [...prev];
@@ -50,7 +51,8 @@ export default function TeamLeaderEditor() {
     };
 
     const handleAddRow = () => {
-        setData([...data, { 지역: '', 팀: '', 팀장: '', 교관: '' }]);
+        // 행 추가 시 '교관' 필드 제외
+        setData([...data, { 지역: '', 팀: '', 팀장: '' }]);
         setEdited(true);
     };
 
@@ -65,7 +67,8 @@ export default function TeamLeaderEditor() {
             });
 
             if (!res.ok) throw new Error('저장 실패');
-            message.success('팀장/교관 정보가 저장되었습니다.');
+            // 성공 메시지 수정
+            message.success('팀장 정보가 저장되었습니다.');
             setEdited(false);
         } catch {
             message.error('저장 중 오류가 발생했습니다.');
@@ -87,7 +90,7 @@ export default function TeamLeaderEditor() {
                     style={{ width: 120 }}
                     allowClear
                 >
-                    {REGION_OPTIONS.map((region) => (
+                    {REGIONS.map((region) => (
                         <Option key={region} value={region}>
                             {region}
                         </Option>
@@ -119,18 +122,7 @@ export default function TeamLeaderEditor() {
                 />
             ),
         },
-        {
-            title: '교관',
-            dataIndex: '교관',
-            key: '교관',
-            render: (_: string, __: TeamLeaderRow, index: number) => (
-                <Input
-                    placeholder="교관 이름 입력"
-                    value={data[index]?.교관}
-                    onChange={(e) => handleInputChange(e.target.value, index, '교관')}
-                />
-            ),
-        },
+        // '교관' 컬럼 삭제
         {
             title: '액션',
             key: 'action',
@@ -154,7 +146,8 @@ export default function TeamLeaderEditor() {
 
     return (
         <>
-            <Typography.Title level={4}>팀장/교관 편집 (관리자 전용)</Typography.Title>
+            {/* 제목 수정 */}
+            <Typography.Title level={4}>팀장 편집 (관리자 전용)</Typography.Title>
             <Table
                 columns={columns}
                 dataSource={data}

@@ -107,7 +107,6 @@ export default function DashboardPage() {
             const 단계 = (s.단계 ?? '').toUpperCase().trim();
             if (!단계) return;
 
-            // ✅ 센확: 교사 기준만 1점
             if (lastMonthSearchTerm && 단계.includes('센확')) {
                 const 교사지역 = (s.교사지역 ?? '').trim();
                 const 교사팀Raw = (s.교사팀 ?? '').replace(/\s/g, '');

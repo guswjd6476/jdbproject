@@ -6,6 +6,7 @@ import type { ColumnsType } from 'antd/es/table';
 import type { TabsProps } from 'antd';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { REGIONS } from '@/app/lib/types';
 
 const { Title } = Typography;
 const { Search } = Input;
@@ -55,8 +56,6 @@ export default function TeacherPage() {
     const uniqueZones = useMemo(() => Array.from(new Set(data.map((item) => item.구역))).sort(), [data]);
     const uniqueTeacherTypes = useMemo(() => Array.from(new Set(data.map((item) => item.교사형태))).sort(), [data]);
 
-    const REGION_ORDER = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자'];
-
     const summaryData = useMemo(() => {
         const summaryMap = new Map<
             string,
@@ -97,7 +96,7 @@ export default function TeacherPage() {
         });
 
         const arr = Array.from(summaryMap.values()).sort((a, b) => {
-            const regionCompare = (REGION_ORDER.indexOf(a.지역) ?? 999) - (REGION_ORDER.indexOf(b.지역) ?? 999);
+            const regionCompare = (REGIONS.indexOf(a.지역) ?? 999) - (REGIONS.indexOf(b.지역) ?? 999);
             if (regionCompare !== 0) return regionCompare;
             return a.팀.localeCompare(b.팀);
         });
