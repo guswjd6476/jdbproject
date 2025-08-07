@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
             '복_완료일',
             '예정_완료일',
             '센확_완료일',
+            '탈락',
         ];
 
         const fields: string[] = [];

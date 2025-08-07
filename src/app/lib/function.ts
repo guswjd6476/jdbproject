@@ -16,6 +16,32 @@ import isBetween from 'dayjs/plugin/isBetween';
 import { Students } from '../hook/useStudentsQuery';
 dayjs.extend(isBetween);
 
+export const getWeekDateRange = (
+    month: number,
+    year: number,
+    weekIndex: number
+): { start: Dayjs; end: Dayjs; display: string } => {
+    const firstDay = dayjs(new Date(year, month - 1, 1));
+    const firstMonday = firstDay.add((8 - firstDay.day()) % 7 || 7, 'day');
+
+    // 2025년 9월부터는 3주 전, 그 전은 2주 전으로 기준 변경
+    const baseOffset = year === 2025 && month >= 9 ? -35 : -14;
+
+    const startDate = firstMonday.add(weekIndex * 7 + baseOffset, 'day');
+    const endDate = startDate.add(6, 'day');
+
+    return {
+        start: startDate,
+        end: endDate,
+        display: `${startDate.format('M.D')}~${endDate.format('M.D')}`,
+    };
+};
+
+export const getTeamName = (team?: string | null): string => {
+    if (!team) return '기타팀';
+    const prefix = team.split('-')[0];
+    return fixedTeams.find((t) => t.startsWith(prefix)) ?? '기타팀';
+};
 export const initializeResults = (
     예정Goals: 예정Goals,
     conversionRates: ConversionRates,
@@ -67,34 +93,6 @@ export const initializeResults = (
 
     return { teams: teamResults, totals };
 };
-
-export const getWeekDateRange = (
-    month: number,
-    year: number,
-    weekIndex: number
-): { start: Dayjs; end: Dayjs; display: string } => {
-    const firstDay = dayjs(new Date(year, month - 1, 1));
-    const firstMonday = firstDay.add((8 - firstDay.day()) % 7 || 7, 'day');
-
-    // 2025년 9월부터는 3주 전, 그 전은 2주 전으로 기준 변경
-    const baseOffset = year === 2025 && month >= 9 ? -35 : -14;
-
-    const startDate = firstMonday.add(weekIndex * 7 + baseOffset, 'day');
-    const endDate = startDate.add(6, 'day');
-
-    return {
-        start: startDate,
-        end: endDate,
-        display: `${startDate.format('M.D')}~${endDate.format('M.D')}`,
-    };
-};
-
-export const getTeamName = (team?: string | null): string => {
-    if (!team) return '기타팀';
-    const prefix = team.split('-')[0];
-    return fixedTeams.find((t) => t.startsWith(prefix)) ?? '기타팀';
-};
-
 export const calculateAchievements = (
     students: Students[],
     selectedMonth: number,
