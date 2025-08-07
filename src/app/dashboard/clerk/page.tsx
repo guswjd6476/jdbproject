@@ -3,16 +3,17 @@
 import React, { useMemo, useState } from 'react';
 import { Table, Select, Typography, Button, Spin } from 'antd';
 import { useStudentsQuery } from '@/app/hook/useStudentsQuery';
-import { REGIONS } from '@/app/lib/types';
+import { REGIONS, STEPS2 } from '@/app/lib/types';
 import dayjs from 'dayjs';
 import { exportToExcel } from '@/utills/exportToExcel';
-const STEPS2 = ['발', '찾', '합', '섭', '복', '예정'] as const;
+
 type StepType = (typeof STEPS2)[number];
 const { Title } = Typography;
 
 const isStepType = (value: string): value is StepType => {
     return (STEPS2 as readonly string[]).includes(value);
 };
+
 interface RegionRow {
     key: string;
     지역: string;
@@ -36,7 +37,6 @@ export default function RegionSummary() {
 
         students.forEach((s) => {
             const rawStep = (s.단계 ?? '').trim();
-
             if (!rawStep || !isStepType(rawStep)) return;
 
             const 단계: StepType = rawStep;
@@ -60,19 +60,29 @@ export default function RegionSummary() {
                 });
             }
 
-            // A, B단계는 항상 포함
             if (isABStep) {
                 regionMap[region][`${단계}_보유`] = (regionMap[region][`${단계}_보유`] as number) + 1;
             }
 
-            // C, D단계는 월이 지정된 경우에만 필터링하고, 아니면 전부 포함
             if (isLeaderHalfStep || isTeacherHalfStep) {
                 if (!targetMonthStr || s.target?.trim() === targetMonthStr) {
                     regionMap[region][`${단계}_보유`] = (regionMap[region][`${단계}_보유`] as number) + 1;
                 }
             }
         });
-        return Object.values(regionMap);
+
+        const sorted = REGIONS.map((region) => regionMap[region]).filter(Boolean);
+
+        // 총합 계산
+        const totalRow: RegionRow = {
+            key: 'total',
+            지역: '총합',
+        };
+        STEPS2.forEach((step) => {
+            totalRow[`${step}_보유`] = sorted.reduce((sum, row) => sum + ((row[`${step}_보유`] as number) || 0), 0);
+        });
+
+        return [...sorted, totalRow];
     }, [students, selectedMonth, selectedYear]);
 
     const handleExport = () => {
@@ -134,6 +144,7 @@ export default function RegionSummary() {
                     dataSource={renderData}
                     pagination={false}
                     scroll={{ x: 'max-content' }}
+                    summary={() => null} // 총합 직접 넣었으므로 summary는 비활성화
                 />
             </Spin>
         </div>

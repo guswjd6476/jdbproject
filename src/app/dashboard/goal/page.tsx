@@ -11,6 +11,7 @@ import {
     DEFAULT_예정_goals,
     Region,
     TableRow,
+    STEPS2,
 } from '@/app/lib/types';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import dayjs from 'dayjs';
@@ -33,8 +34,7 @@ const getWeekCount = (year: number, month: string): number => {
     return 8;
 };
 
-const steps = ['발', '찾', '합', '섭', '복', '예정'] as const;
-type Step = (typeof steps)[number];
+type Step = (typeof STEPS2)[number];
 interface WeeklyGoalsTableProps {
     data: { region: string; results: Results }[];
     achievements: Record<string, Record<string, Record<string, Record<Step, number>>>>;
@@ -221,7 +221,7 @@ const WeeklyGoalsTable = ({
             ? ['복', '예정']
             : weekIndex === 7
             ? ['예정']
-            : steps.slice();
+            : STEPS2.slice();
 
         const flatTeams = weekData.flatMap(
             ({ region, results }: { region: string; results: Results }) =>
@@ -866,7 +866,7 @@ export default function GoalCalculatorTable() {
                 const newValue = num / 100;
                 currentWeek[key as keyof WeeklyGoals] = newValue;
                 if (newValue === 1) {
-                    (steps as ReadonlyArray<keyof WeeklyGoals>).forEach((k) => {
+                    (STEPS2 as ReadonlyArray<keyof WeeklyGoals>).forEach((k) => {
                         if (k !== key) currentWeek[k] = 0;
                     });
                 }
@@ -1165,7 +1165,7 @@ export default function GoalCalculatorTable() {
                                         {weeks.map(({ weekKey, label }) => (
                                             <tr key={weekKey}>
                                                 <td className="border p-2">{label}</td>
-                                                {(steps as ReadonlyArray<keyof WeeklyGoals>).map((key) => (
+                                                {(STEPS2 as ReadonlyArray<keyof WeeklyGoals>).map((key) => (
                                                     <td key={key} className="border p-2 text-center">
                                                         <input
                                                             type="number"
@@ -1194,7 +1194,7 @@ export default function GoalCalculatorTable() {
                                         ))}
                                         <tr className="font-bold">
                                             <td className="border p-2">총합</td>
-                                            {(steps as ReadonlyArray<keyof WeeklyGoals>).map((key) => {
+                                            {(STEPS2 as ReadonlyArray<keyof WeeklyGoals>).map((key) => {
                                                 const total = weeks.reduce((sum, { weekKey }) => {
                                                     const value =
                                                         weeklyPercentages[weekKey as keyof WeeklyPercentages]?.[key] ??
@@ -1321,7 +1321,7 @@ export default function GoalCalculatorTable() {
                                                 <tr className="bg-gray-100">
                                                     <th className="border p-2">지역</th>
                                                     <th className="border p-2">팀</th>
-                                                    {(steps as ReadonlyArray<keyof WeeklyGoals>).map((step) => (
+                                                    {(STEPS2 as ReadonlyArray<keyof WeeklyGoals>).map((step) => (
                                                         <React.Fragment key={step}>
                                                             <th className="border p-2">{step}</th>
                                                             <th className="border p-2">{`${step}_탈락`}</th>
@@ -1336,7 +1336,7 @@ export default function GoalCalculatorTable() {
                                                     <tr key={row.key}>
                                                         <td className="border p-2">{row.지역}</td>
                                                         <td className="border p-2">{row.팀}</td>
-                                                        {(steps as ReadonlyArray<keyof WeeklyGoals>).map((step) => (
+                                                        {(STEPS2 as ReadonlyArray<keyof WeeklyGoals>).map((step) => (
                                                             <React.Fragment key={step}>
                                                                 <td className="border p-2 text-center">{row[step]}</td>
                                                                 <td className="border p-2 text-center">
@@ -1354,7 +1354,7 @@ export default function GoalCalculatorTable() {
                                                     <td className="border p-2" colSpan={2}>
                                                         계
                                                     </td>
-                                                    {(steps as ReadonlyArray<keyof WeeklyGoals>).map((step) => (
+                                                    {(STEPS2 as ReadonlyArray<keyof WeeklyGoals>).map((step) => (
                                                         <React.Fragment key={step}>
                                                             <td className="border p-2 text-center">
                                                                 {Math.round(Number(monthly.totalRow[step] ?? 0))}
