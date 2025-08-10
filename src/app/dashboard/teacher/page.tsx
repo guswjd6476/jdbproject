@@ -125,13 +125,12 @@ export default function TeacherPage() {
         return arr;
     }, [data]);
 
-    // 엑셀 내보내기 함수
     const exportToExcel = (teachers: Teacher[], fileName: string) => {
         const dataForExcel = teachers.map((t) => ({
             고유번호: t.고유번호,
             이름: t.이름,
             지역: t.지역,
-            구역: t.구역,
+            구역: t.구역 ? `${String(t.구역).trim()}` : '',
             교사형태: t.교사형태,
             활동여부: t.활동여부,
             'C 이상 건수': t.c이상건수,
@@ -249,7 +248,10 @@ export default function TeacherPage() {
             children: (
                 <>
                     <Space style={{ marginBottom: 16 }}>
-                        <Button type="primary" onClick={() => exportToExcel(data, '현재_교사_명단.xlsx')}>
+                        <Button
+                            type="primary"
+                            onClick={() => exportToExcel(data, '현재_교사_명단.xlsx')}
+                        >
                             현재 교사 엑셀 내보내기
                         </Button>
                         <Search
@@ -298,11 +300,21 @@ export default function TeacherPage() {
 
     return (
         <div style={{ padding: 24 }}>
-            <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
+            <Space
+                direction="vertical"
+                size="middle"
+                style={{ display: 'flex' }}
+            >
                 <Title level={3}>교사 목록</Title>
 
-                <Collapse defaultActiveKey={['1']} ghost>
-                    <Panel header="요약 테이블 보기 / 숨기기" key="1">
+                <Collapse
+                    defaultActiveKey={['1']}
+                    ghost
+                >
+                    <Panel
+                        header="요약 테이블 보기 / 숨기기"
+                        key="1"
+                    >
                         <Table
                             dataSource={summaryData}
                             columns={[

@@ -38,8 +38,6 @@ export default function TeacherDashboard() {
             .catch(() => message.error('데이터를 불러오는데 실패했습니다.'))
             .finally(() => setLoading(false));
     }, []);
-
-    // handleInputChange에서 '교관' 제거
     const handleInputChange = (value: string, index: number, key: '팀장') => {
         const newData = [...data];
         const item = newData[index];
@@ -62,7 +60,6 @@ export default function TeacherDashboard() {
                     지역: row.지역,
                     팀: teamKey,
                     팀장: row.팀장,
-                    // '교관' 데이터 처리 로직 제거
                     교사재적: row.교사재적,
                     활동교사: row.활동교사,
                     교사건: row.교사건,
@@ -107,10 +104,12 @@ export default function TeacherDashboard() {
             key: '팀장',
             width: 120,
             render: (text: string, _: TeacherSummaryRow, index: number) => (
-                <Input value={text} onChange={(e) => handleInputChange(e.target.value, index, '팀장')} />
+                <Input
+                    value={text}
+                    onChange={(e) => handleInputChange(e.target.value, index, '팀장')}
+                />
             ),
         },
-        // '교관' 컬럼 정의 삭제
         {
             title: '교사재적',
             dataIndex: '교사재적',
@@ -143,11 +142,19 @@ export default function TeacherDashboard() {
 
     return (
         <Card bordered={false}>
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <Space
+                direction="vertical"
+                style={{ width: '100%' }}
+            >
                 <Typography.Title level={4}>교사 활동 현황 (관리자용)</Typography.Title>
                 <TeamLeaderEditor />
                 <Divider />
-                <Button type="primary" icon={<DownloadOutlined />} onClick={exportToExcel} style={{ marginBottom: 16 }}>
+                <Button
+                    type="primary"
+                    icon={<DownloadOutlined />}
+                    onClick={exportToExcel}
+                    style={{ marginBottom: 16 }}
+                >
                     엑셀로 내보내기
                 </Button>
                 <Table
@@ -161,7 +168,11 @@ export default function TeacherDashboard() {
                     summary={() => (
                         <Table.Summary.Row style={{ backgroundColor: '#fafafa', fontWeight: 'bold' }}>
                             {/* colSpan 및 Cell index 조정 */}
-                            <Table.Summary.Cell index={0} colSpan={3} align="center">
+                            <Table.Summary.Cell
+                                index={0}
+                                colSpan={3}
+                                align="center"
+                            >
                                 총합
                             </Table.Summary.Cell>
                             <Table.Summary.Cell index={3}>{calculateTotal('교사재적')}</Table.Summary.Cell>
