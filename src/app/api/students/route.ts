@@ -1,11 +1,11 @@
 import { pool } from '@/app/lib/db';
-import { Student } from '@/app/lib/types';
 import { NextRequest, NextResponse } from 'next/server';
 import { PoolClient } from 'pg';
 import { verifyToken } from '@/app/lib/auth';
 import type { JwtPayload } from 'jsonwebtoken';
 
-const 단계순서 = ['발', '찾', '합', '섭', '복', '예정', '탈락'];
+const 단계순서 = ['발', '찾', '합', '섭', '복', '예정', '센확'];
+
 async function getOrInsertMemberUniqueId(
     client: PoolClient,
     지역: string,
@@ -64,6 +64,7 @@ async function getOrInsertMemberUniqueId(
     return null;
 }
 
+// ✨ FIX: 'g'를 다시 '탈락'으로 수정합니다.
 const 단계완료일컬럼: Record<string, string> = {
     발: '발_완료일',
     찾: '찾_완료일',
@@ -71,11 +72,10 @@ const 단계완료일컬럼: Record<string, string> = {
     섭: '섭_완료일',
     복: '복_완료일',
     예정: '예정_완료일',
-    탈락: 'g',
+    탈락: '탈락',
     센확: '센확_완료일',
 };
 
-// GET 함수 (수정 없음)
 export async function GET(request: NextRequest) {
     const client = await pool.connect();
     try {
@@ -94,13 +94,14 @@ export async function GET(request: NextRequest) {
 
         const search = request.nextUrl.searchParams.get('q')?.trim();
 
+        // ✨ FIX: SELECT 절에서 `s.g`를 `s.탈락`으로 수정하고, 별칭으로 'g'를 유지하여 프론트엔드 호환성을 맞춥니다.
         let baseQuery = `
             SELECT 
                 s.id AS 번호, s.단계, s.이름, s.연락처, s.생년월일, s.target,
                 s.인도자_고유번호, s.교사_고유번호,
                 s.발_완료일 AS "발", s.찾_완료일 AS "찾", s.합_완료일 AS "합",
                 s.섭_완료일 AS "섭", s.복_완료일 AS "복", s.예정_완료일 AS "예정",
-  s.센확_완료일 AS "센확", s.탈락 AS "g",
+                s.센확_완료일 AS "센확", s.탈락 AS "g", 
                 m_ind.지역 AS 인도자지역, m_ind.구역 AS 인도자팀, m_ind.이름 AS 인도자이름,
                 m_tch.지역 AS 교사지역, m_tch.구역 AS 교사팀, m_tch.이름 AS 교사이름
             FROM students s
@@ -161,17 +162,6 @@ export async function POST(request: NextRequest) {
         const data = body.data || [];
         const now = new Date();
 
-        const 단계순서 = ['발', '찾', '합', '섭', '복', '예정', '센확'];
-        const 단계완료일컬럼: { [key: string]: string } = {
-            발: '발_완료일',
-            찾: '찾_완료일',
-            합: '합_완료일',
-            섭: '섭_완료일',
-            복: '복_완료일',
-            예정: '예정_완료일',
-            센확: '센확_완료일',
-        };
-
         for (const row of data) {
             const 단계 = row.단계.trim().toUpperCase();
 
@@ -231,7 +221,6 @@ export async function POST(request: NextRequest) {
                     [row.이름.trim()]
                 );
             }
-
             const existing = existingRes.rows.length > 0 ? existingRes.rows[0] : null;
 
             if (existing) {
@@ -253,6 +242,7 @@ export async function POST(request: NextRequest) {
                 }
             }
 
+            // ✨ FIX: `g`를 다시 `탈락`으로 수정합니다.
             const 완료일: { [key: string]: Date | null } = {
                 발_완료일: null,
                 찾_완료일: null,
@@ -261,15 +251,16 @@ export async function POST(request: NextRequest) {
                 복_완료일: null,
                 예정_완료일: null,
                 센확_완료일: null,
+                탈락: null,
             };
             const colName = 단계완료일컬럼[단계];
-            if (colName) 완료일[colName] = now;
-
-            // ✨ FIX: `isDropout`(boolean) 대신 `탈락일`(timestamp)을 사용하도록 수정합니다.
-            const 탈락일 = 단계 === '탈락' ? now : null;
+            if (colName) {
+                완료일[colName] = now;
+            }
 
             if (existing) {
                 await client.query(
+                    // ✨ FIX: 쿼리에서 `g`를 다시 `탈락`으로 변경합니다.
                     `UPDATE students SET
                         단계 = $1, 연락처 = COALESCE($2, 연락처), 생년월일 = COALESCE($3, 생년월일),
                         인도자_고유번호 = COALESCE($4, 인도자_고유번호), 교사_고유번호 = COALESCE($5, 교사_고유번호),
@@ -292,12 +283,13 @@ export async function POST(request: NextRequest) {
                         완료일.복_완료일,
                         완료일.예정_완료일,
                         완료일.센확_완료일,
-                        탈락일, // ✨ FIX: boolean 대신 timestamp 또는 null 값을 전달
+                        완료일.탈락, // ✨ FIX: '탈락' 컬럼에 해당하는 값을 전달합니다.
                         existing.id,
                     ]
                 );
             } else {
                 await client.query(
+                    // ✨ FIX: 쿼리에서 `g`를 다시 `탈락`으로 변경합니다.
                     `INSERT INTO students
                         (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일, 센확_완료일, 탈락)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
@@ -315,7 +307,7 @@ export async function POST(request: NextRequest) {
                         완료일.복_완료일,
                         완료일.예정_완료일,
                         완료일.센확_완료일,
-                        탈락일, // ✨ FIX: boolean 대신 timestamp 또는 null 값을 전달
+                        완료일.탈락, // ✨ FIX: '탈락' 컬럼에 해당하는 값을 전달합니다.
                     ]
                 );
             }
