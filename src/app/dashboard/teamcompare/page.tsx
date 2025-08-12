@@ -70,11 +70,15 @@ export default function DashboardPage() {
             }
 
             const currentStep = (s.단계 ?? '').toUpperCase();
-            if (STEPS.includes(currentStep as STEP)) {
+            if (
+                STEPS.includes(currentStep as STEP) &&
+                currentStep !== '섭' &&
+                currentStep !== '복' &&
+                currentStep !== '예정'
+            ) {
                 const key = isRegionalAccount ? `${팀}-${구역}-${currentStep}` : `${지역}-${팀}-${currentStep}`;
                 보유건Map[key] = (보유건Map[key] ?? 0) + 1;
             }
-
             STEPS.forEach((step) => {
                 const key = step.toLowerCase() as keyof Student;
                 const dateStr = s[key] as string | null | undefined;

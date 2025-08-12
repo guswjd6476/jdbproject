@@ -106,10 +106,10 @@ const WeeklyGoalsTable = ({
             const tempContainer = document.createElement('div');
             tempContainer.style.padding = '24px';
             tempContainer.style.backgroundColor = '#f0f5ff';
-            tempContainer.style.maxWidth = '820px';
+            tempContainer.style.maxWidth = '1200px';
             tempContainer.style.margin = '0 auto';
             tempContainer.style.borderRadius = '8px';
-            tempContainer.style.fontSize = '30px';
+            tempContainer.style.fontSize = '16px';
             tempContainer.style.boxShadow = '0 0 10px rgba(100, 120, 160, 0.15)';
 
             const titleEl = weekTitleTextRefs[weekKey]?.current;
