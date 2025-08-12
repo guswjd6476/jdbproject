@@ -28,7 +28,6 @@ const initialRow: Student = {
     교사_고유번호: null,
 };
 
-// ✨ 백엔드에서 오는 동명이인 선택지 타입을 정의합니다.
 interface MemberChoice {
     고유번호: string;
     이름: string;
@@ -36,7 +35,6 @@ interface MemberChoice {
     팀: string;
 }
 
-// ✨ 동명이인 선택 모달의 정보를 관리할 state의 타입을 정의합니다.
 interface SelectionInfo {
     rowIndex: number;
     field: '인도자' | '교사';
@@ -49,14 +47,7 @@ function StudentTracker() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-
-    // ✨ 동명이인 선택 모달을 위한 state
     const [selectionInfo, setSelectionInfo] = useState<SelectionInfo | null>(null);
-
-    // ✨ 기존에 분리되어 있던 저장 확인 관련 state는 이제 필요 없습니다.
-    // const [summaryList, setSummaryList] = useState<{ 이름: string; 단계: string }[]>([]);
-    // const [confirmVisible, setConfirmVisible] = useState(false);
-
     const { isAdmin } = useUser();
 
     function isSkipTeamCheck(team: string): boolean {
@@ -95,12 +86,10 @@ function StudentTracker() {
 
     async function validatePreviousStageForSubmit(row: Student, allRows: Student[]): Promise<string[]> {
         const errors: string[] = [];
-        const stageRaw = row.단계.trim();
-        const stage = stageRaw.toUpperCase() === '탈락' ? '탈락' : stageRaw.toUpperCase();
-        const 단계순서 = ['발', '찾', '합', '섭', '복', '예정'];
+        const stage = row.단계.trim().toUpperCase();
 
-        if (stage !== '탈락' && !단계순서.includes(stage)) {
-            errors.push('유효한 단계가 아닙니다.');
+        if (!STEPNAME.includes(stage)) {
+            errors.push('유효한 단계가 아닙니다. STEPNAME 정의를 확인하세요.');
             return errors;
         }
 
@@ -109,38 +98,22 @@ function StudentTracker() {
             return errors;
         }
 
+        // ✨ FIX: '탈락' 검증 시 불필요한 API 호출을 제거하고 최소한의 정보만 확인합니다.
         if (stage === '탈락') {
             const hasFullIndo = row.인도자지역 && row.인도자팀 && row.인도자이름;
             const hasFullTeacher = row.교사지역 && row.교사팀 && row.교사이름;
             if (!hasFullIndo && !hasFullTeacher) {
-                errors.push('탈락 시 인도자 정보 또는 교사 정보가 필요합니다.');
+                errors.push('탈락 시 인도자 또는 교사 정보 중 하나는 반드시 필요합니다.');
             }
-            try {
-                const query = new URLSearchParams({
-                    name: row.이름.trim(),
-                    stage: '탈락',
-                    region: row.인도자지역.trim(),
-                    team: row.인도자팀.trim(),
-                    name2: row.인도자이름.trim(),
-                    teacherRegion: row.교사지역.trim(),
-                    teacherTeam: row.교사팀.trim(),
-                    teacherName: row.교사이름.trim(),
-                });
-                const res = await fetch(`/api/students/checkPreviousStage?${query.toString()}`);
-                const json = await res.json();
-                if (!res.ok) {
-                    errors.push(json.message || '유효성 검사 중 오류가 발생했습니다.');
-                } else if (json.exists === true) {
-                    errors.push('이미 탈락으로 등록된 학생입니다.');
-                }
-            } catch (e) {
-                errors.push('서버 통신 중 오류가 발생했습니다.');
-            }
+            // 최종 유효성(예: 이미 탈락한 학생인지)은 백엔드에서 처리하므로 여기서는 이 이상 검증하지 않습니다.
             return errors;
         }
-        const currentStageIndex = 단계순서.indexOf(stage);
+
+        const sequentialStages = ['발', '찾', '합', '섭', '복', '예정', '센확'];
+        const currentStageIndex = sequentialStages.indexOf(stage);
+
         if (currentStageIndex > 0) {
-            const previousStage = 단계순서[currentStageIndex - 1];
+            const previousStage = sequentialStages[currentStageIndex - 1];
             const existsInUI = allRows.some(
                 (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === previousStage
             );
@@ -160,41 +133,28 @@ function StudentTracker() {
                 errors.push(`${previousStage} 단계가 먼저 등록되어야 합니다.`);
             }
         }
+
         if (stage === '발' && !row.연락처.trim()) {
             errors.push('발굴단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
         }
         if (stage === '찾' && !row.생년월일.trim()) {
             errors.push('찾기단계는 생년월일이 필요합니다.');
         }
-        if (['섭', '복', '예정'].includes(stage)) {
+        if (['섭', '복', '예정', '센확'].includes(stage)) {
             const skip = isSkipTeamCheck(row.교사팀);
             if (!skip && (!row.교사지역 || !row.교사팀 || !row.교사이름)) {
-                errors.push('C~F단계는 교사 정보가 필요합니다.');
+                errors.push('섭, 복, 예정, 센확 단계는 교사 정보가 필요합니다.');
             }
         }
         return errors;
     }
 
+    // 이 함수는 현재 handlePaste에서만 사용되므로, 핵심 로직에 영향을 주지 않습니다.
     function validateRow(row: Student, allRows: Student[]): string[] {
         const errors: string[] = [];
         const stage = row.단계.trim().toUpperCase();
         if (!STEPNAME.includes(stage)) errors.push('유효한 단계가 아닙니다.');
         if (!row.이름.trim()) errors.push('이름이 필요합니다.');
-        if (stage === '탈락') {
-            const duplicates = allRows.filter((r) => r.이름.trim() === row.이름.trim() && r.단계 === '탈락');
-            if (duplicates.length > 1) {
-                errors.push('이미 탈락 처리된 수강생입니다.');
-            }
-            return errors;
-        }
-        if (stage === '발' && !row.연락처.trim()) errors.push('A단계는 연락처가 필요합니다.');
-        if (stage === '찾' && !row.생년월일.trim()) errors.push('B단계는 생년월일이 필요합니다.');
-        if (['섭', '복', '예정'].includes(stage)) {
-            const skip = isSkipTeamCheck(row.교사팀);
-            if (!skip && (!row.교사지역 || !row.교사팀 || !row.교사이름)) {
-                errors.push('교사 정보가 필요합니다.');
-            }
-        }
         return errors;
     }
 
@@ -204,17 +164,13 @@ function StudentTracker() {
         setData((prev) => {
             const newData = [...prev];
             if (field === '인도자_고유번호' || field === '교사_고유번호') return newData;
-
             const newRow = { ...newData[index], [field]: value };
-
-            // ✨ 인도자나 교사 정보가 변경되면, 확정되었던 고유번호를 초기화해서 다시 조회하도록 함
             if (['인도자지역', '인도자팀', '인도자이름'].includes(field)) {
                 newRow.인도자_고유번호 = null;
             }
             if (['교사지역', '교사팀', '교사이름'].includes(field)) {
                 newRow.교사_고유번호 = null;
             }
-
             newData[index] = newRow;
             return newData;
         });
@@ -255,7 +211,7 @@ function StudentTracker() {
                     newRow.인도자지역 = safe(cols, 3);
                     newRow.인도자팀 = safe(cols, 4);
                     newRow.인도자이름 = safe(cols, 5);
-                } else if (['섭', '복', '예정'].includes(단계)) {
+                } else if (['합', '섭', '복', '예정', '센확'].includes(단계)) {
                     newRow.인도자지역 = safe(cols, 2);
                     newRow.인도자팀 = safe(cols, 3);
                     newRow.인도자이름 = safe(cols, 4);
@@ -284,7 +240,6 @@ function StudentTracker() {
         setLoading(true);
         setError(null);
         setSuccess(null);
-
         const filledRows = data.filter((r) => r.단계.trim());
         const validationPromises = filledRows.map((row) => validatePreviousStageForSubmit(row, filledRows));
         const newErrorsDataArray = await Promise.all(validationPromises);
@@ -297,24 +252,19 @@ function StudentTracker() {
             }
         });
         setErrorsData(newErrorsData);
-
         if (newErrorsData.flat().length > 0) {
             setError('유효성 검사 오류가 있습니다. 각 행을 확인해 주세요.');
             setLoading(false);
             return;
         }
-
         try {
             const dataWithIndex = data.map((r, index) => ({ ...r, originalIndex: index })).filter((r) => r.단계.trim());
-
             const res = await fetch('/api/students', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ data: dataWithIndex }),
             });
-
             const result = await res.json();
-
             if (!res.ok) {
                 if (res.status === 409 && result.code === 'NEEDS_SELECTION') {
                     setError(
@@ -340,19 +290,15 @@ function StudentTracker() {
 
     const handleMemberSelection = (selectedId: string) => {
         if (!selectionInfo) return;
-
         const { rowIndex, field } = selectionInfo;
-
         setData((prev) => {
             const newData = [...prev];
             const fieldKey = field === '인도자' ? '인도자_고유번호' : '교사_고유번호';
             newData[rowIndex][fieldKey] = selectedId;
             return newData;
         });
-
         setSelectionInfo(null);
         setError(null);
-
         setTimeout(() => {
             handleSubmit();
         }, 100);
@@ -398,7 +344,6 @@ function StudentTracker() {
                     </table>
                 </Spin>
             </CardContent>
-
             <Modal
                 title="동명이인 선택"
                 open={!!selectionInfo}
