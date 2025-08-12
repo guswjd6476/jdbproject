@@ -11,7 +11,7 @@ async function getOrInsertMemberUniqueId(
     지역: string,
     팀: string,
     이름: string
-): Promise<string | null> {
+): Promise<string | null | any[]> {
     if (!지역?.trim() || !이름?.trim()) {
         return null;
     }
@@ -27,35 +27,35 @@ async function getOrInsertMemberUniqueId(
 
     if (isSpecialRegion) {
         findQuery = `
-            SELECT 고유번호 FROM members
+            SELECT 고유번호, 이름, 지역, 구역 as 팀 FROM members
             WHERE 지역 = $1 AND 이름 = $2
-            LIMIT 1
         `;
         findValues = [trimmedRegion, trimmedName];
     } else {
         if (!trimmedTeam) return null;
         const prefix = trimmedTeam.charAt(0);
         findQuery = `
-        SELECT 고유번호 FROM members
-        WHERE 지역 = $1 AND 구역 LIKE $2 AND 이름 = $3
-        LIMIT 1
-    `;
+            SELECT 고유번호, 이름, 지역, 구역 as 팀 FROM members
+            WHERE 지역 = $1 AND 구역 LIKE $2 AND 이름 = $3
+        `;
         findValues = [trimmedRegion, prefix + '%', trimmedName];
     }
 
     const res = await client.query(findQuery, findValues);
 
-    if (res.rows.length > 0) {
+    if (res.rows.length > 1) {
+        return res.rows;
+    }
+    if (res.rows.length === 1) {
         return res.rows[0].고유번호;
     }
-
     if (isSpecialRegion) {
         const insertQuery = `
-        INSERT INTO members (고유번호, 지역, 이름)
-        VALUES (gen_random_uuid(), $1, $2)
-        RETURNING 고유번호
-    `;
-        const insertValues = [trimmedRegion, trimmedName];
+            INSERT INTO members (고유번호, 지역, 이름, 구역)
+            VALUES (gen_random_uuid(), $1, $2, $3)
+            RETURNING 고유번호
+        `;
+        const insertValues = [trimmedRegion, trimmedName, trimmedTeam];
         const insertRes = await client.query(insertQuery, insertValues);
         console.log(`새로운 멤버 추가: ${trimmedName} (${trimmedRegion})`);
         return insertRes.rows[0].고유번호;
@@ -152,42 +152,67 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// POST 함수 (✨ 수정됨)
 export async function POST(request: NextRequest) {
     const client = await pool.connect();
     try {
-        // --- ✨ 1. 트랜잭션 시작 ---
         await client.query('BEGIN');
 
         const body = await request.json();
         const data = body.data || [];
-        const dryRun = body.dryRun === true;
         const now = new Date();
 
-        if (dryRun) {
-            const invalid = data.some(
-                (r: { 이름: string; 단계: string }) =>
-                    !r.이름?.trim() || !단계순서.includes(r.단계?.trim().toUpperCase())
-            );
-            if (invalid) {
-                return NextResponse.json(
-                    { success: false, message: '유효하지 않은 데이터가 포함되어 있습니다.' },
-                    { status: 400 }
-                );
-            }
-            const summary = data.map((r: { 이름: string; 단계: string }) => ({
-                이름: r.이름.trim(),
-                단계: r.단계.trim().toUpperCase(),
-            }));
-            return NextResponse.json({ success: true, summary });
-        }
+        const 단계순서 = ['발', '찾', '합', '섭', '복', '예정', '센확'];
+        const 단계완료일컬럼: { [key: string]: string } = {
+            발: '발_완료일',
+            찾: '찾_완료일',
+            합: '합_완료일',
+            섭: '섭_완료일',
+            복: '복_완료일',
+            예정: '예정_완료일',
+            센확: '센확_완료일',
+        };
 
         for (const row of data) {
             const 단계 = row.단계.trim().toUpperCase();
-            row.인도자_고유번호 = await getOrInsertMemberUniqueId(client, row.인도자지역, row.인도자팀, row.인도자이름);
-            row.교사_고유번호 = ['발', '찾'].includes(단계)
-                ? null
-                : await getOrInsertMemberUniqueId(client, row.교사지역, row.교사팀, row.교사이름);
+
+            if (!row.인도자_고유번호) {
+                const indojaResult = await getOrInsertMemberUniqueId(
+                    client,
+                    row.인도자지역,
+                    row.인도자팀,
+                    row.인도자이름
+                );
+                if (Array.isArray(indojaResult)) {
+                    await client.query('ROLLBACK');
+                    return NextResponse.json(
+                        {
+                            success: false,
+                            message: '동명이인이 있습니다. 선택이 필요합니다.',
+                            code: 'NEEDS_SELECTION',
+                            context: { rowIndex: row.originalIndex, field: '인도자', choices: indojaResult },
+                        },
+                        { status: 409 }
+                    );
+                }
+                row.인도자_고유번호 = indojaResult as string | null;
+            }
+
+            if (!['발', '찾'].includes(단계) && !row.교사_고유번호) {
+                const gyosaResult = await getOrInsertMemberUniqueId(client, row.교사지역, row.교사팀, row.교사이름);
+                if (Array.isArray(gyosaResult)) {
+                    await client.query('ROLLBACK');
+                    return NextResponse.json(
+                        {
+                            success: false,
+                            message: '동명이인이 있습니다. 선택이 필요합니다.',
+                            code: 'NEEDS_SELECTION',
+                            context: { rowIndex: row.originalIndex, field: '교사', choices: gyosaResult },
+                        },
+                        { status: 409 }
+                    );
+                }
+                row.교사_고유번호 = gyosaResult as string | null;
+            }
 
             let existingRes;
             if (row.인도자_고유번호) {
@@ -201,24 +226,24 @@ export async function POST(request: NextRequest) {
                     [row.이름.trim(), row.교사_고유번호]
                 );
             } else {
-                existingRes = { rows: [] };
+                existingRes = await client.query(
+                    'SELECT * FROM students WHERE 이름 = $1 AND 인도자_고유번호 IS NULL AND 교사_고유번호 IS NULL ORDER BY id DESC LIMIT 1',
+                    [row.이름.trim()]
+                );
             }
 
             const existing = existingRes.rows.length > 0 ? existingRes.rows[0] : null;
 
-            // --- ✨ 2. 이전 단계 완료일 확인 로직 ---
             if (existing) {
                 const currentStageIndex = 단계순서.indexOf(단계);
                 if (currentStageIndex > 0) {
                     const previousStage = 단계순서[currentStageIndex - 1];
                     const prevStageCompletionDateCol = 단계완료일컬럼[previousStage];
-
                     if (prevStageCompletionDateCol && existing[prevStageCompletionDateCol]) {
                         const completionDate = new Date(existing[prevStageCompletionDateCol]);
                         const today = new Date();
                         completionDate.setHours(0, 0, 0, 0);
                         today.setHours(0, 0, 0, 0);
-
                         if (completionDate.getTime() === today.getTime()) {
                             throw new Error(
                                 `'${row.이름}' 학생은 '${previousStage}' 단계를 오늘 완료하여 다음 단계 등록이 불가능합니다.`
@@ -227,7 +252,6 @@ export async function POST(request: NextRequest) {
                     }
                 }
             }
-            // --- ✨ 로직 종료 ---
 
             const 완료일: { [key: string]: Date | null } = {
                 발_완료일: null,
@@ -237,10 +261,12 @@ export async function POST(request: NextRequest) {
                 복_완료일: null,
                 예정_완료일: null,
                 센확_완료일: null,
-                g: null,
             };
             const colName = 단계완료일컬럼[단계];
             if (colName) 완료일[colName] = now;
+
+            // ✨ FIX: `isDropout`(boolean) 대신 `탈락일`(timestamp)을 사용하도록 수정합니다.
+            const 탈락일 = 단계 === '탈락' ? now : null;
 
             if (existing) {
                 await client.query(
@@ -250,7 +276,7 @@ export async function POST(request: NextRequest) {
                         발_완료일 = COALESCE(발_완료일, $6), 찾_완료일 = COALESCE(찾_완료일, $7),
                         합_완료일 = COALESCE(합_완료일, $8), 섭_완료일 = COALESCE(섭_완료일, $9),
                         복_완료일 = COALESCE(복_완료일, $10), 예정_완료일 = COALESCE(예정_완료일, $11),
-                       센확_완료일 = COALESCE(센확_완료일, $12),
+                        센확_완료일 = COALESCE(센확_완료일, $12),
                         탈락 = COALESCE(탈락, $13)
                     WHERE id = $14`,
                     [
@@ -266,14 +292,14 @@ export async function POST(request: NextRequest) {
                         완료일.복_완료일,
                         완료일.예정_완료일,
                         완료일.센확_완료일,
-                        완료일.g,
+                        탈락일, // ✨ FIX: boolean 대신 timestamp 또는 null 값을 전달
                         existing.id,
                     ]
                 );
             } else {
                 await client.query(
                     `INSERT INTO students
-                        (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일,  센확_완료일, 탈락)
+                        (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일, 센확_완료일, 탈락)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
                     [
                         단계,
@@ -289,17 +315,15 @@ export async function POST(request: NextRequest) {
                         완료일.복_완료일,
                         완료일.예정_완료일,
                         완료일.센확_완료일,
-                        완료일.g,
+                        탈락일, // ✨ FIX: boolean 대신 timestamp 또는 null 값을 전달
                     ]
                 );
             }
         }
 
-        // --- ✨ 3. 모든 작업이 성공하면 트랜잭션 커밋 ---
         await client.query('COMMIT');
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, message: '성공적으로 저장되었습니다.' });
     } catch (err) {
-        // --- ✨ 4. 에러 발생 시 트랜잭션 롤백 ---
         await client.query('ROLLBACK');
         console.error('POST /api/students 에러:', err);
         const message = err instanceof Error ? err.message : '서버 오류가 발생했습니다.';

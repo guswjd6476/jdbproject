@@ -6,12 +6,11 @@ import TableHeader from './table/TableHeader';
 import TableRow from './table/TableRow';
 import AddRowButton from './table/AddRowButton';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
-import { Student } from '../lib/types';
+import { STEPNAME, Student } from '../lib/types';
 import { Spin, Alert, Modal } from 'antd';
 
 const INITIAL_ROWS = 100;
 const ADDITIONAL_ROWS = 10;
-const 단계순서 = ['발', '찾', '합', '섭', '복', '예정', '탈락'];
 
 const initialRow: Student = {
     id: '',
@@ -29,14 +28,34 @@ const initialRow: Student = {
     교사_고유번호: null,
 };
 
+// ✨ 백엔드에서 오는 동명이인 선택지 타입을 정의합니다.
+interface MemberChoice {
+    고유번호: string;
+    이름: string;
+    지역: string;
+    팀: string;
+}
+
+// ✨ 동명이인 선택 모달의 정보를 관리할 state의 타입을 정의합니다.
+interface SelectionInfo {
+    rowIndex: number;
+    field: '인도자' | '교사';
+    choices: MemberChoice[];
+}
+
 function StudentTracker() {
     const [data, setData] = useState<Student[]>(Array.from({ length: INITIAL_ROWS }, () => ({ ...initialRow })));
     const [errorsData, setErrorsData] = useState<string[][]>(Array.from({ length: INITIAL_ROWS }, () => []));
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    const [summaryList, setSummaryList] = useState<{ 이름: string; 단계: string }[]>([]);
-    const [confirmVisible, setConfirmVisible] = useState(false);
+
+    // ✨ 동명이인 선택 모달을 위한 state
+    const [selectionInfo, setSelectionInfo] = useState<SelectionInfo | null>(null);
+
+    // ✨ 기존에 분리되어 있던 저장 확인 관련 state는 이제 필요 없습니다.
+    // const [summaryList, setSummaryList] = useState<{ 이름: string; 단계: string }[]>([]);
+    // const [confirmVisible, setConfirmVisible] = useState(false);
 
     const { isAdmin } = useUser();
 
@@ -44,7 +63,6 @@ function StudentTracker() {
         return ['타지파', '타부서', '수강생', '지교회'].some((kw) => team.includes(kw));
     }
 
-    // ✨ 반환 타입을 객체로 변경
     async function checkPreviousStageExists(
         name: string,
         stage: string,
@@ -55,7 +73,6 @@ function StudentTracker() {
         teacherTeam: string,
         teacherName: string
     ): Promise<{ exists: boolean; completedToday: boolean }> {
-        // ✨ 반환 타입 수정
         try {
             const query = new URLSearchParams({
                 name,
@@ -70,7 +87,6 @@ function StudentTracker() {
             const res = await fetch(`/api/students/checkPreviousStage?${query.toString()}`);
             if (!res.ok) return { exists: false, completedToday: false };
             const json = await res.json();
-            // ✨ API가 completedToday 플래그를 반환한다고 가정
             return { exists: json.exists === true, completedToday: json.completedToday === true };
         } catch {
             return { exists: false, completedToday: false };
@@ -79,10 +95,8 @@ function StudentTracker() {
 
     async function validatePreviousStageForSubmit(row: Student, allRows: Student[]): Promise<string[]> {
         const errors: string[] = [];
-        // stage 대문자로 변환하되 '탈락'은 그대로 비교할 것
         const stageRaw = row.단계.trim();
         const stage = stageRaw.toUpperCase() === '탈락' ? '탈락' : stageRaw.toUpperCase();
-
         const 단계순서 = ['발', '찾', '합', '섭', '복', '예정'];
 
         if (stage !== '탈락' && !단계순서.includes(stage)) {
@@ -98,12 +112,9 @@ function StudentTracker() {
         if (stage === '탈락') {
             const hasFullIndo = row.인도자지역 && row.인도자팀 && row.인도자이름;
             const hasFullTeacher = row.교사지역 && row.교사팀 && row.교사이름;
-
             if (!hasFullIndo && !hasFullTeacher) {
                 errors.push('탈락 시 인도자 정보 또는 교사 정보가 필요합니다.');
             }
-
-            // '탈락' 유효성 검사를 위해 API를 직접 호출하여 상세한 오류를 확인합니다.
             try {
                 const query = new URLSearchParams({
                     name: row.이름.trim(),
@@ -117,19 +128,14 @@ function StudentTracker() {
                 });
                 const res = await fetch(`/api/students/checkPreviousStage?${query.toString()}`);
                 const json = await res.json();
-
                 if (!res.ok) {
-                    // 백엔드에서 400 오류와 함께 보낸 메시지를 오류 배열에 추가합니다.
-                    // (예: "탈락 처리할 기존 학생 기록이 없습니다.")
                     errors.push(json.message || '유효성 검사 중 오류가 발생했습니다.');
                 } else if (json.exists === true) {
-                    // 이미 '탈락'으로 등록된 경우
                     errors.push('이미 탈락으로 등록된 학생입니다.');
                 }
             } catch (e) {
                 errors.push('서버 통신 중 오류가 발생했습니다.');
             }
-
             return errors;
         }
         const currentStageIndex = 단계순서.indexOf(stage);
@@ -138,7 +144,6 @@ function StudentTracker() {
             const existsInUI = allRows.some(
                 (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === previousStage
             );
-
             const { exists: existsInDB, completedToday } = await checkPreviousStageExists(
                 row.이름,
                 previousStage,
@@ -149,14 +154,12 @@ function StudentTracker() {
                 row.교사팀,
                 row.교사이름
             );
-
             if (completedToday) {
                 errors.push(`${previousStage} 단계를 오늘 완료하여 현재 단계 등록이 불가능합니다.`);
             } else if (!existsInUI && !existsInDB) {
                 errors.push(`${previousStage} 단계가 먼저 등록되어야 합니다.`);
             }
         }
-
         if (stage === '발' && !row.연락처.trim()) {
             errors.push('발굴단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
         }
@@ -169,15 +172,13 @@ function StudentTracker() {
                 errors.push('C~F단계는 교사 정보가 필요합니다.');
             }
         }
-
         return errors;
     }
 
     function validateRow(row: Student, allRows: Student[]): string[] {
         const errors: string[] = [];
         const stage = row.단계.trim().toUpperCase();
-
-        if (!단계순서.includes(stage)) errors.push('유효한 단계가 아닙니다.');
+        if (!STEPNAME.includes(stage)) errors.push('유효한 단계가 아닙니다.');
         if (!row.이름.trim()) errors.push('이름이 필요합니다.');
         if (stage === '탈락') {
             const duplicates = allRows.filter((r) => r.이름.trim() === row.이름.trim() && r.단계 === '탈락');
@@ -186,7 +187,6 @@ function StudentTracker() {
             }
             return errors;
         }
-
         if (stage === '발' && !row.연락처.trim()) errors.push('A단계는 연락처가 필요합니다.');
         if (stage === '찾' && !row.생년월일.trim()) errors.push('B단계는 생년월일이 필요합니다.');
         if (['섭', '복', '예정'].includes(stage)) {
@@ -195,7 +195,6 @@ function StudentTracker() {
                 errors.push('교사 정보가 필요합니다.');
             }
         }
-
         return errors;
     }
 
@@ -205,7 +204,18 @@ function StudentTracker() {
         setData((prev) => {
             const newData = [...prev];
             if (field === '인도자_고유번호' || field === '교사_고유번호') return newData;
-            newData[index] = { ...newData[index], [field]: value };
+
+            const newRow = { ...newData[index], [field]: value };
+
+            // ✨ 인도자나 교사 정보가 변경되면, 확정되었던 고유번호를 초기화해서 다시 조회하도록 함
+            if (['인도자지역', '인도자팀', '인도자이름'].includes(field)) {
+                newRow.인도자_고유번호 = null;
+            }
+            if (['교사지역', '교사팀', '교사이름'].includes(field)) {
+                newRow.교사_고유번호 = null;
+            }
+
+            newData[index] = newRow;
             return newData;
         });
     };
@@ -227,19 +237,14 @@ function StudentTracker() {
         const paste = e.clipboardData.getData('text');
         const rows = paste.split('\n').filter(Boolean);
         const parsed = rows.map((row) => row.split(/\t|\//));
-
         setData((prev) => {
             const newData = [...prev];
             let writeIndex = newData.findIndex((r) => r.단계 === '');
-
             parsed.forEach((cols) => {
                 if (writeIndex < 0 || writeIndex >= newData.length) return;
-
                 const 단계 = safe(cols, 0)?.toUpperCase();
                 const 이름 = safe(cols, 1);
-
                 const newRow: Student = { ...initialRow, 단계, 이름 };
-
                 if (단계 === '발') {
                     newRow.연락처 = safe(cols, 2);
                     newRow.인도자지역 = safe(cols, 3);
@@ -267,13 +272,10 @@ function StudentTracker() {
                         newRow.교사이름 = safe(cols, 7);
                     }
                 }
-
                 newData[writeIndex] = newRow;
                 writeIndex++;
             });
-
             setErrorsData((prevErrors) => newData.map((r) => (r.단계 ? validateRow(r, newData) : [])));
-
             return newData;
         });
     };
@@ -282,15 +284,10 @@ function StudentTracker() {
         setLoading(true);
         setError(null);
         setSuccess(null);
+
         const filledRows = data.filter((r) => r.단계.trim());
-
-        // Create a flat list of promises
         const validationPromises = filledRows.map((row) => validatePreviousStageForSubmit(row, filledRows));
-
-        // Await all promises to resolve
         const newErrorsDataArray = await Promise.all(validationPromises);
-
-        // Map the results back to the original data structure
         const newErrorsData: string[][] = Array.from({ length: data.length }, () => []);
         let filledRowIndex = 0;
         data.forEach((row, i) => {
@@ -299,7 +296,6 @@ function StudentTracker() {
                 filledRowIndex++;
             }
         });
-
         setErrorsData(newErrorsData);
 
         if (newErrorsData.flat().length > 0) {
@@ -309,44 +305,57 @@ function StudentTracker() {
         }
 
         try {
+            const dataWithIndex = data.map((r, index) => ({ ...r, originalIndex: index })).filter((r) => r.단계.trim());
+
             const res = await fetch('/api/students', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data: filledRows, dryRun: true }),
+                body: JSON.stringify({ data: dataWithIndex }),
             });
 
             const result = await res.json();
-            if (!res.ok || !result.success) throw new Error(result.message);
 
-            setSummaryList(result.summary);
-            setConfirmVisible(true);
+            if (!res.ok) {
+                if (res.status === 409 && result.code === 'NEEDS_SELECTION') {
+                    setError(
+                        `[${result.context.field}] '${result.context.choices[0].이름}' 동명이인이 있습니다. 한 명을 선택해주세요.`
+                    );
+                    setSelectionInfo(result.context);
+                } else {
+                    throw new Error(result.message || '서버 오류가 발생했습니다.');
+                }
+            } else {
+                setSuccess('모든 정보가 성공적으로 저장되었습니다.');
+                setData(Array.from({ length: INITIAL_ROWS }, () => ({ ...initialRow })));
+                setErrorsData(Array.from({ length: INITIAL_ROWS }, () => []));
+            }
         } catch (err: any) {
-            setError(err.message || '서버 오류 발생');
+            if (!selectionInfo) {
+                setError(err.message || '알 수 없는 서버 오류');
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    const handleFinalSubmit = async () => {
-        setLoading(true);
-        setConfirmVisible(false);
-        const filledRows = data.filter((r) => r.단계.trim());
-        try {
-            const res = await fetch('/api/students', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data: filledRows, dryRun: false }),
-            });
+    const handleMemberSelection = (selectedId: string) => {
+        if (!selectionInfo) return;
 
-            const result = await res.json();
-            if (!res.ok || !result.success) throw new Error(result.message);
-            setSuccess('최종 저장이 완료되었습니다.');
-            // 성공적으로 저장 후 데이터 초기화 또는 재로딩 로직 추가 가능
-        } catch (e: any) {
-            setError(e.message);
-        } finally {
-            setLoading(false);
-        }
+        const { rowIndex, field } = selectionInfo;
+
+        setData((prev) => {
+            const newData = [...prev];
+            const fieldKey = field === '인도자' ? '인도자_고유번호' : '교사_고유번호';
+            newData[rowIndex][fieldKey] = selectedId;
+            return newData;
+        });
+
+        setSelectionInfo(null);
+        setError(null);
+
+        setTimeout(() => {
+            handleSubmit();
+        }, 100);
     };
 
     return (
@@ -364,29 +373,14 @@ function StudentTracker() {
                         저장하기
                     </button>
                     <div className="min-w-[200px] whitespace-pre-line">
-                        {error && (
-                            <Alert
-                                message={error}
-                                type="error"
-                                showIcon
-                            />
-                        )}
-                        {success && (
-                            <Alert
-                                message={success}
-                                type="success"
-                                showIcon
-                            />
-                        )}
+                        {error && <Alert message={error} type="error" showIcon />}
+                        {success && <Alert message={success} type="success" showIcon />}
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
                 <Spin spinning={loading}>
-                    <table
-                        className="border-collapse border border-slate-400"
-                        onPaste={handlePaste}
-                    >
+                    <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
                         <TableHeader />
                         <tbody>
                             {data.map((row, i) => (
@@ -397,7 +391,7 @@ function StudentTracker() {
                                     errors={errorsData[i]}
                                     onChange={handleChange}
                                     onDelete={() => handleDeleteRow(i)}
-                                    selectStages={단계순서}
+                                    selectStages={STEPNAME}
                                 />
                             ))}
                         </tbody>
@@ -406,33 +400,56 @@ function StudentTracker() {
             </CardContent>
 
             <Modal
-                title="저장 확인"
-                open={confirmVisible}
-                onCancel={() => setConfirmVisible(false)}
-                onOk={handleFinalSubmit}
-                okText="확인"
-                cancelText="취소"
+                title="동명이인 선택"
+                open={!!selectionInfo}
+                onCancel={() => {
+                    setSelectionInfo(null);
+                    setError(null);
+                }}
+                footer={null}
                 width={600}
             >
-                <p>입력된 정보를 최종 저장하시겠습니까?</p>
-                <div style={{ maxHeight: 300, overflowY: 'auto', marginTop: 16 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr>
-                                <th style={{ borderBottom: '1px solid #ccc', padding: '4px' }}>이름</th>
-                                <th style={{ borderBottom: '1px solid #ccc', padding: '4px' }}>단계</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {summaryList.map((item, i) => (
-                                <tr key={i}>
-                                    <td style={{ borderBottom: '1px solid #eee', padding: '4px' }}>{item.이름}</td>
-                                    <td style={{ borderBottom: '1px solid #eee', padding: '4px' }}>{item.단계}</td>
-                                </tr>
+                {selectionInfo && (
+                    <div>
+                        <p>
+                            <b>{selectionInfo.field}</b> '{selectionInfo.choices[0].이름}'님이 여러 명 발견되었습니다.{' '}
+                            <br />
+                            아래 목록에서 정확한 한 명을 선택해 주세요.
+                        </p>
+                        <div
+                            style={{
+                                maxHeight: 300,
+                                overflowY: 'auto',
+                                marginTop: 16,
+                                border: '1px solid #eee',
+                                borderRadius: '8px',
+                            }}
+                        >
+                            {selectionInfo.choices.map((member) => (
+                                <div
+                                    key={member.고유번호}
+                                    style={{
+                                        padding: '12px',
+                                        borderBottom: '1px solid #eee',
+                                        cursor: 'pointer',
+                                        transition: 'background-color 0.2s',
+                                    }}
+                                    onClick={() => handleMemberSelection(member.고유번호)}
+                                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f0f0f0')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                >
+                                    <div style={{ fontWeight: 'bold', fontSize: '16px' }}>{member.이름}</div>
+                                    <div style={{ color: '#555' }}>
+                                        {member.지역} / {member.팀 || '팀 정보 없음'}
+                                    </div>
+                                    <div style={{ color: '#888', fontSize: '12px', marginTop: '4px' }}>
+                                        고유번호: {member.고유번호}
+                                    </div>
+                                </div>
                             ))}
-                        </tbody>
-                    </table>
-                </div>
+                        </div>
+                    </div>
+                )}
             </Modal>
         </Card>
     );

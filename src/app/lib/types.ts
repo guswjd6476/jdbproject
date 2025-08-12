@@ -27,6 +27,7 @@ export const headers = [
     '교사 팀',
     '교사 이름',
 ];
+export const STEPNAME = ['발', '찾', '합', '섭', '복', '예정', '탈락'];
 export const STEPS = ['발', '찾', '합', '섭', '복', '예정', '탈락'] as const;
 export const STEPS2 = ['발', '찾', '합', '섭', '복', '예정'] as const;
 export type STEP = '발' | '찾' | '합' | '섭' | '복' | '예정' | '탈락';

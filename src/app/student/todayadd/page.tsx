@@ -15,7 +15,6 @@ const { Title } = Typography;
 const { RangePicker } = DatePicker;
 const { useBreakpoint } = Grid;
 
-// ... (StudentBrief, SummaryData 인터페이스는 이전과 동일)
 interface StudentBrief {
     id: number;
     이름: string;
