@@ -249,6 +249,14 @@ export default function RegionWiseRemarks() {
             width: 60,
             filters: uniqueFilters.target,
             onFilter: (value, record) => String(record.target) === value,
+            sorter: (a, b) => {
+                const getMonthValue = (month?: string) => {
+                    if (!month) return 999; // 빈값은 맨 뒤
+                    if (month === '장기') return 998; // 장기는 뒤쪽으로
+                    return parseInt(month.replace('월', ''), 10) || 999;
+                };
+                return getMonthValue(targets[a.번호]?.month) - getMonthValue(targets[b.번호]?.month);
+            },
             render: (_, record) => (
                 <Select
                     value={targets[record.번호]?.month}

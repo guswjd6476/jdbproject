@@ -239,7 +239,16 @@ const WeeklyGoalsTable = ({
                         const rate = goal > 0 ? (ach / goal) * 100 : 0;
                         let colorStyle: React.CSSProperties = {};
 
-                        if (!stepFilterToggle[weekKey] && (weekIndex === 0 || weekIndex === 1) && step !== '발') {
+                        const highlightStepByWeek: Record<number, string> = {
+                            0: '발', // 1주차
+                            1: '찾', // 2주차
+                        };
+
+                        if (
+                            !stepFilterToggle[weekKey] &&
+                            (weekIndex === 0 || weekIndex === 1) &&
+                            step !== highlightStepByWeek[weekIndex]
+                        ) {
                             colorStyle = {};
                         } else {
                             if (rate >= 100) {
@@ -306,17 +315,11 @@ const WeeklyGoalsTable = ({
         return (
             <div className="flex-1 min-w-[50%]">
                 {/* --- here is the modification --- */}
-                <div
-                    ref={weekTitleTextRefs[weekKey]}
-                    style={{ marginBottom: 8, fontWeight: 'bold' }}
-                >
+                <div ref={weekTitleTextRefs[weekKey]} style={{ marginBottom: 8, fontWeight: 'bold' }}>
                     {currentMonth}월 {weekIndex + 1}주차 ({weekName}, {display})
                 </div>
                 {/* --- modification ends here --- */}
-                <div
-                    ref={tableRefs[weekKey]}
-                    className="bg-white p-4 rounded-md shadow-md"
-                >
+                <div ref={tableRefs[weekKey]} className="bg-white p-4 rounded-md shadow-md">
                     <Table
                         columns={columns}
                         dataSource={flatTeams}
@@ -374,21 +377,12 @@ const WeeklyGoalsTable = ({
                 // --- modification ends here ---
 
                 return (
-                    <div
-                        key={weekKey}
-                        className="mb-10"
-                    >
+                    <div key={weekKey} className="mb-10">
                         <div className="flex justify-end mb-2 space-x-2">
-                            <Button
-                                type="primary"
-                                onClick={() => toggleStepFilter(weekKey)}
-                            >
+                            <Button type="primary" onClick={() => toggleStepFilter(weekKey)}>
                                 {stepFilterToggle[weekKey] ? '필터된 보기' : '전체 보기'}
                             </Button>
-                            <Button
-                                type="primary"
-                                onClick={() => saveTableAsImage(weekKey, weekIndex)}
-                            >
+                            <Button type="primary" onClick={() => saveTableAsImage(weekKey, weekIndex)}>
                                 이미지로 저장
                             </Button>
                         </div>
@@ -544,10 +538,7 @@ const RenderChart = ({
             };
 
             return (
-                <div
-                    key={week.weekKey}
-                    className="mb-8"
-                >
+                <div key={week.weekKey} className="mb-8">
                     <div className="flex justify-between items-center mb-2">
                         {/* --- here is the modification --- */}
                         <h3 className="text-md font-medium">
@@ -561,14 +552,8 @@ const RenderChart = ({
                             이미지로 저장
                         </button>
                     </div>
-                    <div
-                        ref={chartRefs[week.weekKey]}
-                        className="chart-container bg-white p-4 rounded-md shadow-md"
-                    >
-                        <Bar
-                            data={chartData}
-                            options={options}
-                        />
+                    <div ref={chartRefs[week.weekKey]} className="chart-container bg-white p-4 rounded-md shadow-md">
+                        <Bar data={chartData} options={options} />
                     </div>
                 </div>
             );
@@ -961,10 +946,7 @@ export default function GoalCalculatorTable() {
                     <div className="grid grid-cols-2 gap-4 mb-4">
                         {user === 'all' && (
                             <div>
-                                <label
-                                    htmlFor="region-select"
-                                    className="block text-sm font-medium text-gray-700"
-                                >
+                                <label htmlFor="region-select" className="block text-sm font-medium text-gray-700">
                                     지역 선택:
                                 </label>
                                 <select
@@ -974,10 +956,7 @@ export default function GoalCalculatorTable() {
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                 >
                                     {REGIONS.map((reg) => (
-                                        <option
-                                            key={reg}
-                                            value={reg}
-                                        >
+                                        <option key={reg} value={reg}>
                                             {reg}
                                         </option>
                                     ))}
@@ -985,10 +964,7 @@ export default function GoalCalculatorTable() {
                             </div>
                         )}
                         <div>
-                            <label
-                                htmlFor="month-select"
-                                className="block text-sm font-medium text-gray-700"
-                            >
+                            <label htmlFor="month-select" className="block text-sm font-medium text-gray-700">
                                 월 선택:
                             </label>
                             <select
@@ -998,10 +974,7 @@ export default function GoalCalculatorTable() {
                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                             >
                                 {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                                    <option
-                                        key={month}
-                                        value={month}
-                                    >
+                                    <option key={month} value={month}>
                                         {month}월
                                     </option>
                                 ))}
@@ -1022,10 +995,7 @@ export default function GoalCalculatorTable() {
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                 >
                                     {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                                        <option
-                                            key={month}
-                                            value={month}
-                                        >
+                                        <option key={month} value={month}>
                                             {month}월
                                         </option>
                                     ))}
@@ -1036,10 +1006,7 @@ export default function GoalCalculatorTable() {
                     <div className="grid grid-cols-2 gap-4 mb-4">
                         {Object.keys(fGoals).map((team, index) => (
                             <div key={team}>
-                                <label
-                                    htmlFor={team}
-                                    className="block text-sm font-medium text-gray-700"
-                                >
+                                <label htmlFor={team} className="block text-sm font-medium text-gray-700">
                                     {region} {index + 1}팀 F 목표:
                                 </label>
                                 <input
@@ -1121,10 +1088,7 @@ export default function GoalCalculatorTable() {
                                             <tr key={weekKey}>
                                                 <td className="border p-2">{label}</td>
                                                 {(steps as ReadonlyArray<keyof WeeklyGoals>).map((key) => (
-                                                    <td
-                                                        key={key}
-                                                        className="border p-2 text-center"
-                                                    >
+                                                    <td key={key} className="border p-2 text-center">
                                                         <input
                                                             type="number"
                                                             value={Math.round(
@@ -1161,10 +1125,7 @@ export default function GoalCalculatorTable() {
                                                 }, 0);
 
                                                 return (
-                                                    <td
-                                                        key={key}
-                                                        className="border p-2 text-center"
-                                                    >
+                                                    <td key={key} className="border p-2 text-center">
                                                         {Math.round(total * 100)}%
                                                     </td>
                                                 );
@@ -1216,10 +1177,7 @@ export default function GoalCalculatorTable() {
                     </h1>
                     <div className="grid grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label
-                                htmlFor="month-select"
-                                className="block text-sm font-medium text-gray-700"
-                            >
+                            <label htmlFor="month-select" className="block text-sm font-medium text-gray-700">
                                 월 선택:
                             </label>
                             <select
@@ -1229,10 +1187,7 @@ export default function GoalCalculatorTable() {
                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                             >
                                 {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                                    <option
-                                        key={month}
-                                        value={month}
-                                    >
+                                    <option key={month} value={month}>
                                         {month}월
                                     </option>
                                 ))}
@@ -1253,10 +1208,7 @@ export default function GoalCalculatorTable() {
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                 >
                                     {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                                        <option
-                                            key={month}
-                                            value={month}
-                                        >
+                                        <option key={month} value={month}>
                                             {month}월
                                         </option>
                                     ))}
@@ -1321,10 +1273,7 @@ export default function GoalCalculatorTable() {
                                                     </tr>
                                                 ))}
                                                 <tr className="font-bold">
-                                                    <td
-                                                        className="border p-2"
-                                                        colSpan={2}
-                                                    >
+                                                    <td className="border p-2" colSpan={2}>
                                                         계
                                                     </td>
                                                     {(steps as ReadonlyArray<keyof WeeklyGoals>).map((step) => (
