@@ -1,6 +1,6 @@
 // src/app/components/table/TableRow.tsx
 import { Input as AntInput } from 'antd';
-import { Student } from '@/app/lib/types';
+import { STEPNAME, Student } from '@/app/lib/types';
 
 interface TableRowProps {
     row: Student;
@@ -24,8 +24,7 @@ export default function TableRow({ row, index, onChange, onDelete, errors, selec
         '교사팀',
         '교사이름',
     ];
-    const allowedStages = ['발', '찾', '합', '섭', '복', '예정', '탈락'];
-    const isInvalidStage = row.단계 && !allowedStages.includes(row.단계.trim().toUpperCase());
+    const isInvalidStage = row.단계 && !STEPNAME.includes(row.단계.trim().toUpperCase());
 
     return (
         <tr className={errors.length ? 'bg-red-50' : ''}>
