@@ -18,7 +18,8 @@ export default function DashboardPage() {
     const region = useUser();
     const isRegionalAccount = region.user !== null && region.user !== 'all';
     const { data: students = [], isLoading } = useStudentsQuery();
-    const [scoreMode, setScoreMode] = useState<'score' | 'count'>('score');
+
+    // 상태 변수 선언 (scoreMode, countBasis 제거)
     const [selectedYear, setSelectedYear] = useState<number>(dayjs().year());
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
     const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
@@ -26,6 +27,7 @@ export default function DashboardPage() {
     const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
     const [selectedDateRange, setSelectedDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
 
+    // 필터 옵션
     const monthOptions = Array.from({ length: 12 }, (_, i) => ({ label: `${i + 1}월`, value: i + 1 }));
     const yearOptions = [dayjs().year() - 1, dayjs().year(), dayjs().year() + 1].map((y) => ({
         value: y,
@@ -53,28 +55,32 @@ export default function DashboardPage() {
         }
 
         students.forEach((s) => {
-            const 지역 = (s.인도자지역 ?? '').trim();
+            // 필터링 및 기본 정보 설정 (인도자 기준)
+            const leader지역 = (s.인도자지역 ?? '').trim();
+            const leaderRaw구역 = (s.인도자팀 ?? '').trim();
+            const leader구역 = leaderRaw구역;
+            const leader팀 = leader구역.includes('-') ? leader구역.split('-')[0] : leader구역;
 
-            const raw구역 = (s.인도자팀 ?? '').trim();
-            const 구역 = raw구역;
-            const 팀 = 구역.includes('-') ? 구역.split('-')[0] : 구역;
-
-            if (!REGIONS.includes(지역) || !fixedTeams.includes(팀)) return;
+            if (!REGIONS.includes(leader지역) || !fixedTeams.includes(leader팀)) return;
 
             if (isRegionalAccount) {
-                if (selectedTeam && 팀 !== selectedTeam) return;
-                if (selectedRegion && 구역 !== selectedRegion) return;
+                if (selectedTeam && leader팀 !== selectedTeam) return;
+                if (selectedRegion && leader구역 !== selectedRegion) return;
             } else {
-                if (selectedRegion && 지역 !== selectedRegion) return;
-                if (selectedTeam && 팀 !== selectedTeam) return;
+                if (selectedRegion && leader지역 !== selectedRegion) return;
+                if (selectedTeam && leader팀 !== selectedTeam) return;
             }
 
+            // 보유건 집계 (인도자 기준)
             const currentStep = (s.단계 ?? '').toUpperCase();
             if (STEPS.includes(currentStep as STEP)) {
-                const key = isRegionalAccount ? `${팀}-${구역}-${currentStep}` : `${지역}-${팀}-${currentStep}`;
+                const key = isRegionalAccount
+                    ? `${leader팀}-${leader구역}-${currentStep}`
+                    : `${leader지역}-${leader팀}-${currentStep}`;
                 보유건Map[key] = (보유건Map[key] ?? 0) + 1;
             }
 
+            // 단계별 실적 집계
             STEPS.forEach((step) => {
                 const key = step.toLowerCase() as keyof Student;
                 const dateStr = s[key] as string | null | undefined;
@@ -94,16 +100,17 @@ export default function DashboardPage() {
 
                 const month = (date.month() + 1).toString();
 
-                const useTeacher = step === '섭' || step === '복' || step === '예정';
+                // [핵심 수정] 단계에 따라 교사/인도자 기준을 자동으로 선택
+                const teacherBasedSteps: STEP[] = ['합', '섭', '복', '예정'];
+                const useTeacherData = teacherBasedSteps.includes(step);
 
-                const targets = [
-                    {
-                        지역: useTeacher ? (s.교사지역 ?? '').trim() : (s.인도자지역 ?? '').trim(),
-                        팀: useTeacher ? (s.교사팀 ? s.교사팀.trim().split('-')[0] : '') : 팀,
-                        구역: useTeacher ? (s.교사팀 ? s.교사팀.trim() : '') : 구역,
-                        점수: 1,
-                    },
-                ];
+                const target지역 = useTeacherData ? (s.교사지역 ?? '').trim() : (s.인도자지역 ?? '').trim();
+                const targetRaw팀 = useTeacherData ? (s.교사팀 ?? '').trim() : (s.인도자팀 ?? '').trim();
+                const target팀 = targetRaw팀.includes('-') ? targetRaw팀.split('-')[0] : targetRaw팀;
+                const target구역 = targetRaw팀;
+                const 점수 = 1; // 항상 건수(1)로 집계
+
+                const targets = [{ 지역: target지역, 팀: target팀, 구역: target구역, 점수 }];
 
                 targets.forEach(({ 지역, 팀, 구역, 점수 }) => {
                     if (!REGIONS.includes(지역) || !fixedTeams.includes(팀)) return;
@@ -132,8 +139,7 @@ export default function DashboardPage() {
                 });
             });
 
-            // ... 나머지 코드는 그대로 ...
-
+            // 탈락 건 집계 (인도자 기준)
             const 탈락일Str = s.g;
             if (탈락일Str) {
                 const 탈락일 = dayjs(탈락일Str);
@@ -159,38 +165,44 @@ export default function DashboardPage() {
 
                 if (마지막단계) {
                     const 탈락key = `${마지막단계}_탈락`;
-
                     if (!(month in grouped)) grouped[month] = {};
 
                     if (isRegionalAccount) {
-                        if (!grouped[month][팀]) grouped[month][팀] = {};
-                        if (!grouped[month][팀][구역]) grouped[month][팀][구역] = {};
-
-                        grouped[month][팀][구역][탈락key] = (grouped[month][팀][구역][탈락key] ?? 0) + 1;
-                        grouped[month][팀][구역]['탈락'] = (grouped[month][팀][구역]['탈락'] ?? 0) + 1;
+                        if (!grouped[month][leader팀]) grouped[month][leader팀] = {};
+                        if (!grouped[month][leader팀][leader구역]) grouped[month][leader팀][leader구역] = {};
+                        grouped[month][leader팀][leader구역][탈락key] =
+                            (grouped[month][leader팀][leader구역][탈락key] ?? 0) + 1;
+                        grouped[month][leader팀][leader구역]['탈락'] =
+                            (grouped[month][leader팀][leader구역]['탈락'] ?? 0) + 1;
 
                         grouped['전체'] = grouped['전체'] ?? {};
-                        grouped['전체'][팀] = grouped['전체'][팀] ?? {};
-                        grouped['전체'][팀][구역] = grouped['전체'][팀][구역] ?? {};
-                        grouped['전체'][팀][구역][탈락key] = (grouped['전체'][팀][구역][탈락key] ?? 0) + 1;
-                        grouped['전체'][팀][구역]['탈락'] = (grouped['전체'][팀][구역]['탈락'] ?? 0) + 1;
+                        grouped['전체'][leader팀] = grouped['전체'][leader팀] ?? {};
+                        grouped['전체'][leader팀][leader구역] = grouped['전체'][leader팀][leader구역] ?? {};
+                        grouped['전체'][leader팀][leader구역][탈락key] =
+                            (grouped['전체'][leader팀][leader구역][탈락key] ?? 0) + 1;
+                        grouped['전체'][leader팀][leader구역]['탈락'] =
+                            (grouped['전체'][leader팀][leader구역]['탈락'] ?? 0) + 1;
                     } else {
-                        if (!grouped[month][지역]) grouped[month][지역] = {};
-                        if (!grouped[month][지역][팀]) grouped[month][지역][팀] = {};
-
-                        grouped[month][지역][팀][탈락key] = (grouped[month][지역][팀][탈락key] ?? 0) + 1;
-                        grouped[month][지역][팀]['탈락'] = (grouped[month][지역][팀]['탈락'] ?? 0) + 1;
+                        if (!grouped[month][leader지역]) grouped[month][leader지역] = {};
+                        if (!grouped[month][leader지역][leader팀]) grouped[month][leader지역][leader팀] = {};
+                        grouped[month][leader지역][leader팀][탈락key] =
+                            (grouped[month][leader지역][leader팀][탈락key] ?? 0) + 1;
+                        grouped[month][leader지역][leader팀]['탈락'] =
+                            (grouped[month][leader지역][leader팀]['탈락'] ?? 0) + 1;
 
                         grouped['전체'] = grouped['전체'] ?? {};
-                        grouped['전체'][지역] = grouped['전체'][지역] ?? {};
-                        grouped['전체'][지역][팀] = grouped['전체'][지역][팀] ?? {};
-                        grouped['전체'][지역][팀][탈락key] = (grouped['전체'][지역][팀][탈락key] ?? 0) + 1;
-                        grouped['전체'][지역][팀]['탈락'] = (grouped['전체'][지역][팀]['탈락'] ?? 0) + 1;
+                        grouped['전체'][leader지역] = grouped['전체'][leader지역] ?? {};
+                        grouped['전체'][leader지역][leader팀] = grouped['전체'][leader지역][leader팀] ?? {};
+                        grouped['전체'][leader지역][leader팀][탈락key] =
+                            (grouped['전체'][leader지역][leader팀][탈락key] ?? 0) + 1;
+                        grouped['전체'][leader지역][leader팀]['탈락'] =
+                            (grouped['전체'][leader지역][leader팀]['탈락'] ?? 0) + 1;
                     }
                 }
             }
         });
 
+        // 테이블 데이터 생성
         const tableData: TableRow[] = [];
         monthsToShow.forEach((month) => {
             if (isRegionalAccount) {
@@ -251,6 +263,7 @@ export default function DashboardPage() {
             }
         });
 
+        // 전체 합계 행 생성
         const totalRow: TableRow = {
             key: 'total',
             월: '전체 합계',
@@ -259,15 +272,7 @@ export default function DashboardPage() {
             팀: '',
             구역: '',
             탈락: 0,
-            ...STEPS.reduce(
-                (acc, step) => ({
-                    ...acc,
-                    [step]: 0,
-                    [`${step}_탈락`]: 0,
-                    [`${step}_보유`]: 0,
-                }),
-                {}
-            ),
+            ...STEPS.reduce((acc, step) => ({ ...acc, [step]: 0, [`${step}_탈락`]: 0, [`${step}_보유`]: 0 }), {}),
         };
 
         tableData.forEach((row) => {
@@ -289,8 +294,9 @@ export default function DashboardPage() {
         selectedMonth,
         selectedDateRange,
         isRegionalAccount,
-        scoreMode,
     ]);
+
+    // 테이블 컬럼 정의
     const columns: ColumnsType<TableRow> = [
         { title: '월', dataIndex: '월', key: 'month', fixed: 'left' as const, width: 80 },
         ...(isRegionalAccount
@@ -320,41 +326,20 @@ export default function DashboardPage() {
                   { title: '팀', dataIndex: '팀', key: 'team', fixed: 'left' as const, width: 100 },
               ]),
         ...STEPS.flatMap((step) => [
-            {
-                title: step,
-                dataIndex: step,
-                key: step,
-                width: 70,
-            },
-            {
-                title: `${step}_탈락`,
-                dataIndex: `${step}_탈락`,
-                key: `${step}_탈락`,
-                width: 80,
-            },
+            { title: step, dataIndex: step, key: step, width: 70 },
+            { title: `${step}_탈락`, dataIndex: `${step}_탈락`, key: `${step}_탈락`, width: 80 },
             {
                 title: `${step}_보유`,
                 dataIndex: `${step}_보유`,
                 key: `${step}_보유`,
                 width: 80,
-                onCell: () => ({
-                    style: {
-                        backgroundColor: '#d9f7be',
-                        textAlign: 'center' as const,
-                        padding: '8px',
-                    },
-                }),
+                onCell: () => ({ style: { backgroundColor: '#d9f7be', textAlign: 'center' as const, padding: '8px' } }),
             },
         ]),
-        {
-            title: '탈락',
-            dataIndex: '탈락',
-            key: '탈락',
-            align: 'center' as const,
-            width: 80,
-        },
+        { title: '탈락', dataIndex: '탈락', key: '탈락', align: 'center' as const, width: 80 },
     ];
 
+    // 필터 초기화 핸들러
     const handleReset = () => {
         setSelectedYear(dayjs().year());
         setSelectedRegion(null);
@@ -364,12 +349,10 @@ export default function DashboardPage() {
         setSelectedDateRange([null, null]);
     };
 
+    // 엑셀 내보내기 핸들러
     const handleExportToExcel = () => {
         const dataToExport = [...tableData, totalRow].map((row) => {
-            const newRow: any = {
-                월: row.월,
-            };
-
+            const newRow: any = { 월: row.월 };
             if (isRegionalAccount) {
                 newRow['팀'] = row.팀;
                 newRow['구역'] = row.구역;
@@ -377,15 +360,12 @@ export default function DashboardPage() {
                 newRow['지역'] = row.지역;
                 newRow['팀'] = row.팀;
             }
-
             STEPS.forEach((step) => {
                 newRow[step] = row[step];
                 newRow[`${step}_탈락`] = row[`${step}_탈락`];
                 newRow[`${step}_보유`] = row[`${step}_보유`];
             });
-
             newRow['탈락'] = row.탈락;
-
             return newRow;
         });
 
@@ -401,18 +381,22 @@ export default function DashboardPage() {
         <div className="w-full mx-auto p-6">
             <Title level={2}>월별 · 지역별 · 팀별 대시보드</Title>
 
-            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
-                <Space wrap size="middle">
+            <Space
+                direction="vertical"
+                size="large"
+                style={{ marginBottom: 24, width: '100%' }}
+            >
+                <Space
+                    wrap
+                    size="middle"
+                >
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
                         style={{ width: 100 }}
                         options={yearOptions}
                     />
-                    <Radio.Group value={scoreMode} onChange={(e) => setScoreMode(e.target.value)}>
-                        <Radio.Button value="score">점수로 보기</Radio.Button>
-                        <Radio.Button value="count">건수로 보기</Radio.Button>
-                    </Radio.Group>
+
                     {!isRegionalAccount && (
                         <Select
                             placeholder="지역 선택"
@@ -472,21 +456,25 @@ export default function DashboardPage() {
                     {filterMode === 'range' && (
                         <RangePicker
                             value={selectedDateRange}
-                            onChange={(dates) => {
-                                setSelectedDateRange([dates?.[0] ?? null, dates?.[1] ?? null]);
-                            }}
+                            onChange={(dates) => setSelectedDateRange([dates?.[0] ?? null, dates?.[1] ?? null])}
                             picker="date"
                             allowClear
                         />
                     )}
 
                     <Button onClick={handleReset}>초기화</Button>
-                    <Button onClick={handleExportToExcel} type="primary">
+                    <Button
+                        onClick={handleExportToExcel}
+                        type="primary"
+                    >
                         엑셀로 내보내기
                     </Button>
                 </Space>
 
-                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
+                <Spin
+                    spinning={isLoading}
+                    tip="데이터를 불러오는 중입니다..."
+                >
                     <Table<TableRow>
                         columns={columns}
                         dataSource={[...tableData, totalRow]}
