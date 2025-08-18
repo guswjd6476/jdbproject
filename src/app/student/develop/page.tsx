@@ -1,19 +1,25 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Table, Button, DatePicker, Select, Spin, message, Typography, Input } from 'antd';
+import { Table, Button, DatePicker, Select, Spin, message, Typography, Input, Alert } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Students, useStudentsBQuery } from '@/app/hook/useStudentsBQuery';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { useUser } from '@/app/hook/useUser'; // 1. useUser 훅 임포트
+import Link from 'next/link'; // 1. Link 컴포넌트 임포트
 
 const { Option } = Select;
 const { Text } = Typography;
 const { Search } = Input;
 
 export default function RegionWiseRemarks() {
-    const { data: students = [], isLoading } = useStudentsBQuery();
+    // 2. useUser 훅에서 isAdmin과 isLoading 상태를 가져옵니다.
+    const { isAdmin, isLoading: isUserLoading } = useUser();
+
+    // 기존 데이터 로딩 상태와 구분하기 위해 isDataLoading으로 변경
+    const { data: students = [], isLoading: isDataLoading } = useStudentsBQuery();
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
     const [targets, setTargets] = useState<Record<number, { month?: string; date?: string; week?: string }>>({});
     const [visibleId, setVisibleId] = useState<number | null>(null);
@@ -97,14 +103,10 @@ export default function RegionWiseRemarks() {
 
     const filtered = useMemo(() => {
         return students.filter((s) => {
-            // --- 수정된 부분 ---
-            // 선택된 지역이 없으면 모든 학생을 보여주고,
-            // 선택된 지역이 있으면 학생의 '인도자지역' 또는 '교사지역' 중 하나라도 일치하는 경우 true를 반환합니다.
             const matchesRegion =
                 !selectedRegion ||
                 String(s.인도자지역 ?? '') === selectedRegion ||
                 String(s.교사지역 ?? '') === selectedRegion;
-
             const matchesSearch = !searchText || (s.이름?.includes(searchText) ?? false);
             return matchesRegion && matchesSearch;
         });
@@ -251,8 +253,8 @@ export default function RegionWiseRemarks() {
             onFilter: (value, record) => String(record.target) === value,
             sorter: (a, b) => {
                 const getMonthValue = (month?: string) => {
-                    if (!month) return 999; // 빈값은 맨 뒤
-                    if (month === '장기') return 998; // 장기는 뒤쪽으로
+                    if (!month) return 999;
+                    if (month === '장기') return 998;
                     return parseInt(month.replace('월', ''), 10) || 999;
                 };
                 return getMonthValue(targets[a.번호]?.month) - getMonthValue(targets[b.번호]?.month);
@@ -267,10 +269,7 @@ export default function RegionWiseRemarks() {
                     key={`month-select-${record.번호}`}
                 >
                     {monthOptions.map((m) => (
-                        <Option
-                            key={m}
-                            value={m}
-                        >
+                        <Option key={m} value={m}>
                             {m}
                         </Option>
                     ))}
@@ -348,20 +347,43 @@ export default function RegionWiseRemarks() {
         }
     };
 
+    // 3. 렌더링 게이트: 사용자 인증 정보를 불러오는 동안 로딩 화면을 표시합니다.
+    if (isUserLoading) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                <Spin size="large" />
+            </div>
+        );
+    }
+
+    // 4. 렌더링 게이트: 로딩이 끝난 후, 관리자가 아닐 경우 접근 거부 메시지를 표시합니다.
+    if (!isAdmin) {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+                <Alert
+                    message="접근 권한 없음"
+                    description="이 페이지에 접근할 수 있는 권한이 없습니다. 관리자에게 문의하세요."
+                    type="error"
+                    showIcon
+                />
+                <Link href="/student/view">
+                    <Button type="primary" style={{ marginTop: '20px' }}>
+                        수강생 조회 페이지로 돌아가기
+                    </Button>
+                </Link>
+            </div>
+        );
+    }
+
+    // 5. 위 두 조건을 모두 통과한 경우(로딩이 끝났고, 관리자인 경우)에만 실제 페이지 내용을 렌더링합니다.
     return (
-        <Spin
-            spinning={isLoading || saving}
-            tip={saving ? '저장 중입니다...' : '데이터를 불러오는 중입니다...'}
-        >
+        <Spin spinning={isDataLoading || saving} tip={saving ? '저장 중입니다...' : '데이터를 불러오는 중입니다...'}>
             <div className="p-6">
                 <h2 className="text-xl font-bold mb-4">지역별 합등 이상 특이사항 관리</h2>
 
                 <div className="sticky top-0 z-50 bg-white border-b border-gray-300 flex flex-wrap items-center justify-between gap-2 px-2 py-3">
                     <div className="flex flex-wrap gap-2 flex-1 min-w-0 overflow-x-auto">
-                        <Button
-                            type={!selectedRegion ? 'primary' : 'default'}
-                            onClick={() => setSelectedRegion(null)}
-                        >
+                        <Button type={!selectedRegion ? 'primary' : 'default'} onClick={() => setSelectedRegion(null)}>
                             전체
                         </Button>
                         {allRegions.map((region) => (
@@ -386,11 +408,7 @@ export default function RegionWiseRemarks() {
                         />
                         {savedMessage && <Text type="success">✅ 저장 완료</Text>}
                         <Button onClick={handleExportExcel}>엑셀 다운로드</Button>
-                        <Button
-                            type="primary"
-                            onClick={handleSave}
-                            disabled={saving}
-                        >
+                        <Button type="primary" onClick={handleSave} disabled={saving}>
                             저장
                         </Button>
                     </div>

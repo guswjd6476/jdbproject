@@ -7,7 +7,8 @@ import TableRow from './table/TableRow';
 import AddRowButton from './table/AddRowButton';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { STEPNAME, Student } from '../lib/types';
-import { Spin, Alert, Modal } from 'antd';
+import { Spin, Alert, Modal, Button } from 'antd';
+import Link from 'next/link';
 
 const INITIAL_ROWS = 100;
 const ADDITIONAL_ROWS = 10;
@@ -42,13 +43,14 @@ interface SelectionInfo {
 }
 
 function StudentTracker() {
+    const { isAdmin, isLoading } = useUser();
+
     const [data, setData] = useState<Student[]>(Array.from({ length: INITIAL_ROWS }, () => ({ ...initialRow })));
     const [errorsData, setErrorsData] = useState<string[][]>(Array.from({ length: INITIAL_ROWS }, () => []));
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [selectionInfo, setSelectionInfo] = useState<SelectionInfo | null>(null);
-    const { isAdmin } = useUser();
 
     function isSkipTeamCheck(team: string): boolean {
         return ['타지파', '타부서', '수강생', '지교회'].some((kw) => team.includes(kw));
@@ -98,14 +100,12 @@ function StudentTracker() {
             return errors;
         }
 
-        // ✨ FIX: '탈락' 검증 시 불필요한 API 호출을 제거하고 최소한의 정보만 확인합니다.
         if (stage === '탈락') {
             const hasFullIndo = row.인도자지역 && row.인도자팀 && row.인도자이름;
             const hasFullTeacher = row.교사지역 && row.교사팀 && row.교사이름;
             if (!hasFullIndo && !hasFullTeacher) {
                 errors.push('탈락 시 인도자 또는 교사 정보 중 하나는 반드시 필요합니다.');
             }
-            // 최종 유효성(예: 이미 탈락한 학생인지)은 백엔드에서 처리하므로 여기서는 이 이상 검증하지 않습니다.
             return errors;
         }
 
@@ -149,7 +149,6 @@ function StudentTracker() {
         return errors;
     }
 
-    // 이 함수는 현재 handlePaste에서만 사용되므로, 핵심 로직에 영향을 주지 않습니다.
     function validateRow(row: Student, allRows: Student[]): string[] {
         const errors: string[] = [];
         const stage = row.단계.trim().toUpperCase();
@@ -157,8 +156,6 @@ function StudentTracker() {
         if (!row.이름.trim()) errors.push('이름이 필요합니다.');
         return errors;
     }
-
-    const isSaveDisabledByTime = !isAdmin && new Date().getHours() >= 21 && new Date().getHours() < 24;
 
     const handleChange = (index: number, field: keyof Student, value: string) => {
         setData((prev) => {
@@ -304,6 +301,35 @@ function StudentTracker() {
         }, 100);
     };
 
+    // 2. 렌더링 게이트: 사용자 정보를 불러오는 중일 때 로딩 화면을 표시합니다.
+    if (isLoading) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                <Spin size="large" />
+            </div>
+        );
+    }
+
+    // 3. 렌더링 게이트: 로딩이 끝난 후, 관리자가 아닐 경우 접근 거부 메시지를 표시합니다.
+    if (!isAdmin) {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+                <Alert
+                    message="접근 권한 없음"
+                    description="이 페이지에 접근할 수 있는 권한이 없습니다. 관리자에게 문의하세요."
+                    type="error"
+                    showIcon
+                />
+                <Link href="/student/view">
+                    <Button type="primary" style={{ marginTop: '20px' }}>
+                        수강생 조회 페이지로 돌아가기
+                    </Button>
+                </Link>
+            </div>
+        );
+    }
+
+    // 4. 위 두 조건을 모두 통과한 경우(로딩이 끝났고, 관리자인 경우)에만 실제 페이지 내용을 렌더링합니다.
     return (
         <Card>
             <CardHeader>
@@ -311,10 +337,8 @@ function StudentTracker() {
                     <AddRowButton onClick={addRows} />
                     <button
                         onClick={handleSubmit}
-                        disabled={loading || isSaveDisabledByTime}
-                        className={`px-4 py-2 rounded text-white ${
-                            loading || isSaveDisabledByTime ? 'bg-gray-400' : 'bg-blue-600'
-                        }`}
+                        disabled={loading}
+                        className={`px-4 py-2 rounded text-white ${loading ? 'bg-gray-400' : 'bg-blue-600'}`}
                     >
                         저장하기
                     </button>

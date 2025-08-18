@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Input, List, Typography, Card, Button } from 'antd';
+import { Input, List, Typography, Card, Button, Alert, Spin } from 'antd';
+import { useUser } from '@/app/hook/useUser'; // 1. useUser 훅 임포트
+import Link from 'next/link'; // 1. Link 컴포넌트 임포트
 
 interface MentorInfo {
     번호: number;
@@ -20,6 +22,9 @@ interface MentorInfo {
 }
 
 export default function MentorChanger() {
+    // 2. useUser 훅에서 isAdmin과 isLoading 상태를 가져옵니다.
+    const { isAdmin, isLoading: isUserLoading } = useUser();
+
     const [students, setStudents] = useState<MentorInfo[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchKeyword, setSearchKeyword] = useState('');
@@ -135,6 +140,35 @@ export default function MentorChanger() {
         setSelectedTeacherRegion('');
     };
 
+    // 3. 렌더링 게이트: 사용자 인증 정보를 불러오는 동안 로딩 화면을 표시합니다.
+    if (isUserLoading) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                <Spin size="large" />
+            </div>
+        );
+    }
+
+    // 4. 렌더링 게이트: 로딩이 끝난 후, 관리자가 아닐 경우 접근 거부 메시지를 표시합니다.
+    if (!isAdmin) {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+                <Alert
+                    message="접근 권한 없음"
+                    description="이 페이지에 접근할 수 있는 권한이 없습니다. 관리자에게 문의하세요."
+                    type="error"
+                    showIcon
+                />
+                <Link href="/student/view">
+                    <Button type="primary" style={{ marginTop: '20px' }}>
+                        수강생 조회 페이지로 돌아가기
+                    </Button>
+                </Link>
+            </div>
+        );
+    }
+
+    // 5. 위 두 조건을 모두 통과한 경우(로딩이 끝났고, 관리자인 경우)에만 실제 페이지 내용을 렌더링합니다.
     return (
         <div className="p-4 space-y-6 max-w-4xl mx-auto">
             <Card title="수강생 및 멘토 검색">
@@ -144,11 +178,7 @@ export default function MentorChanger() {
                     onChange={(e) => setSearchKeyword(e.target.value)}
                     allowClear
                 />
-                <Button
-                    type="primary"
-                    onClick={fetchStudents}
-                    style={{ marginTop: 8 }}
-                >
+                <Button type="primary" onClick={fetchStudents} style={{ marginTop: 8 }}>
                     검색
                 </Button>
 
@@ -235,10 +265,7 @@ export default function MentorChanger() {
                     </div>
 
                     <div style={{ textAlign: 'right', marginTop: 16 }}>
-                        <Button
-                            type="primary"
-                            onClick={handleSave}
-                        >
+                        <Button type="primary" onClick={handleSave}>
                             저장
                         </Button>
                     </div>

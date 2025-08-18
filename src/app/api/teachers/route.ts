@@ -1,4 +1,5 @@
 import { verifyToken } from '@/app/lib/auth';
+import { getMemberTableQueryCondition } from '@/app/lib/authUtils';
 import { JwtPayload } from 'jsonwebtoken';
 import { NextRequest, NextResponse } from 'next/server';
 import { Pool } from 'pg';
@@ -90,84 +91,45 @@ export async function GET(request: NextRequest) {
 
         let baseQuery = `
             SELECT
-                m.고유번호,
-                m.이름,
-                m.지역,
-                m.구역,
-                t.type AS 교사형태,
-                t.uid,
-                t.reason,
-                t.fail,
+                m.고유번호, m.이름, m.지역, m.구역,
+                t.type AS "교사형태",
+                t.uid, t.reason, t.fail,
                 to_char(t.updated_at, 'YYYY-MM-DD') AS "마지막업데이트",
-
                 CASE
                     WHEN EXISTS (
-                        SELECT 1
-                        FROM students s
-                        WHERE s.교사_고유번호 = m.고유번호
-                          AND (
-                              (
-                                  CURRENT_DATE < '2025-09-01' AND (
-                                      s.복_완료일 >= '2025-06-01' OR
-                                      s.예정_완료일 >= '2025-06-01' OR
-                                      s.센확_완료일 >= '2025-06-01'
-                                  )
-                              )
-                              OR
-                              (
-                                  CURRENT_DATE >= '2025-09-01' AND (
-                                      s.복_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                                      s.예정_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR
-                                      s.센확_완료일 >= CURRENT_DATE - INTERVAL '3 months'
-                                  )
-                              )
-                              OR
-                              (
-                                  s.단계 IN ('복', '예정', '센확')
-                              )
-                          )
+                        SELECT 1 FROM students s WHERE s.교사_고유번호 = m.고유번호
+                        AND (
+                            (CURRENT_DATE < '2025-09-01' AND (s.복_완료일 >= '2025-06-01' OR s.예정_완료일 >= '2025-06-01' OR s.센확_완료일 >= '2025-06-01'))
+                            OR
+                            (CURRENT_DATE >= '2025-09-01' AND (s.복_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR s.예정_완료일 >= CURRENT_DATE - INTERVAL '3 months' OR s.센확_완료일 >= CURRENT_DATE - INTERVAL '3 months'))
+                            OR
+                            (s.단계 IN ('복', '예정', '센확'))
+                        )
                     )
                     THEN '활동'
                     ELSE '비활동'
-                END AS 활동여부,
-
+                END AS "활동여부",
                 (
-                    SELECT COUNT(*)
-                    FROM students s
-                    WHERE s.교사_고유번호 = m.고유번호
-                      AND s.단계 IN ('섭', '복', '예정', '센확')
-                ) AS c이상건수
-
+                    SELECT COUNT(*) FROM students s
+                    WHERE s.교사_고유번호 = m.고유번호 AND s.단계 IN ('섭', '복', '예정', '센확')
+                ) AS "c이상건수"
             FROM teachers t
             JOIN members m ON m.고유번호 = t.uid
         `;
 
-        const values: string[] = [];
+        const values: any[] = [];
         const whereConditions: string[] = [];
 
+        // 1. 검색어 조건 처리
         if (search) {
-            whereConditions.push(`(
-                m.이름 ILIKE $${values.length + 1} OR
-                m.지역 ILIKE $${values.length + 1} OR
-                m.구역 ILIKE $${values.length + 1}
-            )`);
+            whereConditions.push(`(m.이름 ILIKE $1 OR m.지역 ILIKE $1 OR m.구역 ILIKE $1)`);
             values.push(`%${search}%`);
         }
 
-        if (userEmail.includes('nowon')) {
-            whereConditions.push(`m.지역 = '노원'`);
-        } else if (userEmail.includes('dobong')) {
-            whereConditions.push(`m.지역 = '도봉'`);
-        } else if (userEmail.includes('sungbook')) {
-            whereConditions.push(`m.지역 = '성북'`);
-        } else if (userEmail.includes('joongrang')) {
-            whereConditions.push(`m.지역 = '중랑'`);
-        } else if (userEmail.includes('gangbook')) {
-            whereConditions.push(`m.지역 = '강북'`);
-        } else if (userEmail.includes('dae')) {
-            whereConditions.push(`m.지역 = '대학'`);
-        } else if (userEmail.includes('sae')) {
-            whereConditions.push(`m.지역 = '새신자'`);
+        const permissionParam = getMemberTableQueryCondition(userEmail, 'm', values.length + 1);
+        if (permissionParam.condition) {
+            whereConditions.push(permissionParam.condition);
+            values.push(...permissionParam.values);
         }
 
         if (whereConditions.length > 0) {

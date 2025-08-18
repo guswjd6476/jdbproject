@@ -230,8 +230,8 @@ export default function TeacherPage() {
         },
         {
             title: '탈락사유',
-            dataIndex: '등록사유',
-            key: '등록사유',
+            dataIndex: 'reason',
+            key: 'reason',
         },
         {
             title: '마지막 업데이트',
@@ -248,10 +248,7 @@ export default function TeacherPage() {
             children: (
                 <>
                     <Space style={{ marginBottom: 16 }}>
-                        <Button
-                            type="primary"
-                            onClick={() => exportToExcel(data, '현재_교사_명단.xlsx')}
-                        >
+                        <Button type="primary" onClick={() => exportToExcel(data, '현재_교사_명단.xlsx')}>
                             현재 교사 엑셀 내보내기
                         </Button>
                         <Search
@@ -300,21 +297,11 @@ export default function TeacherPage() {
 
     return (
         <div style={{ padding: 24 }}>
-            <Space
-                direction="vertical"
-                size="middle"
-                style={{ display: 'flex' }}
-            >
+            <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
                 <Title level={3}>교사 목록</Title>
 
-                <Collapse
-                    defaultActiveKey={['1']}
-                    ghost
-                >
-                    <Panel
-                        header="요약 테이블 보기 / 숨기기"
-                        key="1"
-                    >
+                <Collapse defaultActiveKey={['1']} ghost>
+                    <Panel header="요약 테이블 보기 / 숨기기" key="1">
                         <Table
                             dataSource={summaryData}
                             columns={[

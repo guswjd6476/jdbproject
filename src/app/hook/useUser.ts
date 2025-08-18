@@ -1,58 +1,66 @@
 // useUser.ts
 'use client';
-import { useEffect, useState } from 'react';
-import { Region } from '@/app/lib/types';
 
+import { useEffect, useState } from 'react';
+
+// API 응답 데이터의 타입을 명확하게 정의합니다.
+interface UserSession {
+    isLoggedIn: boolean;
+    email: string | null;
+    role: 'superAdmin' | 'regionAdmin' | 'regionStaff' | 'none' | null;
+    region: string | 'all' | null; // 백엔드에서는 string 또는 'all'을 반환
+}
+
+// 훅이 반환할 데이터의 타입입니다.
 interface UserHookResult {
-    user: Region | 'all' | null;
+    isLoggedIn: boolean;
+    email: string | null;
+    role: UserSession['role'];
+    region: string | 'all' | null;
+    isAdmin: boolean; // 'superAdmin' 또는 'regionAdmin' 여부
     isLoading: boolean;
     error: string | null;
-    isAdmin: boolean;
 }
 
 export function useUser(): UserHookResult {
-    const [user, setUser] = useState<Region | 'all' | null>(null);
+    const [session, setSession] = useState<UserSession | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
-    const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
     useEffect(() => {
         const fetchUser = async () => {
             try {
+                // 로딩 시작 시 이전 상태 초기화
                 setIsLoading(true);
+                setSession(null);
+                setError(null);
+
                 const response = await fetch('/api/me');
                 if (!response.ok) {
-                    throw new Error(`Failed to fetch user data: ${response.statusText}`);
+                    throw new Error(`사용자 데이터 조회 실패: ${response.statusText}`);
                 }
+
                 const data = await response.json();
-                const email = data?.email ?? '';
 
-                if (email.includes('nowon')) {
-                    setUser('노원');
-                } else if (email.includes('dobong')) {
-                    setUser('도봉');
-                } else if (email.includes('sungbook')) {
-                    setUser('성북');
-                } else if (email.includes('joongrang')) {
-                    setUser('중랑');
-                } else if (email.includes('gangbook')) {
-                    setUser('강북');
-                } else if (email.includes('dae')) {
-                    setUser('대학');
-                } else if (email.includes('sae')) {
-                    setUser('새신자');
+                if (data.isLoggedIn) {
+                    setSession({
+                        isLoggedIn: true,
+                        email: data.email,
+                        role: data.role,
+                        region: data.region,
+                    });
                 } else {
-                    setUser('all');
+                    setSession({
+                        isLoggedIn: false,
+                        email: null,
+                        role: null,
+                        region: null,
+                    });
                 }
-
-                // 관리자 이메일 검사
-                setIsAdmin(email === 'jdb@jdb.com'); // 여기에 관리자 이메일을 넣으세요
-                setError(null);
             } catch (err) {
                 console.error('Error fetching user:', err);
                 setError('사용자 정보를 불러오지 못했습니다.');
-                setUser(null);
-                setIsAdmin(false);
+                setSession({ isLoggedIn: false, email: null, role: null, region: null });
             } finally {
                 setIsLoading(false);
             }
@@ -61,5 +69,16 @@ export function useUser(): UserHookResult {
         fetchUser();
     }, []);
 
-    return { user, isLoading, error, isAdmin };
+    // API 응답을 기반으로 최종 반환 값을 계산합니다.
+    const isAdmin = session?.role === 'superAdmin' || session?.role === 'regionAdmin';
+
+    return {
+        isLoggedIn: session?.isLoggedIn ?? false,
+        email: session?.email ?? null,
+        role: session?.role ?? null,
+        region: session?.region ?? null,
+        isAdmin,
+        isLoading,
+        error,
+    };
 }

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PoolClient } from 'pg';
 import { verifyToken } from '@/app/lib/auth';
 import type { JwtPayload } from 'jsonwebtoken';
+import { getParameterizedQueryConditionForUser } from '@/app/lib/authUtils';
 
 const 단계순서 = ['발', '찾', '합', '섭', '복', '예정', '센확'];
 
@@ -94,24 +95,24 @@ export async function GET(request: NextRequest) {
 
         const search = request.nextUrl.searchParams.get('q')?.trim();
 
-        // ✨ FIX: SELECT 절에서 `s.g`를 `s.탈락`으로 수정하고, 별칭으로 'g'를 유지하여 프론트엔드 호환성을 맞춥니다.
         let baseQuery = `
             SELECT 
-                s.id AS 번호, s.단계, s.이름, s.연락처, s.생년월일, s.target,
+                s.id AS "번호", s.단계, s.이름, s.연락처, s.생년월일, s.target,
                 s.인도자_고유번호, s.교사_고유번호,
                 s.발_완료일 AS "발", s.찾_완료일 AS "찾", s.합_완료일 AS "합",
                 s.섭_완료일 AS "섭", s.복_완료일 AS "복", s.예정_완료일 AS "예정",
                 s.센확_완료일 AS "센확", s.탈락 AS "g", 
-                m_ind.지역 AS 인도자지역, m_ind.구역 AS 인도자팀, m_ind.이름 AS 인도자이름,
-                m_tch.지역 AS 교사지역, m_tch.구역 AS 교사팀, m_tch.이름 AS 교사이름
+                m_ind.지역 AS "인도자지역", m_ind.구역 AS "인도자팀", m_ind.이름 AS "인도자이름",
+                m_tch.지역 AS "교사지역", m_tch.구역 AS "교사팀", m_tch.이름 AS "교사이름"
             FROM students s
             LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
             LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
         `;
 
-        const values: string[] = [];
+        const values: any[] = [];
         const whereConditions: string[] = [];
 
+        // 1. 검색어 조건 처리
         if (search) {
             whereConditions.push(
                 `(s.이름 ILIKE $1 OR m_ind.이름 ILIKE $1 OR m_tch.이름 ILIKE $1 OR m_ind.지역 ILIKE $1 OR m_tch.지역 ILIKE $1 OR m_ind.구역 ILIKE $1 OR m_tch.구역 ILIKE $1)`
@@ -119,29 +120,28 @@ export async function GET(request: NextRequest) {
             values.push(`%${search}%`);
         }
 
-        const regionMappings: { [key: string]: string } = {
-            nowon: '노원',
-            dobong: '도봉',
-            sungbook: '성북',
-            joongrang: '중랑',
-            gangbook: '강북',
-            dae: '대학',
-            sae: '새신자',
-        };
+        // =================================================================
+        //               ↓↓↓ 여기가 변경된 부분입니다 ↓↓↓
+        // =================================================================
 
-        for (const key in regionMappings) {
-            if (userEmail.includes(key)) {
-                const paramIndex = values.length + 1;
-                whereConditions.push(`(m_ind.지역 = $${paramIndex} OR m_tch.지역 = $${paramIndex})`);
-                values.push(regionMappings[key]);
-                break;
-            }
+        // 2. 권한 조건 처리 (authUtils.ts 함수 사용)
+        // 현재 파라미터 개수 다음 인덱스부터 시작하도록 설정
+        const permissionParam = getParameterizedQueryConditionForUser(userEmail, values.length + 1);
+
+        // authUtils 함수가 반환한 조건과 값을 WHERE 절과 값 배열에 추가
+        if (permissionParam.condition) {
+            whereConditions.push(permissionParam.condition);
+            values.push(...permissionParam.values);
         }
 
+        // =================================================================
+
+        // 3. 최종 쿼리 생성
         if (whereConditions.length > 0) {
             baseQuery += ' WHERE ' + whereConditions.join(' AND ');
         }
         baseQuery += ' ORDER BY s.id ASC';
+
         const res = await client.query(baseQuery, values);
         return NextResponse.json(res.rows);
     } catch (err: unknown) {
@@ -152,7 +152,6 @@ export async function GET(request: NextRequest) {
         client.release();
     }
 }
-
 export async function POST(request: NextRequest) {
     const client = await pool.connect();
     try {

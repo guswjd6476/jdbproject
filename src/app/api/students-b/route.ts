@@ -3,6 +3,7 @@ import { pool } from '@/app/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/app/lib/auth';
 import type { JwtPayload } from 'jsonwebtoken';
+import { getQueryConditionForUser } from '@/app/lib/authUtils';
 
 export async function GET(request: NextRequest) {
     const client = await pool.connect();
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
 
         let baseQuery = `
             SELECT 
-                s.id AS 번호, 
+                s.id AS "번호", 
                 s.단계, 
                 s.이름, 
                 s.연락처, 
@@ -38,34 +39,21 @@ export async function GET(request: NextRequest) {
                 s.예정_완료일 AS "예정",
                 s.센확_완료일 AS "센확",
                 s.탈락 AS "g",
-                s.target, s.trydate,
-                m_ind.지역 AS 인도자지역, 
-                m_ind.구역 AS 인도자팀, 
-                m_ind.이름 AS 인도자이름,
-                m_tch.지역 AS 교사지역, 
-                m_tch.구역 AS 교사팀, 
-                m_tch.이름 AS 교사이름
+                m_ind.지역 AS "인도자지역", 
+                m_ind.구역 AS "인도자팀", 
+                m_ind.이름 AS "인도자이름",
+                m_tch.지역 AS "교사지역", 
+                m_tch.구역 AS "교사팀", 
+                m_tch.이름 AS "교사이름"
             FROM students s
             LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
             LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
             WHERE s.단계 IN ('합', '섭', '복','예정')
         `;
 
-        if (userEmail.includes('nowon')) {
-            baseQuery += ` AND (m_ind.지역 = '노원' OR m_tch.지역 = '노원')`;
-        } else if (userEmail.includes('dobong')) {
-            baseQuery += ` AND (m_ind.지역 = '도봉' OR m_tch.지역 = '도봉')`;
-        } else if (userEmail.includes('sungbook')) {
-            baseQuery += ` AND (m_ind.지역 = '성북' OR m_tch.지역 = '성북')`;
-        } else if (userEmail.includes('joongrang')) {
-            baseQuery += ` AND (m_ind.지역 = '중랑' OR m_tch.지역 = '중랑')`;
-        } else if (userEmail.includes('gangbook')) {
-            baseQuery += ` AND (m_ind.지역 = '강북' OR m_tch.지역 = '강북')`;
-        } else if (userEmail.includes('dae')) {
-            baseQuery += ` AND (m_ind.지역 = '대학' OR m_tch.지역 = '대학')`;
-        } else if (userEmail.includes('sae')) {
-            baseQuery += ` AND (m_ind.지역 = '새신자' OR m_tch.지역 = '새신자')`;
-        }
+        const permissionCondition = getQueryConditionForUser(userEmail);
+
+        baseQuery += permissionCondition;
 
         baseQuery += ' ORDER BY s.id ASC';
 

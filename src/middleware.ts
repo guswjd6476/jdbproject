@@ -15,7 +15,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
 }
 
-// 어떤 경로에 적용할지 설정
 export const config = {
     matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };
