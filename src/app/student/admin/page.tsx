@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Table, Input, Button, DatePicker, Popconfirm, message } from 'antd';
+import { Table, Input, Button, DatePicker, Popconfirm, message, Spin, Alert } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useUser } from '@/app/hook/useUser';
+import Link from 'next/link'; // 1. Link 컴포넌트 임포트
 
 const { Search } = Input;
 
@@ -32,8 +33,8 @@ type Student = {
 };
 
 export default function AdminStudentManager() {
-    const { user } = useUser();
-    const isAdmin = user === 'all';
+    // 2. useUser 훅에서 role과 isLoading 상태를 가져옵니다.
+    const { role, isLoading: isUserLoading } = useUser();
 
     const [students, setStudents] = useState<Student[]>([]);
     const [searchText, setSearchText] = useState('');
@@ -56,8 +57,11 @@ export default function AdminStudentManager() {
     };
 
     useEffect(() => {
-        fetchStudents();
-    }, []);
+        // 3. 최고 관리자일 때만 데이터를 불러오도록 조건을 추가합니다.
+        if (role === 'superAdmin') {
+            fetchStudents();
+        }
+    }, [role]); // role 값이 확정된 후에 fetch를 실행합니다.
 
     const handleEdit = (record: Student) => {
         setEditingId(record.번호);
@@ -146,26 +150,16 @@ export default function AdminStudentManager() {
                 const isEditing = editingId === record.번호;
                 return isEditing ? (
                     <span className="flex gap-2">
-                        <Button
-                            size="small"
-                            type="primary"
-                            onClick={() => handleSave(record.번호)}
-                        >
+                        <Button size="small" type="primary" onClick={() => handleSave(record.번호)}>
                             저장
                         </Button>
-                        <Button
-                            size="small"
-                            onClick={() => setEditingId(null)}
-                        >
+                        <Button size="small" onClick={() => setEditingId(null)}>
                             취소
                         </Button>
                     </span>
                 ) : (
                     <span className="flex gap-2">
-                        <Button
-                            size="small"
-                            onClick={() => handleEdit(record)}
-                        >
+                        <Button size="small" onClick={() => handleEdit(record)}>
                             수정
                         </Button>
                         <Popconfirm
@@ -174,10 +168,7 @@ export default function AdminStudentManager() {
                             okText="삭제"
                             cancelText="취소"
                         >
-                            <Button
-                                danger
-                                size="small"
-                            >
+                            <Button danger size="small">
                                 삭제
                             </Button>
                         </Popconfirm>
@@ -187,10 +178,35 @@ export default function AdminStudentManager() {
         },
     ];
 
-    if (!isAdmin) {
-        return <div className="p-4 text-red-600 font-bold">관리자 전용 페이지입니다.</div>;
+    // 4. 렌더링 게이트: 사용자 인증 정보를 불러오는 동안 로딩 화면을 표시합니다.
+    if (isUserLoading) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                <Spin size="large" />
+            </div>
+        );
     }
 
+    // 5. 렌더링 게이트: 로딩이 끝난 후, 최고 관리자가 아닐 경우 접근 거부 메시지를 표시합니다.
+    if (role !== 'superAdmin') {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+                <Alert
+                    message="접근 권한 없음"
+                    description="최고 관리자만 이 페이지에 접근할 수 있습니다."
+                    type="error"
+                    showIcon
+                />
+                <Link href="/student/view">
+                    <Button type="primary" style={{ marginTop: '20px' }}>
+                        수강생 조회 페이지로 돌아가기
+                    </Button>
+                </Link>
+            </div>
+        );
+    }
+
+    // 6. 위 두 조건을 모두 통과한 경우(로딩이 끝났고, 최고 관리자인 경우)에만 실제 페이지 내용을 렌더링합니다.
     return (
         <div className="p-4">
             <h2 className="text-2xl font-bold mb-4">관리자 학생 관리</h2>

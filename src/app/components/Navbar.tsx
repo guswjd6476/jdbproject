@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useUser } from '@/app/hook/useUser';
 
-// 기존 지역별 타이틀 (지역 담당자, 최고 관리자용)
 const regionTitles: { [key: string]: string } = {
     성북: '성북화이팅',
     도봉: '도보옹화이팅',

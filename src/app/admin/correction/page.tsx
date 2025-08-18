@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Table, Input, Button, DatePicker, Popconfirm, message, Select, Space } from 'antd';
-// 👇 [수정] ColumnType을 명시적으로 import 합니다.
+import { Table, Input, Button, DatePicker, Popconfirm, message, Select, Space, Spin, Alert } from 'antd';
 import type { ColumnsType, ColumnType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useUser } from '@/app/hook/useUser';
+import Link from 'next/link'; // 1. Link 컴포넌트 임포트
 
 const COMPLETION_FIELDS = [
     '발_완료일',
@@ -47,8 +47,8 @@ type Student = {
 };
 
 export default function AdminStudentManager() {
-    const { user } = useUser();
-    const isAdmin = user === 'all';
+    // 2. useUser 훅에서 role과 isLoading 상태를 가져옵니다.
+    const { role, isLoading: isUserLoading } = useUser();
 
     const [students, setStudents] = useState<Student[]>([]);
     const [loading, setLoading] = useState(false);
@@ -59,7 +59,6 @@ export default function AdminStudentManager() {
     const [searchName, setSearchName] = useState('');
     const [searchStage, setSearchStage] = useState<string | null>(null);
     const [filteredKeyword, setFilteredKeyword] = useState({ name: '', stage: '' });
-
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
     const [bulkStage, setBulkStage] = useState<string | null>(null);
     const [bulkDateField, setBulkDateField] = useState<string | null>(null);
@@ -80,14 +79,16 @@ export default function AdminStudentManager() {
     };
 
     useEffect(() => {
-        fetchStudents();
-    }, []);
+        // 3. 최고 관리자일 때만 데이터를 불러오도록 조건을 추가합니다.
+        if (role === 'superAdmin') {
+            fetchStudents();
+        }
+    }, [role]); // role이 확정된 후에 fetch를 실행합니다.
 
     const handleEdit = (record: Student) => {
         setEditingId(record.id);
         setEditingStages((prev) => ({ ...prev, [record.id]: record.단계 ?? '' }));
         setEditingNames((prev) => ({ ...prev, [record.id]: record.이름 ?? '' }));
-
         const newDates: Partial<Record<string, Dayjs | null>> = {};
         COMPLETION_FIELDS.forEach((field) => {
             newDates[field] = record[field] ? dayjs(record[field]) : null;
@@ -161,9 +162,7 @@ export default function AdminStudentManager() {
 
     const rowSelection = {
         selectedRowKeys,
-        onChange: (keys: React.Key[]) => {
-            setSelectedRowKeys(keys);
-        },
+        onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
     };
 
     const handleBulkSave = async () => {
@@ -207,19 +206,11 @@ export default function AdminStudentManager() {
         }
     };
 
-    // 👇 [수정] 목표월 필터 옵션을 생성하는 로직을 타입-세이프하게 변경합니다.
     const targetMonthFilters = useMemo(() => {
-        // 1. .filter((target): target is string => !!target) 를 사용하여 undefined 값을 제거하고,
-        //    TypeScript에게 이 배열이 string[] 타입임을 알려줍니다.
         const uniqueTargets = [
             ...new Set(students.map((s) => s.target).filter((target): target is string => !!target)),
         ];
-        return uniqueTargets
-            .sort((a, b) => a.localeCompare(b))
-            .map((target) => ({
-                text: target,
-                value: target,
-            }));
+        return uniqueTargets.sort((a, b) => a.localeCompare(b)).map((target) => ({ text: target, value: target }));
     }, [students]);
 
     const columns: ColumnsType<Student> = [
@@ -230,11 +221,7 @@ export default function AdminStudentManager() {
             key: '단계',
             fixed: 'left',
             width: 70,
-            sorter: (a, b) => {
-                const valA = a.단계 || '';
-                const valB = b.단계 || '';
-                return valA.localeCompare(valB, 'ko');
-            },
+            sorter: (a, b) => (a.단계 || '').localeCompare(b.단계 || '', 'ko'),
             render: (value: string | undefined, record: Student) => {
                 const isEditing = editingId === record.id;
                 if (!isEditing) return value || '';
@@ -276,7 +263,6 @@ export default function AdminStudentManager() {
         { title: '교사지역', dataIndex: '교사지역', key: '교사지역', width: 40 },
         { title: '교사팀', dataIndex: '교사팀', key: '교사팀', width: 40 },
         { title: '교사이름', dataIndex: '교사이름', key: '교사이름', width: 70 },
-        // 👇 [수정] .map()의 반환 값 타입을 명시적으로 지정하여 타입 추론 오류를 해결합니다.
         ...COMPLETION_FIELDS.map(
             (key): ColumnType<Student> => ({
                 title: key.replace('_완료일', '').toUpperCase(),
@@ -305,14 +291,8 @@ export default function AdminStudentManager() {
             dataIndex: 'target',
             key: 'target',
             width: 70,
-            sorter: (a, b) => {
-                const valA = a.target || '';
-                const valB = b.target || '';
-                return valA.localeCompare(valB);
-            },
+            sorter: (a, b) => (a.target || '').localeCompare(b.target || ''),
             filters: targetMonthFilters,
-            // 👇 [수정] onFilter의 첫 번째 인자(value)는 string | number | boolean 타입입니다.
-            // 우리가 string을 사용했으므로 record.target과 안전하게 비교할 수 있습니다.
             onFilter: (value, record) => record.target === value,
         },
         {
@@ -323,26 +303,16 @@ export default function AdminStudentManager() {
                 const isEditing = editingId === record.id;
                 return isEditing ? (
                     <Space>
-                        <Button
-                            size="small"
-                            type="primary"
-                            onClick={() => handleSave(record.id)}
-                        >
+                        <Button size="small" type="primary" onClick={() => handleSave(record.id)}>
                             저장
                         </Button>
-                        <Button
-                            size="small"
-                            onClick={() => setEditingId(null)}
-                        >
+                        <Button size="small" onClick={() => setEditingId(null)}>
                             취소
                         </Button>
                     </Space>
                 ) : (
                     <Space>
-                        <Button
-                            size="small"
-                            onClick={() => handleEdit(record)}
-                        >
+                        <Button size="small" onClick={() => handleEdit(record)}>
                             수정
                         </Button>
                         <Popconfirm
@@ -351,10 +321,7 @@ export default function AdminStudentManager() {
                             okText="삭제"
                             cancelText="취소"
                         >
-                            <Button
-                                danger
-                                size="small"
-                            >
+                            <Button danger size="small">
                                 삭제
                             </Button>
                         </Popconfirm>
@@ -364,10 +331,35 @@ export default function AdminStudentManager() {
         },
     ];
 
-    if (!isAdmin) {
-        return <div className="p-4 text-red-600 font-bold">관리자 전용 페이지입니다.</div>;
+    // 4. 렌더링 게이트: 사용자 인증 정보를 불러오는 동안 로딩 화면을 표시합니다.
+    if (isUserLoading) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                <Spin size="large" />
+            </div>
+        );
     }
 
+    // 5. 렌더링 게이트: 로딩이 끝난 후, 최고 관리자가 아닐 경우 접근 거부 메시지를 표시합니다.
+    if (role !== 'superAdmin') {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+                <Alert
+                    message="접근 권한 없음"
+                    description="최고 관리자만 이 페이지에 접근할 수 있습니다."
+                    type="error"
+                    showIcon
+                />
+                <Link href="/student/view">
+                    <Button type="primary" style={{ marginTop: '20px' }}>
+                        수강생 조회 페이지로 돌아가기
+                    </Button>
+                </Link>
+            </div>
+        );
+    }
+
+    // 6. 위 두 조건을 모두 통과한 경우(로딩이 끝났고, 최고 관리자인 경우)에만 실제 페이지 내용을 렌더링합니다.
     return (
         <div className="p-4">
             <h2 className="text-2xl font-bold mb-4">관리자 학생 관리</h2>
@@ -390,18 +382,11 @@ export default function AdminStudentManager() {
                     showSearch
                     optionFilterProp="label"
                 />
-                <Button
-                    type="primary"
-                    onClick={handleSearch}
-                >
+                <Button type="primary" onClick={handleSearch}>
                     검색
                 </Button>
             </div>
-            <Space
-                align="center"
-                wrap
-                className="mb-4"
-            >
+            <Space align="center" wrap className="mb-4">
                 <Select
                     placeholder="일괄 단계 선택"
                     style={{ width: 150 }}
@@ -425,12 +410,7 @@ export default function AdminStudentManager() {
                     showSearch
                     optionFilterProp="label"
                 />
-                <DatePicker
-                    value={bulkDate}
-                    onChange={setBulkDate}
-                    format="YYYY.MM.DD"
-                    allowClear
-                />
+                <DatePicker value={bulkDate} onChange={setBulkDate} format="YYYY.MM.DD" allowClear />
                 <Button
                     type="primary"
                     disabled={selectedRowKeys.length === 0 || (!bulkStage && !bulkDateField)}
