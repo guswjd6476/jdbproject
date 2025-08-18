@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Table, Input, Button, DatePicker, Popconfirm, message, Select, Space, Spin } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import { Table, Input, Button, DatePicker, Popconfirm, message, Select, Space } from 'antd';
+// 👇 [수정] ColumnType을 명시적으로 import 합니다.
+import type { ColumnsType, ColumnType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useUser } from '@/app/hook/useUser';
 
@@ -26,7 +27,7 @@ const STAGE_OPTIONS = [
     '예정',
     '탈락',
     ...Array.from({ length: 3 }, (_, i) => {
-        const date = dayjs().add(i - 1, 'month'); // -1,0,+1개월
+        const date = dayjs().add(i - 1, 'month');
         return `${date.year()}년 ${date.month() + 1}월센등`;
     }),
     '센확',
@@ -41,6 +42,7 @@ type Student = {
     인도자_고유번호?: string;
     교사_고유번호?: string;
     단계?: string;
+    target?: string;
     [key: string]: string | number | undefined;
 };
 
@@ -58,13 +60,11 @@ export default function AdminStudentManager() {
     const [searchStage, setSearchStage] = useState<string | null>(null);
     const [filteredKeyword, setFilteredKeyword] = useState({ name: '', stage: '' });
 
-    // === 일괄 변경 관련 상태 ===
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
     const [bulkStage, setBulkStage] = useState<string | null>(null);
     const [bulkDateField, setBulkDateField] = useState<string | null>(null);
     const [bulkDate, setBulkDate] = useState<Dayjs | null>(null);
 
-    // 학생 데이터 불러오기
     const fetchStudents = async () => {
         setLoading(true);
         try {
@@ -86,7 +86,7 @@ export default function AdminStudentManager() {
     const handleEdit = (record: Student) => {
         setEditingId(record.id);
         setEditingStages((prev) => ({ ...prev, [record.id]: record.단계 ?? '' }));
-        setEditingNames((prev) => ({ ...prev, [record.id]: record.이름 ?? '' })); // ← 추가
+        setEditingNames((prev) => ({ ...prev, [record.id]: record.이름 ?? '' }));
 
         const newDates: Partial<Record<string, Dayjs | null>> = {};
         COMPLETION_FIELDS.forEach((field) => {
@@ -95,12 +95,10 @@ export default function AdminStudentManager() {
         setEditingDates(newDates);
     };
 
-    // 단일 수정: 날짜 변경
     const handleDateChange = (field: string, date: Dayjs | null) => {
         setEditingDates((prev) => ({ ...prev, [field]: date }));
     };
 
-    // 단일 수정: 단계 변경
     const handleStageChange = (id: number, value: string) => {
         setEditingStages((prev) => ({ ...prev, [id]: value }));
     };
@@ -112,7 +110,7 @@ export default function AdminStudentManager() {
                 payload[key] = editingDates[key]?.format('YYYY-MM-DD') ?? null;
             }
             payload['단계'] = editingStages[번호] ?? null;
-            payload['이름'] = editingNames[번호] ?? null; // ← 추가
+            payload['이름'] = editingNames[번호] ?? null;
 
             const res = await fetch(`/api/students/update-date`, {
                 method: 'POST',
@@ -129,7 +127,6 @@ export default function AdminStudentManager() {
         }
     };
 
-    // 단일 삭제
     const handleDelete = async (id: number) => {
         try {
             const res = await fetch('/api/students/delete', {
@@ -145,7 +142,6 @@ export default function AdminStudentManager() {
         }
     };
 
-    // 필터링
     const filteredStudents = useMemo(() => {
         return students.filter((student) => {
             const nameMatch = filteredKeyword.name
@@ -163,7 +159,6 @@ export default function AdminStudentManager() {
         });
     };
 
-    // === 체크박스 선택 변경 ===
     const rowSelection = {
         selectedRowKeys,
         onChange: (keys: React.Key[]) => {
@@ -171,7 +166,6 @@ export default function AdminStudentManager() {
         },
     };
 
-    // === 일괄 저장 핸들러 ===
     const handleBulkSave = async () => {
         if (selectedRowKeys.length === 0) {
             message.warning('변경할 학생을 선택하세요.');
@@ -212,6 +206,21 @@ export default function AdminStudentManager() {
             setLoading(false);
         }
     };
+
+    // 👇 [수정] 목표월 필터 옵션을 생성하는 로직을 타입-세이프하게 변경합니다.
+    const targetMonthFilters = useMemo(() => {
+        // 1. .filter((target): target is string => !!target) 를 사용하여 undefined 값을 제거하고,
+        //    TypeScript에게 이 배열이 string[] 타입임을 알려줍니다.
+        const uniqueTargets = [
+            ...new Set(students.map((s) => s.target).filter((target): target is string => !!target)),
+        ];
+        return uniqueTargets
+            .sort((a, b) => a.localeCompare(b))
+            .map((target) => ({
+                text: target,
+                value: target,
+            }));
+    }, [students]);
 
     const columns: ColumnsType<Student> = [
         { title: 'id', dataIndex: 'id', key: 'id', width: 50, fixed: 'left' },
@@ -267,27 +276,45 @@ export default function AdminStudentManager() {
         { title: '교사지역', dataIndex: '교사지역', key: '교사지역', width: 40 },
         { title: '교사팀', dataIndex: '교사팀', key: '교사팀', width: 40 },
         { title: '교사이름', dataIndex: '교사이름', key: '교사이름', width: 70 },
-        ...COMPLETION_FIELDS.map((key) => ({
-            title: key.replace('_완료일', '').toUpperCase(),
-            dataIndex: key,
-            key,
+        // 👇 [수정] .map()의 반환 값 타입을 명시적으로 지정하여 타입 추론 오류를 해결합니다.
+        ...COMPLETION_FIELDS.map(
+            (key): ColumnType<Student> => ({
+                title: key.replace('_완료일', '').toUpperCase(),
+                dataIndex: key,
+                key,
+                width: 70,
+                render: (value: string | null, record: Student) => {
+                    const isEditing = editingId === record.id;
+                    if (!isEditing) {
+                        return value ? dayjs(value).format('YYYY.MM.DD') : '';
+                    }
+                    return (
+                        <DatePicker
+                            value={editingDates[key] ?? null}
+                            onChange={(date) => handleDateChange(key, date)}
+                            format="YYYY.MM.DD"
+                            size="small"
+                            allowClear
+                        />
+                    );
+                },
+            })
+        ),
+        {
+            title: '목표월',
+            dataIndex: 'target',
+            key: 'target',
             width: 70,
-            render: (value: string | null, record: Student) => {
-                const isEditing = editingId === record.id;
-                if (!isEditing) {
-                    return value ? dayjs(value).format('YYYY.MM.DD') : '';
-                }
-                return (
-                    <DatePicker
-                        value={editingDates[key] ?? null}
-                        onChange={(date) => handleDateChange(key, date)}
-                        format="YYYY.MM.DD"
-                        size="small"
-                        allowClear
-                    />
-                );
+            sorter: (a, b) => {
+                const valA = a.target || '';
+                const valB = b.target || '';
+                return valA.localeCompare(valB);
             },
-        })),
+            filters: targetMonthFilters,
+            // 👇 [수정] onFilter의 첫 번째 인자(value)는 string | number | boolean 타입입니다.
+            // 우리가 string을 사용했으므로 record.target과 안전하게 비교할 수 있습니다.
+            onFilter: (value, record) => record.target === value,
+        },
         {
             title: '관리',
             key: 'actions',
@@ -296,16 +323,26 @@ export default function AdminStudentManager() {
                 const isEditing = editingId === record.id;
                 return isEditing ? (
                     <Space>
-                        <Button size="small" type="primary" onClick={() => handleSave(record.id)}>
+                        <Button
+                            size="small"
+                            type="primary"
+                            onClick={() => handleSave(record.id)}
+                        >
                             저장
                         </Button>
-                        <Button size="small" onClick={() => setEditingId(null)}>
+                        <Button
+                            size="small"
+                            onClick={() => setEditingId(null)}
+                        >
                             취소
                         </Button>
                     </Space>
                 ) : (
                     <Space>
-                        <Button size="small" onClick={() => handleEdit(record)}>
+                        <Button
+                            size="small"
+                            onClick={() => handleEdit(record)}
+                        >
                             수정
                         </Button>
                         <Popconfirm
@@ -314,7 +351,10 @@ export default function AdminStudentManager() {
                             okText="삭제"
                             cancelText="취소"
                         >
-                            <Button danger size="small">
+                            <Button
+                                danger
+                                size="small"
+                            >
                                 삭제
                             </Button>
                         </Popconfirm>
@@ -331,8 +371,6 @@ export default function AdminStudentManager() {
     return (
         <div className="p-4">
             <h2 className="text-2xl font-bold mb-4">관리자 학생 관리</h2>
-
-            {/* 검색 필터 */}
             <div className="mb-4 flex gap-2">
                 <Input
                     placeholder="이름"
@@ -352,13 +390,18 @@ export default function AdminStudentManager() {
                     showSearch
                     optionFilterProp="label"
                 />
-                <Button type="primary" onClick={handleSearch}>
+                <Button
+                    type="primary"
+                    onClick={handleSearch}
+                >
                     검색
                 </Button>
             </div>
-
-            {/* 일괄 변경 UI */}
-            <Space align="center" wrap className="mb-4">
+            <Space
+                align="center"
+                wrap
+                className="mb-4"
+            >
                 <Select
                     placeholder="일괄 단계 선택"
                     style={{ width: 150 }}
@@ -382,7 +425,12 @@ export default function AdminStudentManager() {
                     showSearch
                     optionFilterProp="label"
                 />
-                <DatePicker value={bulkDate} onChange={setBulkDate} format="YYYY.MM.DD" allowClear />
+                <DatePicker
+                    value={bulkDate}
+                    onChange={setBulkDate}
+                    format="YYYY.MM.DD"
+                    allowClear
+                />
                 <Button
                     type="primary"
                     disabled={selectedRowKeys.length === 0 || (!bulkStage && !bulkDateField)}
@@ -392,8 +440,6 @@ export default function AdminStudentManager() {
                     일괄 저장
                 </Button>
             </Space>
-
-            {/* 학생 테이블 */}
             <Table
                 rowSelection={rowSelection}
                 dataSource={filteredStudents}
