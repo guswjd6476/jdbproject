@@ -141,10 +141,10 @@ function StudentTracker() {
             errors.push('찾기단계는 생년월일이 필요합니다.');
         }
 
-        if (['합', '섭', '복', '예정', '센확'].includes(stage)) {
+        if (['섭', '복', '예정', '센확'].includes(stage)) {
             const skip = isSkipTeamCheck(row.교사팀);
             if (!skip && (!row.교사지역 || !row.교사팀 || !row.교사이름)) {
-                errors.push('합, 섭, 복, 예정, 센확 단계는 교사 정보가 필요합니다.');
+                errors.push('섭, 복, 예정, 센확 단계는 교사 정보가 필요합니다.');
             }
         }
         return errors;
@@ -320,7 +320,10 @@ function StudentTracker() {
                     showIcon
                 />
                 <Link href="/student/view">
-                    <Button type="primary" style={{ marginTop: '20px' }}>
+                    <Button
+                        type="primary"
+                        style={{ marginTop: '20px' }}
+                    >
                         수강생 조회 페이지로 돌아가기
                     </Button>
                 </Link>
@@ -341,14 +344,29 @@ function StudentTracker() {
                         저장하기
                     </button>
                     <div className="min-w-[200px] whitespace-pre-line">
-                        {error && <Alert message={error} type="error" showIcon />}
-                        {success && <Alert message={success} type="success" showIcon />}
+                        {error && (
+                            <Alert
+                                message={error}
+                                type="error"
+                                showIcon
+                            />
+                        )}
+                        {success && (
+                            <Alert
+                                message={success}
+                                type="success"
+                                showIcon
+                            />
+                        )}
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
                 <Spin spinning={loading}>
-                    <table className="border-collapse border border-slate-400" onPaste={handlePaste}>
+                    <table
+                        className="border-collapse border border-slate-400"
+                        onPaste={handlePaste}
+                    >
                         <TableHeader />
                         <tbody>
                             {data.map((row, i) => (
