@@ -140,10 +140,11 @@ function StudentTracker() {
         if (stage === '찾' && !row.생년월일.trim()) {
             errors.push('찾기단계는 생년월일이 필요합니다.');
         }
-        if (['섭', '복', '예정', '센확'].includes(stage)) {
+
+        if (['합', '섭', '복', '예정', '센확'].includes(stage)) {
             const skip = isSkipTeamCheck(row.교사팀);
             if (!skip && (!row.교사지역 || !row.교사팀 || !row.교사이름)) {
-                errors.push('섭, 복, 예정, 센확 단계는 교사 정보가 필요합니다.');
+                errors.push('합, 섭, 복, 예정, 센확 단계는 교사 정보가 필요합니다.');
             }
         }
         return errors;
@@ -301,7 +302,6 @@ function StudentTracker() {
         }, 100);
     };
 
-    // 2. 렌더링 게이트: 사용자 정보를 불러오는 중일 때 로딩 화면을 표시합니다.
     if (isLoading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
@@ -310,7 +310,6 @@ function StudentTracker() {
         );
     }
 
-    // 3. 렌더링 게이트: 로딩이 끝난 후, 관리자가 아닐 경우 접근 거부 메시지를 표시합니다.
     if (!isAdmin) {
         return (
             <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -329,7 +328,6 @@ function StudentTracker() {
         );
     }
 
-    // 4. 위 두 조건을 모두 통과한 경우(로딩이 끝났고, 관리자인 경우)에만 실제 페이지 내용을 렌더링합니다.
     return (
         <Card>
             <CardHeader>

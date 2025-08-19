@@ -508,8 +508,6 @@ const RenderChart = ({
 };
 
 export default function GoalCalculatorTable() {
-    // ✨ 1. useUser 훅에서 'user' 대신 'region'을 가져오도록 수정합니다.
-    //    isAdmin과 isLoading도 함께 가져와 권한 제어에 사용합니다.
     const { region: userRegion, isAdmin, isLoading: isUserLoading, error: userError } = useUser();
 
     const { data: students = [], isLoading: isStudentsLoading } = useStudentsQuery();
@@ -557,7 +555,6 @@ export default function GoalCalculatorTable() {
     );
 
     useEffect(() => {
-        // ✨ 2. 'user' 대신 'userRegion'을 사용하여 로직을 처리합니다.
         if (!isUserLoading && userRegion) {
             const initialRegion = userRegion === 'all' ? '도봉' : (userRegion as Region);
             setRegion(initialRegion);
@@ -668,7 +665,6 @@ export default function GoalCalculatorTable() {
             }
         };
 
-        // ✨ 3. 'user' 대신 'userRegion'을 사용하여 로직을 처리합니다.
         if (userRegion === 'all') {
             fetchAllRegionsForMonth(selectedMonth, setAllRegionsResults);
             if (showComparison) {
@@ -692,6 +688,11 @@ export default function GoalCalculatorTable() {
     ]);
 
     const saveConfig = useCallback(async () => {
+        // ✨ 1. 관리자가 아닐 경우 저장을 방지하는 가드(Guard) 추가
+        if (!isAdmin) {
+            setApiError('수정 권한이 없습니다.');
+            return;
+        }
         if (!region || !fGoals) {
             setApiError('지역과 F 목표를 설정해야 저장할 수 있습니다.');
             return;
@@ -730,7 +731,7 @@ export default function GoalCalculatorTable() {
             setSuccessMessage('');
             console.error('Save config error:', err);
         }
-    }, [region, selectedMonth, selectedYear, fGoals, weeklyPercentages]);
+    }, [region, selectedMonth, selectedYear, fGoals, weeklyPercentages, isAdmin]); // ✨ isAdmin을 의존성 배열에 추가
 
     const handleInputChange = useCallback(
         (type: 'fGoal' | 'weeklyPercentage', key: string, value: string, week?: keyof WeeklyPercentages) => {
@@ -799,7 +800,6 @@ export default function GoalCalculatorTable() {
         []
     );
 
-    // ✨ 4. 렌더링 게이트: 사용자 인증 정보 로딩
     if (isUserLoading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
@@ -808,27 +808,8 @@ export default function GoalCalculatorTable() {
         );
     }
 
-    // ✨ 5. 렌더링 게이트: 관리자 권한 확인 (지역 담당자 접근 차단)
-    if (!isAdmin) {
-        return (
-            <div style={{ padding: '40px', textAlign: 'center' }}>
-                <Alert
-                    message="접근 권한 없음"
-                    description="이 페이지에 접근할 수 있는 권한이 없습니다. 관리자에게 문의하세요."
-                    type="error"
-                    showIcon
-                />
-                <Link href="/student/view">
-                    <Button type="primary" style={{ marginTop: '20px' }}>
-                        수강생 조회 페이지로 돌아가기
-                    </Button>
-                </Link>
-            </div>
-        );
-    }
-
-    // ✨ 6. 렌더링 게이트: 데이터 로딩 (권한 확인 후)
-    if (isStudentsLoading || !region || !fGoals || !results) {
+    // ✨ 2. 데이터 로딩 게이트: 사용자 정보 로딩 후, 페이지에 필요한 데이터가 로드될 때까지 대기
+    if (isStudentsLoading || !region || !fGoals || !results || !userRegion) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
                 <Spin size="large" tip="데이터를 불러오는 중입니다..." />
@@ -844,10 +825,9 @@ export default function GoalCalculatorTable() {
         );
     }
 
-    // ✨ 7. 모든 조건을 통과하면 실제 페이지 렌더링
+    // ✨ 3. 모든 조건을 통과하면 실제 페이지 렌더링 시작
     return (
         <div className="w-full mx-auto p-6">
-            {/* ✨ 8. 'user' 대신 'userRegion'을 사용하여 로직을 처리합니다. */}
             {userRegion === 'all' && (
                 <div className="flex justify-center mb-4">
                     <button
@@ -898,14 +878,12 @@ export default function GoalCalculatorTable() {
             </div>
             {apiError && <p className="mt-2 text-sm text-red-600 text-center">{apiError}</p>}
             {successMessage && <p className="mt-2 text-sm text-green-600 text-center">{successMessage}</p>}
-            {/* ✨ 9. 'user' 대신 'userRegion'을 사용하여 로직을 처리합니다. */}
             {userRegion !== 'all' || view === 'region' ? (
                 <>
                     <h1 className="text-2xl font-bold mb-4 text-center">
                         청년회 {selectedMonth}월 {region} 그룹 복음방 개강 4주 플랜 목표 설정
                     </h1>
                     <div className="grid grid-cols-2 gap-4 mb-4">
-                        {/* ✨ 10. 'user' 대신 'userRegion'을 사용하여 로직을 처리합니다. */}
                         {userRegion === 'all' && (
                             <div>
                                 <label htmlFor="region-select" className="block text-sm font-medium text-gray-700">
@@ -979,6 +957,8 @@ export default function GoalCalculatorTable() {
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                     placeholder={`e.g., ${Object.values(DEFAULT_예정_goals[region!])[index]}`}
                                     step="0.1"
+                                    // ✨ 4. 관리자가 아닐 경우 F 목표 입력을 비활성화
+                                    disabled={!isAdmin}
                                 />
                             </div>
                         ))}
@@ -1067,6 +1047,8 @@ export default function GoalCalculatorTable() {
                                                             step="1"
                                                             min="0"
                                                             max="100"
+                                                            // ✨ 5. 관리자가 아닐 경우 주차별 비율 입력을 비활성화
+                                                            disabled={!isAdmin}
                                                         />
                                                         %
                                                     </td>
@@ -1094,7 +1076,9 @@ export default function GoalCalculatorTable() {
                                 <div className="flex justify-center mb-4">
                                     <button
                                         onClick={saveConfig}
-                                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-400"
+                                        // ✨ 6. 관리자가 아닐 경우 저장 버튼을 비활성화
+                                        disabled={!isAdmin}
                                     >
                                         저장
                                     </button>
