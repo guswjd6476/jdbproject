@@ -8,13 +8,15 @@ interface ConfigRequest {
     year: number;
     fGoals: Record<string, string>;
     weeklyPercentages: Record<string, Record<string, number>>;
+    goalMultipliers: Record<string, Record<string, number>>;
 }
 
 export async function POST(request: Request) {
     let client;
     try {
         // conversionRates 제거
-        const { region, month, year, fGoals, weeklyPercentages } = (await request.json()) as ConfigRequest;
+        const { region, month, year, fGoals, weeklyPercentages, goalMultipliers } =
+            (await request.json()) as ConfigRequest;
 
         if (!region || !month || !year || !fGoals || !weeklyPercentages) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -49,7 +51,7 @@ export async function POST(request: Request) {
                 year,
                 JSON.stringify(fGoals),
                 JSON.stringify(weeklyPercentages),
-                JSON.stringify({}), // conversion_rates 빈 JSON 삽입
+                JSON.stringify(goalMultipliers), // conversion_rates 빈 JSON 삽입
             ]
         );
 
@@ -81,7 +83,7 @@ export async function GET(request: Request) {
         // conversion_rates도 SELECT에 포함할지 여부는 필요에 따라 선택 가능
         const result = await client.query(
             `
-      SELECT 예정_goals, weekly_percentages
+      SELECT 예정_goals, weekly_percentages,conversion_rates
       FROM region_configs
       WHERE region = $1 AND month = $2 AND year = $3;
     `,

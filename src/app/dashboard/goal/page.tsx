@@ -21,10 +21,9 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 import isBetween from 'dayjs/plugin/isBetween';
 import { getTeamName, getWeekDateRange } from '@/app/lib/function';
 import html2canvas from 'html2canvas';
-import { Button, Table, Spin, Alert } from 'antd';
+import { Button, Table, Spin } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import { useUser } from '@/app/hook/useUser';
-import Link from 'next/link';
 
 dayjs.extend(isBetween);
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -33,6 +32,15 @@ const getWeekCount = (year: number, month: string): number => {
     if (year < 2025) return 5;
     if (year === 2025 && Number(month) <= 8) return 5;
     return 8;
+};
+
+// ✨ 1. goalMultipliers의 기본값을 상수로 분리하여 정의합니다.
+const DEFAULT_GOAL_MULTIPLIERS = {
+    발: 20,
+    찾: 10,
+    합: 4,
+    섭: 2,
+    복: 1.5,
 };
 
 const steps = ['발', '찾', '합', '섭', '복', '예정'] as const;
@@ -50,8 +58,6 @@ interface WeeklyGoalsTableProps {
     secondarySelectedMonth?: string;
 }
 
-// (WeeklyGoalsTable, RenderChart 컴포넌트는 길어서 생략합니다. 이전 코드와 동일하게 유지하시면 됩니다.)
-// ... WeeklyGoalsTable and RenderChart component code remains the same ...
 const WeeklyGoalsTable = ({
     data,
     achievements,
@@ -282,10 +288,16 @@ const WeeklyGoalsTable = ({
         const { display } = getWeekDateRange(Number(currentMonth), year, weekIndex);
         return (
             <div className="flex-1 min-w-[50%]">
-                <div ref={weekTitleTextRefs[weekKey]} style={{ marginBottom: 8, fontWeight: 'bold' }}>
+                <div
+                    ref={weekTitleTextRefs[weekKey]}
+                    style={{ marginBottom: 8, fontWeight: 'bold' }}
+                >
                     {currentMonth}월 {weekIndex + 1}주차 ({weekName}, {display})
                 </div>
-                <div ref={tableRefs[weekKey]} className="bg-white p-4 rounded-md shadow-md">
+                <div
+                    ref={tableRefs[weekKey]}
+                    className="bg-white p-4 rounded-md shadow-md"
+                >
                     <Table
                         columns={columns}
                         dataSource={flatTeams}
@@ -335,12 +347,21 @@ const WeeklyGoalsTable = ({
                     primaryWeekNames[weekIndex]
                 );
                 return (
-                    <div key={weekKey} className="mb-10">
+                    <div
+                        key={weekKey}
+                        className="mb-10"
+                    >
                         <div className="flex justify-end mb-2 space-x-2">
-                            <Button type="primary" onClick={() => toggleStepFilter(weekKey)}>
+                            <Button
+                                type="primary"
+                                onClick={() => toggleStepFilter(weekKey)}
+                            >
                                 {stepFilterToggle[weekKey] ? '필터된 보기' : '전체 보기'}
                             </Button>
-                            <Button type="primary" onClick={() => saveTableAsImage(weekKey, weekIndex)}>
+                            <Button
+                                type="primary"
+                                onClick={() => saveTableAsImage(weekKey, weekIndex)}
+                            >
                                 이미지로 저장
                             </Button>
                         </div>
@@ -486,7 +507,10 @@ const RenderChart = ({
                 },
             };
             return (
-                <div key={week.weekKey} className="mb-8">
+                <div
+                    key={week.weekKey}
+                    className="mb-8"
+                >
                     <div className="flex justify-between items-center mb-2">
                         <h3 className="text-md font-medium">
                             {weekIndex + 1}주차 ({weekName}, {display})
@@ -498,8 +522,14 @@ const RenderChart = ({
                             이미지로 저장
                         </button>
                     </div>
-                    <div ref={chartRefs[week.weekKey]} className="chart-container bg-white p-4 rounded-md shadow-md">
-                        <Bar data={chartData} options={options} />
+                    <div
+                        ref={chartRefs[week.weekKey]}
+                        className="chart-container bg-white p-4 rounded-md shadow-md"
+                    >
+                        <Bar
+                            data={chartData}
+                            options={options}
+                        />
                     </div>
                 </div>
             );
@@ -508,10 +538,12 @@ const RenderChart = ({
 };
 
 export default function GoalCalculatorTable() {
-    const { region: userRegion, isAdmin, isLoading: isUserLoading, error: userError } = useUser();
-
+    const { region: userRegion, isAdmin, isLoading: isUserLoading, error: userError, role } = useUser();
     const { data: students = [], isLoading: isStudentsLoading } = useStudentsQuery();
     const year = 2025;
+
+    // ✨ 2. useState에서 상수를 사용하여 초기 상태를 설정합니다.
+    const [goalMultipliers, setGoalMultipliers] = useState(DEFAULT_GOAL_MULTIPLIERS);
 
     const [showComparison, setShowComparison] = useState(false);
     const defaultWeeklyPercentages = useMemo(
@@ -559,31 +591,38 @@ export default function GoalCalculatorTable() {
             const initialRegion = userRegion === 'all' ? '도봉' : (userRegion as Region);
             setRegion(initialRegion);
             setFGoals(DEFAULT_예정_goals[initialRegion]);
-            setResults(initializeResults(DEFAULT_예정_goals[initialRegion], defaultWeeklyPercentages));
+            setResults(initializeResults(DEFAULT_예정_goals[initialRegion], defaultWeeklyPercentages, goalMultipliers));
             setView(userRegion === 'all' ? 'region' : 'region');
         }
-    }, [isUserLoading, userRegion, defaultWeeklyPercentages]);
+    }, [isUserLoading, userRegion, defaultWeeklyPercentages, DEFAULT_GOAL_MULTIPLIERS]);
 
-    const calculateGoals = useCallback((currentFGoals: 예정Goals, currentWeeklyPercentages: WeeklyPercentages) => {
-        const goals = Object.values(currentFGoals).map(parseFloat);
-        if (goals.some((f) => isNaN(f) || f < 0)) {
-            setError('모든 팀의 F 목표는 유효한 양수이어야 합니다.');
-            return;
-        }
-        const invalidWeek = Object.keys(currentWeeklyPercentages).find((week) =>
-            Object.values(currentWeeklyPercentages[week as keyof WeeklyPercentages]).some((p) => isNaN(p) || p < 0)
-        );
-        if (invalidWeek) {
-            setError('모든 주차의 비율은 0~100% 사이의 정수 백분율이어야 합니다.');
-            return;
-        }
-        const newResults = initializeResults(currentFGoals, currentWeeklyPercentages);
-        setResults(newResults);
-        setError('');
-    }, []);
+    const calculateGoals = useCallback(
+        (
+            currentFGoals: 예정Goals,
+            currentWeeklyPercentages: WeeklyPercentages,
+            currentMultipliers: typeof goalMultipliers
+        ) => {
+            const goals = Object.values(currentFGoals).map(parseFloat);
+            if (goals.some((f) => isNaN(f) || f < 0)) {
+                setError('모든 팀의 F 목표는 유효한 양수이어야 합니다.');
+                return;
+            }
+            const invalidWeek = Object.keys(currentWeeklyPercentages).find((week) =>
+                Object.values(currentWeeklyPercentages[week as keyof WeeklyPercentages]).some((p) => isNaN(p) || p < 0)
+            );
+            if (invalidWeek) {
+                setError('모든 주차의 비율은 0~100% 사이의 정수 백분율이어야 합니다.');
+                return;
+            }
+            const newResults = initializeResults(currentFGoals, currentWeeklyPercentages, currentMultipliers);
+            setResults(newResults);
+            setError('');
+        },
+        []
+    );
 
     useEffect(() => {
-        if (!region || !fGoals) return;
+        if (!region) return;
         const fetchConfig = async () => {
             try {
                 const response = await fetch(`/api/goal?region=${region}&month=${selectedMonth}&year=${selectedYear}`);
@@ -591,26 +630,46 @@ export default function GoalCalculatorTable() {
                     throw new Error(`Failed to fetch config: ${response.statusText}`);
                 }
                 const result = await response.json();
-                let loadedFGoals, loadedWeeklyPerc;
+
+                let loadedFGoals;
+                let loadedWeeklyPerc;
+                let loadedMultipliers;
+
                 if (result.data) {
                     loadedFGoals = result.data.예정_goals;
                     loadedWeeklyPerc = result.data.weekly_percentages;
+                    loadedMultipliers = result.data.conversion_rates;
+
                     setFGoals(loadedFGoals);
                     setWeeklyPercentages(loadedWeeklyPerc);
+
+                    if (loadedMultipliers) {
+                        setGoalMultipliers(loadedMultipliers);
+                    } else {
+                        setGoalMultipliers(DEFAULT_GOAL_MULTIPLIERS);
+                    }
                 } else {
                     loadedFGoals = DEFAULT_예정_goals[region];
                     loadedWeeklyPerc = defaultWeeklyPercentages;
+                    loadedMultipliers = DEFAULT_GOAL_MULTIPLIERS;
+
                     setFGoals(loadedFGoals);
                     setWeeklyPercentages(loadedWeeklyPerc);
+                    setGoalMultipliers(loadedMultipliers);
                 }
-                calculateGoals(loadedFGoals, loadedWeeklyPerc);
+
+                calculateGoals(loadedFGoals, loadedWeeklyPerc, loadedMultipliers);
                 setApiError('');
             } catch (err) {
                 setApiError('서버에서 설정을 가져오지 못했습니다.');
                 console.error('Fetch config error:', err);
                 const defaultFGoals = DEFAULT_예정_goals[region];
+
+                // ✨ 에러 발생 시, 모든 설정을 기본값으로 리셋합니다.
                 setFGoals(defaultFGoals);
-                calculateGoals(defaultFGoals, defaultWeeklyPercentages);
+                setWeeklyPercentages(defaultWeeklyPercentages);
+                setGoalMultipliers(DEFAULT_GOAL_MULTIPLIERS);
+                calculateGoals(defaultFGoals, defaultWeeklyPercentages, DEFAULT_GOAL_MULTIPLIERS);
             }
         };
         fetchConfig();
@@ -631,12 +690,17 @@ export default function GoalCalculatorTable() {
                     const result = await response.json();
                     const results = initializeResults(
                         result.data?.예정_goals || DEFAULT_예정_goals[reg],
-                        result.data?.weekly_percentages || defaultWeeklyPercentages
+                        result.data?.weekly_percentages || defaultWeeklyPercentages,
+                        goalMultipliers
                     );
                     resultsByRegion.push({ region: reg, results });
                 } catch (err) {
                     console.error(`Fetch config error for ${reg} in month ${month}:`, err);
-                    const results = initializeResults(DEFAULT_예정_goals[reg], defaultWeeklyPercentages);
+                    const results = initializeResults(
+                        DEFAULT_예정_goals[reg],
+                        defaultWeeklyPercentages,
+                        goalMultipliers
+                    );
                     resultsByRegion.push({ region: reg, results });
                 }
             }
@@ -655,12 +719,17 @@ export default function GoalCalculatorTable() {
                 const result = await response.json();
                 const resultsData = initializeResults(
                     result.data?.예정_goals || DEFAULT_예정_goals[reg],
-                    result.data?.weekly_percentages || defaultWeeklyPercentages
+                    result.data?.weekly_percentages || defaultWeeklyPercentages,
+                    goalMultipliers
                 );
                 setData([{ region: reg, results: resultsData }]);
             } catch (err) {
                 console.error(`Fetch config error for ${reg} in month ${month}:`, err);
-                const resultsData = initializeResults(DEFAULT_예정_goals[reg], defaultWeeklyPercentages);
+                const resultsData = initializeResults(
+                    DEFAULT_예정_goals[reg],
+                    defaultWeeklyPercentages,
+                    goalMultipliers
+                );
                 setData([{ region: reg, results: resultsData }]);
             }
         };
@@ -685,10 +754,10 @@ export default function GoalCalculatorTable() {
         defaultWeeklyPercentages,
         userRegion,
         showComparison,
+        goalMultipliers,
     ]);
 
     const saveConfig = useCallback(async () => {
-        // ✨ 1. 관리자가 아닐 경우 저장을 방지하는 가드(Guard) 추가
         if (!isAdmin) {
             setApiError('수정 권한이 없습니다.');
             return;
@@ -712,6 +781,7 @@ export default function GoalCalculatorTable() {
                     year: selectedYear,
                     fGoals,
                     weeklyPercentages,
+                    goalMultipliers,
                 }),
             });
             if (!response.ok) {
@@ -731,13 +801,20 @@ export default function GoalCalculatorTable() {
             setSuccessMessage('');
             console.error('Save config error:', err);
         }
-    }, [region, selectedMonth, selectedYear, fGoals, weeklyPercentages, isAdmin]); // ✨ isAdmin을 의존성 배열에 추가
+    }, [region, selectedMonth, selectedYear, fGoals, weeklyPercentages, isAdmin, goalMultipliers]);
 
     const handleInputChange = useCallback(
-        (type: 'fGoal' | 'weeklyPercentage', key: string, value: string, week?: keyof WeeklyPercentages) => {
+        (
+            type: 'fGoal' | 'weeklyPercentage' | 'multiplier',
+            key: string,
+            value: string,
+            week?: keyof WeeklyPercentages
+        ) => {
             if (!fGoals) return;
-            let newFGoals = fGoals;
-            let newWeeklyPercentages = weeklyPercentages;
+            let newFGoals = { ...fGoals };
+            let newWeeklyPercentages = { ...weeklyPercentages };
+            let newMultipliers = { ...goalMultipliers };
+
             if (type === 'fGoal') {
                 const regex = /^\d*\.?\d*$/;
                 if (!regex.test(value) && value !== '') {
@@ -767,11 +844,20 @@ export default function GoalCalculatorTable() {
                 }
                 newWeeklyPercentages = { ...weeklyPercentages, [week]: currentWeek };
                 setWeeklyPercentages(newWeeklyPercentages);
+            } else if (type === 'multiplier') {
+                const numValue = parseFloat(value);
+                if (value !== '' && (isNaN(numValue) || numValue < 0)) {
+                    setError('배수는 유효한 양수이어야 합니다.');
+                    return;
+                }
+                newMultipliers = { ...goalMultipliers, [key]: parseFloat(value) };
+                setGoalMultipliers(newMultipliers);
             }
+
             setError('');
-            calculateGoals(newFGoals, newWeeklyPercentages);
+            calculateGoals(newFGoals, newWeeklyPercentages, newMultipliers);
         },
-        [fGoals, weeklyPercentages, calculateGoals]
+        [fGoals, weeklyPercentages, calculateGoals, goalMultipliers]
     );
 
     const handleRegionChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -803,16 +889,21 @@ export default function GoalCalculatorTable() {
     if (isUserLoading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                <Spin size="large" tip="사용자 정보 확인 중..." />
+                <Spin
+                    size="large"
+                    tip="사용자 정보 확인 중..."
+                />
             </div>
         );
     }
 
-    // ✨ 2. 데이터 로딩 게이트: 사용자 정보 로딩 후, 페이지에 필요한 데이터가 로드될 때까지 대기
     if (isStudentsLoading || !region || !fGoals || !results || !userRegion) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                <Spin size="large" tip="데이터를 불러오는 중입니다..." />
+                <Spin
+                    size="large"
+                    tip="데이터를 불러오는 중입니다..."
+                />
             </div>
         );
     }
@@ -825,7 +916,6 @@ export default function GoalCalculatorTable() {
         );
     }
 
-    // ✨ 3. 모든 조건을 통과하면 실제 페이지 렌더링 시작
     return (
         <div className="w-full mx-auto p-6">
             {userRegion === 'all' && (
@@ -886,7 +976,10 @@ export default function GoalCalculatorTable() {
                     <div className="grid grid-cols-2 gap-4 mb-4">
                         {userRegion === 'all' && (
                             <div>
-                                <label htmlFor="region-select" className="block text-sm font-medium text-gray-700">
+                                <label
+                                    htmlFor="region-select"
+                                    className="block text-sm font-medium text-gray-700"
+                                >
                                     지역 선택:
                                 </label>
                                 <select
@@ -896,7 +989,10 @@ export default function GoalCalculatorTable() {
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                 >
                                     {REGIONS.map((reg) => (
-                                        <option key={reg} value={reg}>
+                                        <option
+                                            key={reg}
+                                            value={reg}
+                                        >
                                             {reg}
                                         </option>
                                     ))}
@@ -904,7 +1000,10 @@ export default function GoalCalculatorTable() {
                             </div>
                         )}
                         <div>
-                            <label htmlFor="month-select" className="block text-sm font-medium text-gray-700">
+                            <label
+                                htmlFor="month-select"
+                                className="block text-sm font-medium text-gray-700"
+                            >
                                 월 선택:
                             </label>
                             <select
@@ -914,7 +1013,10 @@ export default function GoalCalculatorTable() {
                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                             >
                                 {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                                    <option key={month} value={month}>
+                                    <option
+                                        key={month}
+                                        value={month}
+                                    >
                                         {month}월
                                     </option>
                                 ))}
@@ -935,7 +1037,10 @@ export default function GoalCalculatorTable() {
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                 >
                                     {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                                        <option key={month} value={month}>
+                                        <option
+                                            key={month}
+                                            value={month}
+                                        >
                                             {month}월
                                         </option>
                                     ))}
@@ -946,7 +1051,10 @@ export default function GoalCalculatorTable() {
                     <div className="grid grid-cols-2 gap-4 mb-4">
                         {Object.keys(fGoals).map((team, index) => (
                             <div key={team}>
-                                <label htmlFor={team} className="block text-sm font-medium text-gray-700">
+                                <label
+                                    htmlFor={team}
+                                    className="block text-sm font-medium text-gray-700"
+                                >
                                     {region} {index + 1}팀 F 목표:
                                 </label>
                                 <input
@@ -957,12 +1065,34 @@ export default function GoalCalculatorTable() {
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                     placeholder={`e.g., ${Object.values(DEFAULT_예정_goals[region!])[index]}`}
                                     step="0.1"
-                                    // ✨ 4. 관리자가 아닐 경우 F 목표 입력을 비활성화
                                     disabled={!isAdmin}
                                 />
                             </div>
                         ))}
                     </div>
+                    <div className="grid grid-cols-5 gap-4 mb-4 p-4 border rounded-md">
+                        <h3 className="col-span-5 text-lg font-semibold mb-2">단계별 목표 배수 설정</h3>
+                        {(['발', '찾', '합', '섭', '복'] as const).map((step) => (
+                            <div key={step}>
+                                <label
+                                    htmlFor={`${step}-multiplier`}
+                                    className="block text-sm font-medium text-gray-700"
+                                >
+                                    {step} 배수:
+                                </label>
+                                <input
+                                    type="number"
+                                    id={`${step}-multiplier`}
+                                    value={goalMultipliers[step]}
+                                    onChange={(e) => handleInputChange('multiplier', step, e.target.value)}
+                                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                    step="0.1"
+                                    disabled={role !== 'superAdmin'}
+                                />
+                            </div>
+                        ))}
+                    </div>
+
                     {error && <p className="mt-2 text-sm text-red-600 text-center">{error}</p>}
                     <div className="mt-6">
                         {displayMode === 'table' ? (
@@ -1027,7 +1157,10 @@ export default function GoalCalculatorTable() {
                                             <tr key={weekKey}>
                                                 <td className="border p-2">{label}</td>
                                                 {(steps as ReadonlyArray<keyof WeeklyGoals>).map((key) => (
-                                                    <td key={key} className="border p-2 text-center">
+                                                    <td
+                                                        key={key}
+                                                        className="border p-2 text-center"
+                                                    >
                                                         <input
                                                             type="number"
                                                             value={Math.round(
@@ -1047,7 +1180,6 @@ export default function GoalCalculatorTable() {
                                                             step="1"
                                                             min="0"
                                                             max="100"
-                                                            // ✨ 5. 관리자가 아닐 경우 주차별 비율 입력을 비활성화
                                                             disabled={!isAdmin}
                                                         />
                                                         %
@@ -1065,7 +1197,10 @@ export default function GoalCalculatorTable() {
                                                     return sum + value;
                                                 }, 0);
                                                 return (
-                                                    <td key={key} className="border p-2 text-center">
+                                                    <td
+                                                        key={key}
+                                                        className="border p-2 text-center"
+                                                    >
                                                         {Math.round(total * 100)}%
                                                     </td>
                                                 );
@@ -1077,7 +1212,6 @@ export default function GoalCalculatorTable() {
                                     <button
                                         onClick={saveConfig}
                                         className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-400"
-                                        // ✨ 6. 관리자가 아닐 경우 저장 버튼을 비활성화
                                         disabled={!isAdmin}
                                     >
                                         저장
@@ -1119,7 +1253,10 @@ export default function GoalCalculatorTable() {
                     </h1>
                     <div className="grid grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label htmlFor="month-select" className="block text-sm font-medium text-gray-700">
+                            <label
+                                htmlFor="month-select"
+                                className="block text-sm font-medium text-gray-700"
+                            >
                                 월 선택:
                             </label>
                             <select
@@ -1129,7 +1266,10 @@ export default function GoalCalculatorTable() {
                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                             >
                                 {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                                    <option key={month} value={month}>
+                                    <option
+                                        key={month}
+                                        value={month}
+                                    >
                                         {month}월
                                     </option>
                                 ))}
@@ -1150,7 +1290,10 @@ export default function GoalCalculatorTable() {
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                 >
                                     {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                                        <option key={month} value={month}>
+                                        <option
+                                            key={month}
+                                            value={month}
+                                        >
                                             {month}월
                                         </option>
                                     ))}
@@ -1213,7 +1356,10 @@ export default function GoalCalculatorTable() {
                                                     </tr>
                                                 ))}
                                                 <tr className="font-bold">
-                                                    <td className="border p-2" colSpan={2}>
+                                                    <td
+                                                        className="border p-2"
+                                                        colSpan={2}
+                                                    >
                                                         계
                                                     </td>
                                                     {(steps as ReadonlyArray<keyof WeeklyGoals>).map((step) => (
@@ -1260,16 +1406,19 @@ export default function GoalCalculatorTable() {
     );
 }
 
-// (initializeResults, calculateAchievements 함수는 길어서 생략합니다. 이전 코드와 동일하게 유지하시면 됩니다.)
-// ... initializeResults and calculateAchievements function code remains the same ...
-const initializeResults = (예정Goals: 예정Goals, weeklyPercentages: WeeklyPercentages): Results => {
+const initializeResults = (
+    예정Goals: 예정Goals,
+    weeklyPercentages: WeeklyPercentages,
+    multipliers: { 발: number; 찾: number; 합: number; 섭: number; 복: number }
+): Results => {
     const goals = Object.values(예정Goals).map((f) => parseFloat(f));
     const teamResults: TeamResult[] = goals.map((예정Value, index) => {
-        const 복 = Math.ceil(예정Value * 1.5);
-        const 섭 = Math.ceil(예정Value * 2);
-        const 합 = Math.ceil(예정Value * 4);
-        const 찾 = Math.ceil(예정Value * 10);
-        const 발 = Math.ceil(예정Value * 20);
+        const 복 = Math.ceil(예정Value * multipliers.복);
+        const 섭 = Math.ceil(예정Value * multipliers.섭);
+        const 합 = Math.ceil(예정Value * multipliers.합);
+        const 찾 = Math.ceil(예정Value * multipliers.찾);
+        const 발 = Math.ceil(예정Value * multipliers.발);
+
         const weeks = ['week1', 'week2', 'week3', 'week4', 'week5', 'week6', 'week7', 'week8'].map((week) => {
             const percentages = weeklyPercentages[week as keyof WeeklyPercentages] ?? {
                 발: 0,
@@ -1288,7 +1437,7 @@ const initializeResults = (예정Goals: 예정Goals, weeklyPercentages: WeeklyPe
                 예정: Math.ceil(예정Value * percentages.예정),
             };
         });
-        return { team: index + 1, goals: { 발: 발, 찾: 찾, 합: 합, 섭: 섭, 복: 복, 예정: 예정Value }, weeks };
+        return { team: index + 1, goals: { 발, 찾, 합, 섭, 복, 예정: 예정Value }, weeks };
     });
     const totals: WeeklyGoals = teamResults.reduce(
         (acc: WeeklyGoals, team: TeamResult) => ({
@@ -1303,6 +1452,7 @@ const initializeResults = (예정Goals: 예정Goals, weeklyPercentages: WeeklyPe
     );
     return { teams: teamResults, totals };
 };
+
 const calculateAchievements = (
     students: Students[],
     selectedMonth: number,
@@ -1357,18 +1507,19 @@ const calculateAchievements = (
                 if (!REGIONS.includes(지역 as Region) || !fixedTeams.includes(팀)) return;
                 const teamNumber = 팀.match(/\d+/)?.[0] || 팀;
                 if (mode === 'weekly') {
-                    ['week1', 'week2', 'week3', 'week4'].forEach((week, index) => {
+                    ['week1', 'week2', 'week3', 'week4', 'week5', 'week6', 'week7', 'week8'].forEach((week, index) => {
                         const { start, end } = getWeekDateRange(selectedMonth, year, index);
                         if (!date.isBetween(start, end, 'day', '[]')) return;
-                        weeklyAchievements[지역] ??= {};
-                        weeklyAchievements[지역][teamNumber] ??= {};
-                        weeklyAchievements[지역][teamNumber][week] ??= {};
+                        if (!weeklyAchievements[지역]) weeklyAchievements[지역] = {};
+                        if (!weeklyAchievements[지역][teamNumber]) weeklyAchievements[지역][teamNumber] = {};
+                        if (!weeklyAchievements[지역][teamNumber][week])
+                            weeklyAchievements[지역][teamNumber][week] = {};
                         weeklyAchievements[지역][teamNumber][week][step] =
                             (weeklyAchievements[지역][teamNumber][week][step] ?? 0) + 점수;
                     });
                 } else if (date.month() + 1 === selectedMonth) {
-                    monthlyAchievements[지역] ??= {};
-                    monthlyAchievements[지역][팀] ??= {};
+                    if (!monthlyAchievements[지역]) monthlyAchievements[지역] = {};
+                    if (!monthlyAchievements[지역][팀]) monthlyAchievements[지역][팀] = {};
                     monthlyAchievements[지역][팀][step] = (monthlyAchievements[지역][팀][step] ?? 0) + 점수;
                 }
             });

@@ -69,7 +69,6 @@ export function useUser(): UserHookResult {
         fetchUser();
     }, []);
 
-    // API 응답을 기반으로 최종 반환 값을 계산합니다.
     const isAdmin = session?.role === 'superAdmin' || session?.role === 'regionAdmin';
 
     return {
