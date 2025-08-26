@@ -18,8 +18,6 @@ const { RangePicker } = DatePicker;
 export default function DashboardPage() {
     // ✨ 1. useUser 훅에서 최신 상태 값들을 가져옵니다.
     const { region: userRegion, role, isLoading: isUserLoading } = useUser();
-
-    // ✨ 2. 'isSuperAdmin' 변수를 role 기반으로 명확하게 정의합니다.
     const isSuperAdmin = role === 'superAdmin';
 
     const { data: students = [], isLoading: isStudentsLoading } = useStudentsQuery();
@@ -27,6 +25,9 @@ export default function DashboardPage() {
     const [selectedYear, setSelectedYear] = useState<number>(dayjs().year());
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
     const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+    // ✨ 수정된 부분: 지역 계정의 '구역' 선택을 위한 별도 상태 추가
+    const [selectedGuyeok, setSelectedGuyeok] = useState<string | null>(null);
+
     const [filterMode, setFilterMode] = useState<'month' | 'range'>('month');
     const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
     const [selectedDateRange, setSelectedDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
@@ -64,11 +65,11 @@ export default function DashboardPage() {
 
             if (!REGIONS.includes(leader지역) || !fixedTeams.includes(leader팀)) return;
 
-            // ✨ 3. isSuperAdmin을 사용하여 필터링 로직을 구분합니다.
             if (!isSuperAdmin) {
                 // 지역 계정일 경우
                 if (selectedTeam && leader팀 !== selectedTeam) return;
-                if (selectedRegion && leader구역 !== selectedRegion) return;
+                // ✨ 수정된 부분: '구역' 필터링에 별도 상태(selectedGuyeok) 사용
+                if (selectedGuyeok && leader구역 !== selectedGuyeok) return;
             } else {
                 // 최고 관리자일 경우
                 if (selectedRegion && leader지역 !== selectedRegion) return;
@@ -87,34 +88,46 @@ export default function DashboardPage() {
                 const key = step.toLowerCase() as keyof Student;
                 const dateStr = s[key] as string | null | undefined;
                 if (!dateStr) return;
+
                 const date = dayjs(dateStr);
-                if (!date.isValid() || date.year() !== selectedYear) return;
-                if (filterMode === 'month' && selectedMonth !== null && date.month() + 1 !== selectedMonth) return;
-                if (
-                    filterMode === 'range' &&
-                    selectedDateRange[0] &&
-                    selectedDateRange[1] &&
-                    (date.isBefore(selectedDateRange[0], 'day') || date.isAfter(selectedDateRange[1], 'day'))
-                )
-                    return;
+                if (!date.isValid()) return;
+
+                // ✨ 수정된 부분: 기간 필터링 로직 수정
+                if (filterMode === 'month') {
+                    if (
+                        date.year() !== selectedYear ||
+                        (selectedMonth !== null && date.month() + 1 !== selectedMonth)
+                    ) {
+                        return;
+                    }
+                } else if (filterMode === 'range' && selectedDateRange[0] && selectedDateRange[1]) {
+                    if (date.isBefore(selectedDateRange[0], 'day') || date.isAfter(selectedDateRange[1], 'day')) {
+                        return;
+                    }
+                }
 
                 const month = (date.month() + 1).toString();
-                const teacherBasedSteps: STEP[] = ['합', '섭', '복', '예정'];
+                const teacherBasedSteps: STEP[] = ['섭', '복', '예정'];
                 const useTeacherData = teacherBasedSteps.includes(step);
+
                 const target지역 = useTeacherData ? (s.교사지역 ?? '').trim() : (s.인도자지역 ?? '').trim();
                 const targetRaw팀 = useTeacherData ? (s.교사팀 ?? '').trim() : (s.인도자팀 ?? '').trim();
                 const target팀 = targetRaw팀.includes('-') ? targetRaw팀.split('-')[0] : targetRaw팀;
                 const target구역 = targetRaw팀;
                 const 점수 = 1;
+
                 const targets = [{ 지역: target지역, 팀: target팀, 구역: target구역, 점수 }];
 
                 targets.forEach(({ 지역, 팀, 구역, 점수 }) => {
                     if (!REGIONS.includes(지역) || !fixedTeams.includes(팀)) return;
+
                     if (!(month in grouped)) grouped[month] = {};
+
                     if (!isSuperAdmin) {
                         grouped[month][팀] = grouped[month][팀] ?? {};
                         grouped[month][팀][구역] = grouped[month][팀][구역] ?? {};
                         grouped[month][팀][구역][step] = (grouped[month][팀][구역][step] ?? 0) + 점수;
+
                         grouped['전체'] = grouped['전체'] ?? {};
                         grouped['전체'][팀] = grouped['전체'][팀] ?? {};
                         grouped['전체'][팀][구역] = grouped['전체'][팀][구역] ?? {};
@@ -123,6 +136,7 @@ export default function DashboardPage() {
                         grouped[month][지역] = grouped[month][지역] ?? {};
                         grouped[month][지역][팀] = grouped[month][지역][팀] ?? {};
                         grouped[month][지역][팀][step] = (grouped[month][지역][팀][step] ?? 0) + 점수;
+
                         grouped['전체'] = grouped['전체'] ?? {};
                         grouped['전체'][지역] = grouped['전체'][지역] ?? {};
                         grouped['전체'][지역][팀] = grouped['전체'][지역][팀] ?? {};
@@ -134,12 +148,20 @@ export default function DashboardPage() {
             const 탈락일Str = s.g;
             if (탈락일Str) {
                 const 탈락일 = dayjs(탈락일Str);
-                if (!탈락일.isValid() || 탈락일.year() !== selectedYear) return;
-                if (filterMode === 'month' && selectedMonth !== null) {
-                    if (탈락일.month() + 1 !== selectedMonth) return;
-                } else if (filterMode === 'range' && selectedDateRange[0] && selectedDateRange[1]) {
-                    if (탈락일.isBefore(selectedDateRange[0], 'day') || 탈락일.isAfter(selectedDateRange[1], 'day'))
+                if (!탈락일.isValid()) return;
+
+                // ✨ 수정된 부분: 탈락일 기간 필터링 로직 수정
+                if (filterMode === 'month') {
+                    if (
+                        탈락일.year() !== selectedYear ||
+                        (selectedMonth !== null && 탈락일.month() + 1 !== selectedMonth)
+                    ) {
                         return;
+                    }
+                } else if (filterMode === 'range' && selectedDateRange[0] && selectedDateRange[1]) {
+                    if (탈락일.isBefore(selectedDateRange[0], 'day') || 탈락일.isAfter(selectedDateRange[1], 'day')) {
+                        return;
+                    }
                 }
 
                 const month = (탈락일.month() + 1).toString();
@@ -155,6 +177,7 @@ export default function DashboardPage() {
                 if (마지막단계) {
                     const 탈락key = `${마지막단계}_탈락`;
                     if (!(month in grouped)) grouped[month] = {};
+
                     if (!isSuperAdmin) {
                         if (!grouped[month][leader팀]) grouped[month][leader팀] = {};
                         if (!grouped[month][leader팀][leader구역]) grouped[month][leader팀][leader구역] = {};
@@ -162,6 +185,7 @@ export default function DashboardPage() {
                             (grouped[month][leader팀][leader구역][탈락key] ?? 0) + 1;
                         grouped[month][leader팀][leader구역]['탈락'] =
                             (grouped[month][leader팀][leader구역]['탈락'] ?? 0) + 1;
+
                         grouped['전체'] = grouped['전체'] ?? {};
                         grouped['전체'][leader팀] = grouped['전체'][leader팀] ?? {};
                         grouped['전체'][leader팀][leader구역] = grouped['전체'][leader팀][leader구역] ?? {};
@@ -176,6 +200,7 @@ export default function DashboardPage() {
                             (grouped[month][leader지역][leader팀][탈락key] ?? 0) + 1;
                         grouped[month][leader지역][leader팀]['탈락'] =
                             (grouped[month][leader지역][leader팀]['탈락'] ?? 0) + 1;
+
                         grouped['전체'] = grouped['전체'] ?? {};
                         grouped['전체'][leader지역] = grouped['전체'][leader지역] ?? {};
                         grouped['전체'][leader지역][leader팀] = grouped['전체'][leader지역][leader팀] ?? {};
@@ -193,7 +218,8 @@ export default function DashboardPage() {
             if (!isSuperAdmin) {
                 const teams = selectedTeam ? [selectedTeam] : Object.keys(grouped[month] ?? {});
                 teams.forEach((team) => {
-                    const 구역들 = selectedRegion ? [selectedRegion] : Object.keys(grouped[month]?.[team] ?? {});
+                    // ✨ 수정된 부분: '구역' 목록 생성 시 별도 상태(selectedGuyeok) 사용
+                    const 구역들 = selectedGuyeok ? [selectedGuyeok] : Object.keys(grouped[month]?.[team] ?? {});
                     구역들.forEach((구역) => {
                         const stepData = grouped[month]?.[team]?.[구역] || {};
                         const row: TableRow = {
@@ -258,6 +284,7 @@ export default function DashboardPage() {
             탈락: 0,
             ...STEPS.reduce((acc, step) => ({ ...acc, [step]: 0, [`${step}_탈락`]: 0, [`${step}_보유`]: 0 }), {}),
         };
+
         tableData.forEach((row) => {
             STEPS.forEach((step) => {
                 totalRow[step] = (totalRow[step] as number) + (row[step] as number);
@@ -266,7 +293,9 @@ export default function DashboardPage() {
             });
             totalRow.탈락 += row.탈락;
         });
+
         return { tableData, totalRow };
+        // ✨ 수정된 부분: 의존성 배열에 selectedGuyeok 추가
     }, [
         students,
         selectedYear,
@@ -276,11 +305,11 @@ export default function DashboardPage() {
         selectedMonth,
         selectedDateRange,
         isSuperAdmin,
+        selectedGuyeok,
     ]);
 
     const columns: ColumnsType<TableRow> = [
         { title: '월', dataIndex: '월', key: 'month', fixed: 'left' as const, width: 80 },
-        // ✨ 4. isSuperAdmin을 사용하여 컬럼 구성을 동적으로 변경합니다.
         ...(!isSuperAdmin
             ? [
                   {
@@ -325,6 +354,8 @@ export default function DashboardPage() {
         setSelectedYear(dayjs().year());
         setSelectedRegion(null);
         setSelectedTeam(null);
+        // ✨ 수정된 부분: '구역' 상태 초기화 추가
+        setSelectedGuyeok(null);
         setFilterMode('month');
         setSelectedMonth(null);
         setSelectedDateRange([null, null]);
@@ -357,7 +388,6 @@ export default function DashboardPage() {
         saveAs(data, 'dashboard_data.xlsx');
     };
 
-    // ✨ 5. 렌더링 게이트: 사용자 정보를 불러오는 동안 로딩 화면을 표시합니다.
     if (isUserLoading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
@@ -369,15 +399,21 @@ export default function DashboardPage() {
     return (
         <div className="w-full mx-auto p-6">
             <Title level={2}>월별 · 지역별 · 팀별 대시보드</Title>
-            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
-                <Space wrap size="middle">
+            <Space
+                direction="vertical"
+                size="large"
+                style={{ marginBottom: 24, width: '100%' }}
+            >
+                <Space
+                    wrap
+                    size="middle"
+                >
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
                         style={{ width: 100 }}
                         options={yearOptions}
                     />
-                    {/* ✨ 6. isSuperAdmin일 때만 지역 선택 필터를 보여줍니다. */}
                     {isSuperAdmin && (
                         <Select
                             placeholder="지역 선택"
@@ -396,19 +432,21 @@ export default function DashboardPage() {
                         onChange={(v) => setSelectedTeam(v ?? null)}
                         options={fixedTeams.map((t) => ({ label: t, value: t }))}
                     />
-                    {/* ✨ 7. isSuperAdmin이 아닐 때(지역 계정일 때)만 구역 선택 필터를 보여줍니다. */}
+
+                    {/* ✨ 수정된 부분: '구역' 선택 필터가 별도의 상태를 사용하도록 변경 */}
                     {!isSuperAdmin && (
                         <Select
                             placeholder="구역 선택"
                             allowClear
                             style={{ width: 120 }}
-                            value={selectedRegion ?? undefined} // 이 state는 구역을 위해 재사용됩니다.
-                            onChange={(v) => setSelectedRegion(v ?? null)}
+                            value={selectedGuyeok ?? undefined}
+                            onChange={(v) => setSelectedGuyeok(v ?? null)}
                             options={[
                                 ...new Set(students.map((s) => (s.인도자팀 ?? '').trim()).filter((v) => v !== '')),
                             ].map((q) => ({ label: q, value: q }))}
                         />
                     )}
+
                     <Radio.Group
                         onChange={(e) => {
                             setFilterMode(e.target.value);
@@ -420,6 +458,7 @@ export default function DashboardPage() {
                         <Radio.Button value="month">월별</Radio.Button>
                         <Radio.Button value="range">기간별</Radio.Button>
                     </Radio.Group>
+
                     {filterMode === 'month' && (
                         <Select
                             placeholder="월 선택"
@@ -439,11 +478,17 @@ export default function DashboardPage() {
                         />
                     )}
                     <Button onClick={handleReset}>초기화</Button>
-                    <Button onClick={handleExportToExcel} type="primary">
+                    <Button
+                        onClick={handleExportToExcel}
+                        type="primary"
+                    >
                         엑셀로 내보내기
                     </Button>
                 </Space>
-                <Spin spinning={isStudentsLoading} tip="데이터를 불러오는 중입니다...">
+                <Spin
+                    spinning={isStudentsLoading}
+                    tip="데이터를 불러오는 중입니다..."
+                >
                     <Table<TableRow>
                         columns={columns}
                         dataSource={[...tableData, totalRow]}
