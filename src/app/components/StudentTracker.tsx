@@ -1,7 +1,7 @@
 'use client';
 
 import { useUser } from '@/app/hook/useUser';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react'; // useMemo 임포트 추가
 import TableHeader from './table/TableHeader';
 import TableRow from './table/TableRow';
 import AddRowButton from './table/AddRowButton';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { STEPNAME, Student } from '../lib/types';
 import { Spin, Alert, Modal, Button } from 'antd';
 import Link from 'next/link';
+import dayjs from 'dayjs';
 
 const INITIAL_ROWS = 100;
 const ADDITIONAL_ROWS = 10;
@@ -43,7 +44,7 @@ interface SelectionInfo {
 }
 
 function StudentTracker() {
-    const { isAdmin, isLoading } = useUser();
+    const { isAdmin, isLoading, role } = useUser();
 
     const [data, setData] = useState<Student[]>(Array.from({ length: INITIAL_ROWS }, () => ({ ...initialRow })));
     const [errorsData, setErrorsData] = useState<string[][]>(Array.from({ length: INITIAL_ROWS }, () => []));
@@ -51,6 +52,14 @@ function StudentTracker() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [selectionInfo, setSelectionInfo] = useState<SelectionInfo | null>(null);
+
+    // 저장 버튼 비활성화 여부를 계산하는 useMemo
+    const isSaveDisabled = useMemo(() => {
+        const now = dayjs();
+        const currentHour = now.hour();
+        // superAdmin이 아니면서 현재 시간이 23시 (오후 11시)부터 24시 (다음날 0시) 사이일 경우
+        return role !== 'superAdmin' && (currentHour >= 23 || currentHour === 0);
+    }, [role]); // role이 변경될 때만 다시 계산
 
     function isSkipTeamCheck(team: string): boolean {
         return ['타지파', '타부서', '수강생', '지교회'].some((kw) => team.includes(kw));
@@ -235,6 +244,13 @@ function StudentTracker() {
     };
 
     const handleSubmit = async () => {
+        // 이미 버튼이 비활성화되어 있으므로 이 부분은 주석 처리하거나 제거할 수 있지만,
+        // 혹시 모를 경우를 대비해 한번 더 확인하는 용도로 남겨둘 수도 있습니다.
+        if (isSaveDisabled) {
+            setError('새벽 12시부터 1시까지는 superAdmin만 저장할 수 있습니다.');
+            return;
+        }
+
         setLoading(true);
         setError(null);
         setSuccess(null);
@@ -248,6 +264,7 @@ function StudentTracker() {
                 newErrorsData[i] = newErrorsDataArray[filledRowIndex];
                 filledRowIndex++;
             }
+            // 기존에 단계가 없는 빈 행에는 에러 메시지를 표시하지 않음 (유지)
         });
         setErrorsData(newErrorsData);
         if (newErrorsData.flat().length > 0) {
@@ -279,6 +296,7 @@ function StudentTracker() {
             }
         } catch (err: any) {
             if (!selectionInfo) {
+                // 동명이인 선택 모달이 뜬 경우가 아니면 일반 에러로 처리
                 setError(err.message || '알 수 없는 서버 오류');
             }
         } finally {
@@ -338,8 +356,10 @@ function StudentTracker() {
                     <AddRowButton onClick={addRows} />
                     <button
                         onClick={handleSubmit}
-                        disabled={loading}
-                        className={`px-4 py-2 rounded text-white ${loading ? 'bg-gray-400' : 'bg-blue-600'}`}
+                        disabled={loading || isSaveDisabled}
+                        className={`px-4 py-2 rounded text-white ${
+                            loading || isSaveDisabled ? 'bg-gray-400' : 'bg-blue-600'
+                        }`}
                     >
                         저장하기
                     </button>
@@ -355,6 +375,13 @@ function StudentTracker() {
                             <Alert
                                 message={success}
                                 type="success"
+                                showIcon
+                            />
+                        )}
+                        {isSaveDisabled && !error && (
+                            <Alert
+                                message="새벽 12시부터 1시까지는 superAdmin만 저장할 수 있습니다."
+                                type="warning"
                                 showIcon
                             />
                         )}
