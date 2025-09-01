@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
 import { pool } from '@/app/lib/db';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export async function GET(req: NextRequest) {
     const client = await pool.connect();
@@ -10,7 +15,8 @@ export async function GET(req: NextRequest) {
         const startParam = searchParams.get('start');
         const endParam = searchParams.get('end');
 
-        const today = dayjs();
+        // 한국시간(Asia/Seoul) 기준으로 오늘 날짜 처리
+        const today = dayjs().tz('Asia/Seoul');
         const start = startParam || today.startOf('day').format('YYYY-MM-DD');
         const end = endParam || today.endOf('day').format('YYYY-MM-DD');
 
@@ -38,14 +44,14 @@ export async function GET(req: NextRequest) {
             LEFT JOIN members m1 ON s.인도자_고유번호 = m1.고유번호
             LEFT JOIN members m2 ON s.교사_고유번호 = m2.고유번호
             WHERE (
-                s.발_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.찾_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.합_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.섭_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.복_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.예정_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.센확_완료일 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
-                OR s.탈락 BETWEEN $1::date AND $2::date + INTERVAL '1 day' - INTERVAL '1 second'
+                (s.발_완료일 >= $1::date AND s.발_완료일 < ($2::date + INTERVAL '1 day'))
+                OR (s.찾_완료일 >= $1::date AND s.찾_완료일 < ($2::date + INTERVAL '1 day'))
+                OR (s.합_완료일 >= $1::date AND s.합_완료일 < ($2::date + INTERVAL '1 day'))
+                OR (s.섭_완료일 >= $1::date AND s.섭_완료일 < ($2::date + INTERVAL '1 day'))
+                OR (s.복_완료일 >= $1::date AND s.복_완료일 < ($2::date + INTERVAL '1 day'))
+                OR (s.예정_완료일 >= $1::date AND s.예정_완료일 < ($2::date + INTERVAL '1 day'))
+                OR (s.센확_완료일 >= $1::date AND s.센확_완료일 < ($2::date + INTERVAL '1 day'))
+                OR (s.탈락 >= $1::date AND s.탈락 < ($2::date + INTERVAL '1 day'))
             )
             ORDER BY s.id DESC
             `,

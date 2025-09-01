@@ -58,32 +58,54 @@ export default function DashboardPage() {
         }
 
         students.forEach((s) => {
-            const leader지역 = (s.인도자지역 ?? '').trim();
-            const leaderRaw구역 = (s.인도자팀 ?? '').trim();
-            const leader구역 = leaderRaw구역;
-            const leader팀 = leaderRaw구역.includes('-') ? leaderRaw구역.split('-')[0] : leaderRaw구역;
-
-            if (!REGIONS.includes(leader지역) || !fixedTeams.includes(leader팀)) return;
-
-            if (!isSuperAdmin) {
-                // 지역 계정일 경우
-                if (selectedTeam && leader팀 !== selectedTeam) return;
-                // ✨ 수정된 부분: '구역' 필터링에 별도 상태(selectedGuyeok) 사용
-                if (selectedGuyeok && leader구역 !== selectedGuyeok) return;
-            } else {
-                // 최고 관리자일 경우
-                if (selectedRegion && leader지역 !== selectedRegion) return;
-                if (selectedTeam && leader팀 !== selectedTeam) return;
-            }
-
             const currentStep = (s.단계 ?? '').toUpperCase();
-            if (STEPS.includes(currentStep as STEP)) {
-                const key = !isSuperAdmin
-                    ? `${leader팀}-${leader구역}-${currentStep}`
-                    : `${leader지역}-${leader팀}-${currentStep}`;
-                보유건Map[key] = (보유건Map[key] ?? 0) + 1;
+            if (!STEPS.includes(currentStep as STEP)) return;
+
+            const teacherBasedSteps: STEP[] = ['섭', '복', '예정'];
+            const useTeacherData = teacherBasedSteps.includes(currentStep as STEP);
+
+            if (!useTeacherData) {
+                const leader지역 = (s.인도자지역 ?? '').trim();
+                const leaderRaw구역 = (s.인도자팀 ?? '').trim();
+                const leader팀 = leaderRaw구역.includes('-') ? leaderRaw구역.split('-')[0] : leaderRaw구역;
+
+                if (!REGIONS.includes(leader지역) || !fixedTeams.includes(leader팀)) return;
+
+                if (!isSuperAdmin) {
+                    if (selectedTeam && leader팀 !== selectedTeam) return;
+                    if (selectedGuyeok && leaderRaw구역 !== selectedGuyeok) return;
+                } else {
+                    if (selectedRegion && leader지역 !== selectedRegion) return;
+                    if (selectedTeam && leader팀 !== selectedTeam) return;
+                }
             }
 
+            let base지역: string;
+            let baseRaw팀: string;
+
+            if (useTeacherData) {
+                // ✅ 교사 기준
+                base지역 = (s.교사지역 ?? '').trim();
+                baseRaw팀 = (s.교사팀 ?? '').trim();
+                if (!base지역 || !baseRaw팀) return;
+            } else {
+                // ✅ 인도자 기준
+                base지역 = (s.인도자지역 ?? '').trim();
+                baseRaw팀 = (s.인도자팀 ?? '').trim();
+                if (!base지역 || !baseRaw팀) return;
+            }
+
+            const base팀 = baseRaw팀.includes('-') ? baseRaw팀.split('-')[0] : baseRaw팀;
+            const base구역 = baseRaw팀;
+
+            if (!REGIONS.includes(base지역) || !fixedTeams.includes(base팀)) return;
+
+            const key = !isSuperAdmin ? `${base팀}-${base구역}-${currentStep}` : `${base지역}-${base팀}-${currentStep}`;
+            보유건Map[key] = (보유건Map[key] ?? 0) + 1;
+
+            // ===============================
+            // 단계별 월별 카운트
+            // ===============================
             STEPS.forEach((step) => {
                 const key = step.toLowerCase() as keyof Student;
                 const dateStr = s[key] as string | null | undefined;
@@ -92,7 +114,6 @@ export default function DashboardPage() {
                 const date = dayjs(dateStr);
                 if (!date.isValid()) return;
 
-                // ✨ 수정된 부분: 기간 필터링 로직 수정
                 if (filterMode === 'month') {
                     if (
                         date.year() !== selectedYear ||
@@ -145,12 +166,14 @@ export default function DashboardPage() {
                 });
             });
 
+            // ===============================
+            // 탈락 처리
+            // ===============================
             const 탈락일Str = s.g;
             if (탈락일Str) {
                 const 탈락일 = dayjs(탈락일Str);
                 if (!탈락일.isValid()) return;
 
-                // ✨ 수정된 부분: 탈락일 기간 필터링 로직 수정
                 if (filterMode === 'month') {
                     if (
                         탈락일.year() !== selectedYear ||
@@ -179,8 +202,12 @@ export default function DashboardPage() {
                     if (!(month in grouped)) grouped[month] = {};
 
                     if (!isSuperAdmin) {
-                        if (!grouped[month][leader팀]) grouped[month][leader팀] = {};
-                        if (!grouped[month][leader팀][leader구역]) grouped[month][leader팀][leader구역] = {};
+                        const leaderRaw구역 = (s.인도자팀 ?? '').trim();
+                        const leader구역 = leaderRaw구역;
+                        const leader팀 = leaderRaw구역.includes('-') ? leaderRaw구역.split('-')[0] : leaderRaw구역;
+
+                        grouped[month][leader팀] = grouped[month][leader팀] ?? {};
+                        grouped[month][leader팀][leader구역] = grouped[month][leader팀][leader구역] ?? {};
                         grouped[month][leader팀][leader구역][탈락key] =
                             (grouped[month][leader팀][leader구역][탈락key] ?? 0) + 1;
                         grouped[month][leader팀][leader구역]['탈락'] =
@@ -194,8 +221,12 @@ export default function DashboardPage() {
                         grouped['전체'][leader팀][leader구역]['탈락'] =
                             (grouped['전체'][leader팀][leader구역]['탈락'] ?? 0) + 1;
                     } else {
-                        if (!grouped[month][leader지역]) grouped[month][leader지역] = {};
-                        if (!grouped[month][leader지역][leader팀]) grouped[month][leader지역][leader팀] = {};
+                        const leader지역 = (s.인도자지역 ?? '').trim();
+                        const leaderRaw구역 = (s.인도자팀 ?? '').trim();
+                        const leader팀 = leaderRaw구역.includes('-') ? leaderRaw구역.split('-')[0] : leaderRaw구역;
+
+                        grouped[month][leader지역] = grouped[month][leader지역] ?? {};
+                        grouped[month][leader지역][leader팀] = grouped[month][leader지역][leader팀] ?? {};
                         grouped[month][leader지역][leader팀][탈락key] =
                             (grouped[month][leader지역][leader팀][탈락key] ?? 0) + 1;
                         grouped[month][leader지역][leader팀]['탈락'] =
