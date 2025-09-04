@@ -234,11 +234,21 @@ export default function TeacherUploadPage() {
                 disabled={loading}
             />
 
-            <Button type="primary" onClick={handleUpload} loading={loading} className="my-4">
+            <Button
+                type="primary"
+                onClick={handleUpload}
+                loading={loading}
+                className="my-4"
+            >
                 업로드 및 조회
             </Button>
 
-            <Space direction="vertical" style={{ width: '100%' }} size="middle" className="mb-4">
+            <Space
+                direction="vertical"
+                style={{ width: '100%' }}
+                size="middle"
+                className="mb-4"
+            >
                 <Input.Search
                     placeholder="고유번호, 이름, 지역 등으로 검색"
                     allowClear
@@ -251,15 +261,27 @@ export default function TeacherUploadPage() {
                 />
 
                 <Space wrap>
-                    <Button danger onClick={handleDropout} disabled={!dropoutKey || loading}>
+                    <Button
+                        danger
+                        onClick={handleDropout}
+                        disabled={!dropoutKey || loading}
+                    >
                         선택 교사 탈락처리
                     </Button>
 
-                    <Button type="default" onClick={handleRestore} disabled={deleteKeys.length === 0 || loading}>
+                    <Button
+                        type="default"
+                        onClick={handleRestore}
+                        disabled={deleteKeys.length === 0 || loading}
+                    >
                         선택 교사 복귀처리
                     </Button>
 
-                    <Button type="default" onClick={handleDelete} disabled={deleteKeys.length === 0 || loading}>
+                    <Button
+                        type="default"
+                        onClick={handleDelete}
+                        disabled={deleteKeys.length === 0 || loading}
+                    >
                         선택 교사 삭제
                     </Button>
                 </Space>
