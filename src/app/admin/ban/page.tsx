@@ -129,16 +129,16 @@ export default function MemberClassManager() {
             dataIndex: 'ban',
             key: 'ban',
             render: (value: string, record) => (
-                <Select
-                    value={value || ''}
-                    style={{ width: 100 }}
-                    onChange={(v) => updateSingleClass(record, v)}
-                >
+                <Select value={value || ''} style={{ width: 100 }} onChange={(v) => updateSingleClass(record, v)}>
                     <Select.Option value="">미배정</Select.Option>
                     <Select.Option value="1반">1반</Select.Option>
                     <Select.Option value="2반">2반</Select.Option>
                     <Select.Option value="3반">3반</Select.Option>
                     <Select.Option value="4반">4반</Select.Option>
+                    <Select.Option value="4반">5반</Select.Option>
+                    <Select.Option value="4반">6반</Select.Option>
+                    <Select.Option value="4반">7반</Select.Option>
+                    <Select.Option value="4반">8반</Select.Option>
                 </Select>
             ),
         },
@@ -165,21 +165,11 @@ export default function MemberClassManager() {
                 disabled={loading}
             />
 
-            <Button
-                type="primary"
-                onClick={handleUpload}
-                loading={loading}
-                className="my-4"
-            >
+            <Button type="primary" onClick={handleUpload} loading={loading} className="my-4">
                 업로드 및 반 배정
             </Button>
 
-            <Space
-                direction="vertical"
-                style={{ width: '100%' }}
-                size="middle"
-                className="mb-4"
-            >
+            <Space direction="vertical" style={{ width: '100%' }} size="middle" className="mb-4">
                 <Input.Search
                     placeholder="고유번호, 이름, 지역, 구역, 반 검색"
                     allowClear
