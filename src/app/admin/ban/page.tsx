@@ -135,10 +135,10 @@ export default function MemberClassManager() {
                     <Select.Option value="2반">2반</Select.Option>
                     <Select.Option value="3반">3반</Select.Option>
                     <Select.Option value="4반">4반</Select.Option>
-                    <Select.Option value="4반">5반</Select.Option>
-                    <Select.Option value="4반">6반</Select.Option>
-                    <Select.Option value="4반">7반</Select.Option>
-                    <Select.Option value="4반">8반</Select.Option>
+                    <Select.Option value="5반">5반</Select.Option>
+                    <Select.Option value="6반">6반</Select.Option>
+                    <Select.Option value="7반">7반</Select.Option>
+                    <Select.Option value="8반">8반</Select.Option>
                 </Select>
             ),
         },
