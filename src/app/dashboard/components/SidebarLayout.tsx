@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Layout, Menu } from 'antd';
-import { TeamOutlined } from '@ant-design/icons';
+import { TeamOutlined, AimOutlined, SyncOutlined, UserSwitchOutlined, SettingOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 
 const { Sider } = Layout;
@@ -15,27 +15,40 @@ const menuItems = [
     },
     {
         key: 'goal',
-        icon: <TeamOutlined />,
+        icon: <AimOutlined />,
         label: <Link href="/dashboard/goal">목표달성</Link>,
     },
     {
+        key: 'ban',
+        icon: <SyncOutlined />,
+        label: <Link href="/dashboard/ban">반전도점검</Link>,
+    },
+    {
         key: 'teacher',
-        icon: <TeamOutlined />,
+        icon: <UserSwitchOutlined />,
         label: <Link href="/dashboard/teacher">교사관리</Link>,
     },
     // {
-    //     key: 'settings',
-    //     icon: <SettingOutlined />,
-    //     label: <Link href="/settings">설정</Link>,
+    //   key: 'settings',
+    //   icon: <SettingOutlined />,
+    //   label: <Link href="/settings">설정</Link>,
     // },
 ];
 
 export default function SidebarLayout({ children }: { children: React.ReactNode }) {
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <Sider breakpoint="lg" collapsedWidth="0">
+            <Sider
+                breakpoint="lg"
+                collapsedWidth="0"
+            >
                 <div style={{ height: 32, margin: 16, color: 'white', fontWeight: 'bold' }}>🎯 대시보드</div>
-                <Menu theme="dark" mode="inline" defaultSelectedKeys={['dashboard']} items={menuItems} />
+                <Menu
+                    theme="dark"
+                    mode="inline"
+                    defaultSelectedKeys={['dashboard']}
+                    items={menuItems}
+                />
             </Sider>
 
             <Layout>
