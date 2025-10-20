@@ -82,7 +82,7 @@ export type Region = (typeof REGIONS)[number];
 
 export const DEFAULT_예정_goals: Record<Region, 예정Goals> = {
     도봉: { team1: '2', team2: '2', team3: '2', team4: '2' },
-    성북: { team1: '2', team2: '2', team3: '2', team4: '2' },
+    성북: { team1: '2', team2: '2', team3: '2', team4: '2', team5: '2' },
     노원: { team1: '2', team2: '2', team3: '2', team4: '2' },
     중랑: { team1: '2', team2: '2', team3: '2', team4: '2' },
     강북: { team1: '2', team2: '2', team3: '2', team4: '2' },
@@ -121,7 +121,7 @@ export const mondaycell = [
     '중랑-6',
     '중랑-5',
     '도봉-6',
-    '성북-5',
+    '성북-6',
     '노원-5',
     '강북-5',
     '대학-5',
