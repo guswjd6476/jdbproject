@@ -120,11 +120,6 @@ export async function GET(request: NextRequest) {
             values.push(`%${search}%`);
         }
 
-        // =================================================================
-        //               ↓↓↓ 여기가 변경된 부분입니다 ↓↓↓
-        // =================================================================
-
-        // 2. 권한 조건 처리 (authUtils.ts 함수 사용)
         // 현재 파라미터 개수 다음 인덱스부터 시작하도록 설정
         const permissionParam = getParameterizedQueryConditionForUser(userEmail, values.length + 1);
 
