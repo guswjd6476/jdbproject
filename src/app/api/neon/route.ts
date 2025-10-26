@@ -36,7 +36,7 @@ export async function GET() {
             const yyyy = d.getFullYear();
             const mm = String(d.getMonth() + 1).padStart(2, '0');
             const dd = String(d.getDate()).padStart(2, '0');
-            return `${yyyy}-${mm}-${dd}`; // 문자열 그대로
+            return `${yyyy}-${mm}-${dd}`; // 날짜도 문자열
         };
 
         // CSV 변환
@@ -52,15 +52,16 @@ export async function GET() {
             .map((row) =>
                 Object.values(row)
                     .map((v) => {
-                        // 날짜면 YYYY-MM-DD로 변환
-                        if (
-                            v instanceof Date ||
-                            (!isNaN(Date.parse(String(v))) && String(v).match(/\d{4}-\d{1,2}-\d{1,2}/) === null)
-                        ) {
+                        // 날짜면 YYYY-MM-DD 문자열
+                        if (v instanceof Date || (!isNaN(Date.parse(String(v))) && String(v).includes('/'))) {
                             v = formatDateAsText(v);
                         }
-                        // 모든 값 문자열 처리
-                        return `"${(v ?? '').toString().replace(/"/g, '""')}"`;
+
+                        // 모든 값을 문자열로 처리 (숫자도 그대로)
+                        const str = (v ?? '').toString();
+
+                        // CSV 표준 이스케이프
+                        return `"${str.replace(/"/g, '""')}"`;
                     })
                     .join(',')
             )
