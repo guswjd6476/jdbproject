@@ -30,14 +30,15 @@ export async function GET() {
 
         const res = await client.query(query);
         const rows = res.rows;
-        const formatDate = (date: any) => {
+        const formatDateAsText = (date: any) => {
             if (!date) return '';
             const d = new Date(date);
             const yyyy = d.getFullYear();
-            const mm = String(d.getMonth() + 1).padStart(2, '0'); // 0~11 이므로 +1
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
             const dd = String(d.getDate()).padStart(2, '0');
-            return `${yyyy}-${mm}-${dd}`;
+            return `${yyyy}-${mm}-${dd}`; // 문자열 그대로
         };
+
         // CSV 변환
         if (rows.length === 0) {
             return new Response(
@@ -51,10 +52,14 @@ export async function GET() {
             .map((row) =>
                 Object.values(row)
                     .map((v) => {
-                        // 날짜인지 체크 후 포맷
-                        if (v instanceof Date || !isNaN(Date.parse(String(v)))) {
-                            v = formatDate(v);
+                        // 날짜면 YYYY-MM-DD로 변환
+                        if (
+                            v instanceof Date ||
+                            (!isNaN(Date.parse(String(v))) && String(v).match(/\d{4}-\d{1,2}-\d{1,2}/) === null)
+                        ) {
+                            v = formatDateAsText(v);
                         }
+                        // 모든 값 문자열 처리
                         return `"${(v ?? '').toString().replace(/"/g, '""')}"`;
                     })
                     .join(',')
