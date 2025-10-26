@@ -9,7 +9,6 @@ export async function GET() {
             SELECT 
                 s.id AS "번호",
                 s.이름,
-                s.연락처,
                 s.단계,
                 s.찾_완료일 AS "찾",
                 s.합_완료일 AS "합",
@@ -42,7 +41,7 @@ export async function GET() {
         // CSV 변환
         if (rows.length === 0) {
             return new Response(
-                '번호,이름,연락처,단계,찾,합,섭,복,인도자지역,인도자팀,인도자이름,교사지역,교사팀,교사이름\n',
+                '번호,이름,단계,찾,합,섭,복,인도자지역,인도자팀,인도자이름,교사지역,교사팀,교사이름\n',
                 { headers: { 'Content-Type': 'text/csv; charset=utf-8' } }
             );
         }
