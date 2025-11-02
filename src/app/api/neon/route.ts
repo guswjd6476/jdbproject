@@ -6,26 +6,26 @@ export async function GET() {
     try {
         // students LEFT JOIN members
         const query = `
-            SELECT 
-                s.id AS "번호",
-                s.이름,
-                s.단계,
-                s.찾_완료일 AS "찾",
-                s.합_완료일 AS "합",
-                s.섭_완료일 AS "섭",
-                s.복_완료일 AS "복",
-                m_ind.지역 AS "인도자지역",
-                m_ind.구역 AS "인도자팀",
-                m_ind.이름 AS "인도자이름",
-                m_tch.지역 AS "교사지역",
-                m_tch.구역 AS "교사팀",
-                m_tch.이름 AS "교사이름"
-            FROM students s
-            LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
-            LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
-            WHERE s.단계 IN ('찾', '합', '섭', '복')
-            ORDER BY s.id ASC;
-        `;
+        SELECT 
+            s.id AS "번호",
+            s.이름,
+            s.단계,
+            s.찾_완료일 AS "찾",
+            s.합_완료일 AS "합",
+            s.섭_완료일 AS "섭",
+            s.복_완료일 AS "복",
+            m_ind.지역 AS "인도자지역",
+            CAST(m_ind.구역 AS text) AS "인도자팀",
+            m_ind.이름 AS "인도자이름",
+            m_tch.지역 AS "교사지역",
+            CAST(m_tch.구역 AS text) AS "교사팀",
+            m_tch.이름 AS "교사이름"
+        FROM students s
+        LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
+        LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
+        WHERE s.단계 IN ('찾', '합', '섭', '복')
+        ORDER BY s.id ASC;
+    `;
 
         const res = await client.query(query);
         const rows = res.rows;
