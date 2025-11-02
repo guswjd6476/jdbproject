@@ -4,39 +4,41 @@ import { NextResponse } from 'next/server';
 export async function GET() {
     const client = await pool.connect();
     try {
-        // students LEFT JOIN members
         const query = `
-        SELECT 
-            s.id AS "번호",
-            s.이름,
-            s.단계,
-            s.찾_완료일 AS "찾",
-            s.합_완료일 AS "합",
-            s.섭_완료일 AS "섭",
-            s.복_완료일 AS "복",
-            m_ind.지역 AS "인도자지역",
-            CAST(m_ind.구역 AS text) AS "인도자팀",
-            m_ind.이름 AS "인도자이름",
-            m_tch.지역 AS "교사지역",
-            CAST(m_tch.구역 AS text) AS "교사팀",
-            m_tch.이름 AS "교사이름"
-        FROM students s
-        LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
-        LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
-        WHERE s.단계 IN ('찾', '합', '섭', '복')
-        ORDER BY s.id ASC;
-    `;
+            SELECT 
+                s.id AS "번호",
+                s.이름,
+                s.단계,
+                s.찾_완료일 AS "찾",
+                s.합_완료일 AS "합",
+                s.섭_완료일 AS "섭",
+                s.복_완료일 AS "복",
+                m_ind.지역 AS "인도자지역",
+                CAST(m_ind.구역 AS text) AS "인도자팀",
+                m_ind.이름 AS "인도자이름",
+                m_tch.지역 AS "교사지역",
+                CAST(m_tch.구역 AS text) AS "교사팀",
+                m_tch.이름 AS "교사이름"
+            FROM students s
+            LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
+            LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
+            WHERE s.단계 IN ('찾', '합', '섭', '복')
+            ORDER BY s.id ASC;
+        `;
 
         const res = await client.query(query);
         const rows = res.rows;
+
         const formatDateAsText = (date: any) => {
             if (!date) return '';
             const d = new Date(date);
+            if (isNaN(d.getTime())) return ''; // 유효하지 않은 날짜
             const yyyy = d.getFullYear();
             const mm = String(d.getMonth() + 1).padStart(2, '0');
             const dd = String(d.getDate()).padStart(2, '0');
-            return `${yyyy}-${mm}-${dd}`; // 날짜도 문자열
+            return `${yyyy}-${mm}-${dd}`;
         };
+
         // CSV 변환
         if (rows.length === 0) {
             return new Response(
@@ -46,24 +48,28 @@ export async function GET() {
         }
 
         const header = Object.keys(rows[0]).join(',');
+
         const csv = rows
-            .map((row) =>
-                Object.values(row)
-                    .map((v) => {
-                        // 날짜면 YYYY-MM-DD 문자열
-                        if (v instanceof Date || (!isNaN(Date.parse(String(v))) && String(v).includes('/'))) {
+            .map((row) => {
+                return Object.entries(row)
+                    .map(([key, v]) => {
+                        // 날짜일 경우만 YYYY-MM-DD로 포맷
+                        if (v instanceof Date) {
                             v = formatDateAsText(v);
                         }
 
-                        // 모든 값을 문자열로 처리 (숫자도 그대로)
-                        const str = (v ?? '').toString();
+                        // 인도자팀, 교사팀은 무조건 문자열로 강제 (숫자 깨짐 방지)
+                        if (key === '인도자팀' || key === '교사팀') {
+                            v = v?.toString().trim() ?? '';
+                        }
 
-                        // CSV 표준 이스케이프
+                        const str = (v ?? '').toString();
                         return `"${str.replace(/"/g, '""')}"`;
                     })
-                    .join(',')
-            )
+                    .join(',');
+            })
             .join('\n');
+
         return new Response(`${header}\n${csv}`, {
             headers: { 'Content-Type': 'text/csv; charset=utf-8' },
         });
