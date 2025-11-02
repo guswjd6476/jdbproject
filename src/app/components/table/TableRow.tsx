@@ -23,6 +23,8 @@ export default function TableRow({ row, index, onChange, onDelete, errors, selec
         '교사지역',
         '교사팀',
         '교사이름',
+        '도구',
+        'target',
     ];
     const isInvalidStage = row.단계 && !STEPNAME.includes(row.단계.trim().toUpperCase());
 
@@ -33,7 +35,10 @@ export default function TableRow({ row, index, onChange, onDelete, errors, selec
 
             {/* 입력 필드 */}
             {editableFields.map((field) => (
-                <td key={field} className="border p-1">
+                <td
+                    key={field}
+                    className="border p-1"
+                >
                     {field === '단계' ? (
                         <AntInput
                             className={`text-sm ${isInvalidStage ? 'border-red-500 border' : ''}`}

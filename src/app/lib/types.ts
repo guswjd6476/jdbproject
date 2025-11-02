@@ -12,6 +12,9 @@ export interface Student {
     교사팀: string;
     교사이름: string;
     교사_고유번호: string | null; // 여기 수정
+
+    도구: string;
+    target: string;
 }
 
 export const headers = [
@@ -26,6 +29,8 @@ export const headers = [
     '교사 지역',
     '교사 팀',
     '교사 이름',
+    '도구',
+    '목표월',
 ];
 export const STEPNAME = ['발', '찾', '합', '섭', '복', '예정', '탈락'];
 export const STEPS = ['발', '찾', '합', '섭', '복', '예정', '탈락'] as const;

@@ -37,7 +37,6 @@ export async function GET() {
             const dd = String(d.getDate()).padStart(2, '0');
             return `${yyyy}-${mm}-${dd}`; // 날짜도 문자열
         };
-
         // CSV 변환
         if (rows.length === 0) {
             return new Response(

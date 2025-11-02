@@ -28,6 +28,9 @@ const initialRow: Student = {
     교사팀: '',
     교사이름: '',
     교사_고유번호: null,
+
+    도구: '',
+    target: '',
 };
 
 interface MemberChoice {
@@ -142,20 +145,45 @@ function StudentTracker() {
                 errors.push(`${previousStage} 단계가 먼저 등록되어야 합니다.`);
             }
         }
-
-        if (stage === '발' && !row.연락처.trim()) {
-            errors.push('발굴단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
+        if (stage === '발') {
+            if (!row.연락처.trim()) errors.push('발굴단계는 연락처 뒷자리 또는 온라인 아이디가 필요합니다.');
+            if (!row.도구.trim()) {
+                errors.push('발 단계에서는 도구 입력이 필수입니다.');
+            } else if (!['온라인', '노방', '지인'].includes(row.도구.trim())) {
+                errors.push('도구는 "온라인" 또는 "노방" 또는 "지인" 중 하나여야 합니다.');
+            }
         }
         if (stage === '찾' && !row.생년월일.trim()) {
             errors.push('찾기단계는 생년월일이 필요합니다.');
         }
-
-        if (['섭', '복', '예정', '센확'].includes(stage)) {
-            const skip = isSkipTeamCheck(row.교사팀);
-            if (!skip && (!row.교사지역 || !row.교사팀 || !row.교사이름)) {
-                errors.push('섭, 복, 예정, 센확 단계는 교사 정보가 필요합니다.');
+        if (['합', '섭', '복', '예정', '센확'].includes(stage)) {
+            if (!row.교사지역 || !row.교사팀 || !row.교사이름) {
+                const skip = isSkipTeamCheck(row.교사팀);
+                if (!skip) errors.push('섭, 복, 예정, 센확 단계는 교사 정보가 필요합니다.');
+            }
+            if (!row.target.trim()) {
+                errors.push('합 단계부터 목표월 입력이 필수입니다.');
+            } else {
+                const validMonths = [
+                    '1월',
+                    '2월',
+                    '3월',
+                    '4월',
+                    '5월',
+                    '6월',
+                    '7월',
+                    '8월',
+                    '9월',
+                    '10월',
+                    '11월',
+                    '12월',
+                ];
+                if (!validMonths.includes(row.target.trim())) {
+                    errors.push('목표월은 "1월"부터 "12월"까지만 가능합니다.');
+                }
             }
         }
+
         return errors;
     }
 
@@ -213,6 +241,7 @@ function StudentTracker() {
                     newRow.인도자지역 = safe(cols, 3);
                     newRow.인도자팀 = safe(cols, 4);
                     newRow.인도자이름 = safe(cols, 5);
+                    newRow.도구 = safe(cols, 6);
                 } else if (단계 === '찾') {
                     newRow.생년월일 = safe(cols, 2);
                     newRow.인도자지역 = safe(cols, 3);
@@ -222,9 +251,20 @@ function StudentTracker() {
                     newRow.인도자지역 = safe(cols, 2);
                     newRow.인도자팀 = safe(cols, 3);
                     newRow.인도자이름 = safe(cols, 4);
-                    newRow.교사지역 = safe(cols, 5);
-                    newRow.교사팀 = safe(cols, 6);
-                    newRow.교사이름 = safe(cols, 7);
+
+                    const hasTeacher = (safe(cols, 5) || safe(cols, 6) || safe(cols, 7)) && cols.length >= 8;
+
+                    if (hasTeacher) {
+                        newRow.교사지역 = safe(cols, 5);
+                        newRow.교사팀 = safe(cols, 6);
+                        newRow.교사이름 = safe(cols, 7);
+                        newRow.target = safe(cols, 8);
+                    } else {
+                        newRow.교사지역 = '';
+                        newRow.교사팀 = '';
+                        newRow.교사이름 = '';
+                        newRow.target = safe(cols, 5); // 위치 조정
+                    }
                 } else if (단계 === '탈락') {
                     newRow.인도자지역 = safe(cols, 2);
                     newRow.인도자팀 = safe(cols, 3);
@@ -244,8 +284,6 @@ function StudentTracker() {
     };
 
     const handleSubmit = async () => {
-        // 이미 버튼이 비활성화되어 있으므로 이 부분은 주석 처리하거나 제거할 수 있지만,
-        // 혹시 모를 경우를 대비해 한번 더 확인하는 용도로 남겨둘 수도 있습니다.
         if (isSaveDisabled) {
             setError('새벽 12시부터 1시까지는 superAdmin만 저장할 수 있습니다.');
             return;

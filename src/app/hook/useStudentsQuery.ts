@@ -7,12 +7,14 @@ export interface Students {
     인도자팀: string | null;
     교사지역: string | null;
     교사팀: string | null;
-    target: string | null;
     발?: string | null;
     찾?: string | null;
     합?: string | null;
     섭?: string | null;
     복?: string | null;
+
+    도구: string | null; // 여기 수정
+    target: string | null; // 여기 수정
     예정?: string | null;
     g?: string | null; // 탈락일 추가
     [key: string]: string | number | null | undefined;

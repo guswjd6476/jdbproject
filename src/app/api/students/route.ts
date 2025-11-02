@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
 
         let baseQuery = `
             SELECT 
-                s.id AS "번호", s.단계, s.이름, s.연락처, s.생년월일, s.target,
+                s.id AS "번호", s.단계, s.이름, s.연락처, s.생년월일, s.target,s.도구,
                 s.인도자_고유번호, s.교사_고유번호,
                 s.발_완료일 AS "발", s.찾_완료일 AS "찾", s.합_완료일 AS "합",
                 s.섭_완료일 AS "섭", s.복_완료일 AS "복", s.예정_완료일 AS "예정",
@@ -262,8 +262,8 @@ export async function POST(request: NextRequest) {
                         합_완료일 = COALESCE(합_완료일, $8), 섭_완료일 = COALESCE(섭_완료일, $9),
                         복_완료일 = COALESCE(복_완료일, $10), 예정_완료일 = COALESCE(예정_완료일, $11),
                         센확_완료일 = COALESCE(센확_완료일, $12),
-                        탈락 = COALESCE(탈락, $13)
-                    WHERE id = $14`,
+                        탈락 = COALESCE(탈락, $13) , 도구 = COALESCE(도구, $14) , target = COALESCE(target, $15) 
+                    WHERE id = $16`,
                     [
                         단계,
                         row.연락처,
@@ -278,6 +278,8 @@ export async function POST(request: NextRequest) {
                         완료일.예정_완료일,
                         완료일.센확_완료일,
                         완료일.탈락, // ✨ FIX: '탈락' 컬럼에 해당하는 값을 전달합니다.
+                        row.도구,
+                        row.target,
                         existing.id,
                     ]
                 );
@@ -285,8 +287,8 @@ export async function POST(request: NextRequest) {
                 await client.query(
                     // ✨ FIX: 쿼리에서 `g`를 다시 `탈락`으로 변경합니다.
                     `INSERT INTO students
-                        (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일, 센확_완료일, 탈락)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+                        (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일, 센확_완료일, 탈락, 도구, target)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
                     [
                         단계,
                         row.이름.trim(),
@@ -302,6 +304,8 @@ export async function POST(request: NextRequest) {
                         완료일.예정_완료일,
                         완료일.센확_완료일,
                         완료일.탈락, // ✨ FIX: '탈락' 컬럼에 해당하는 값을 전달합니다.
+                        row.도구,
+                        row.target,
                     ]
                 );
             }
