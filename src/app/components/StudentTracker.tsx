@@ -157,10 +157,6 @@ function StudentTracker() {
             errors.push('찾기단계는 생년월일이 필요합니다.');
         }
         if (['합', '섭', '복', '예정', '센확'].includes(stage)) {
-            if (!row.교사지역 || !row.교사팀 || !row.교사이름) {
-                const skip = isSkipTeamCheck(row.교사팀);
-                if (!skip) errors.push('섭, 복, 예정, 센확 단계는 교사 정보가 필요합니다.');
-            }
             if (!row.target.trim()) {
                 errors.push('합 단계부터 목표월 입력이 필수입니다.');
             } else {
@@ -184,6 +180,12 @@ function StudentTracker() {
             }
         }
 
+        if (['섭', '복', '예정', '센확'].includes(stage)) {
+            if (!row.교사지역 || !row.교사팀 || !row.교사이름) {
+                const skip = isSkipTeamCheck(row.교사팀);
+                if (!skip) errors.push('섭, 복, 예정, 센확 단계는 교사 정보가 필요합니다.');
+            }
+        }
         return errors;
     }
 
