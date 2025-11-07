@@ -24,7 +24,7 @@ export async function GET() {
         FROM students s
         LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
         LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
-        WHERE s.단계 IN ('발','찾', '합', '섭', '복','목표월'
+        WHERE s.단계 IN ('발','찾', '합', '섭', '복'
     )
         ORDER BY s.id ASC;
         `;
@@ -45,7 +45,7 @@ export async function GET() {
         // CSV 변환
         if (rows.length === 0) {
             return new Response(
-                '번호,이름,단계,발,찾,합,섭,복,인도자지역,인도자팀,인도자이름,교사지역,교사팀,교사이름\n',
+                '번호,이름,단계,발,찾,합,섭,복,인도자지역,인도자팀,인도자이름,교사지역,교사팀,교사이름,목표월\n',
                 { headers: { 'Content-Type': 'text/csv; charset=utf-8' } }
             );
         }
