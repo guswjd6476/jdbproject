@@ -20,12 +20,11 @@ export async function GET() {
             m_tch.지역 AS "교사지역",
             ('구역' || COALESCE(m_tch.구역::text, '')) AS "교사팀",
             m_tch.이름 AS "교사이름",
-            s.target as 목표월,
+            s.target AS "목표월"
         FROM students s
         LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
         LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
-        WHERE s.단계 IN ('발','찾', '합', '섭', '복'
-    )
+        WHERE s.단계 IN ('발','찾', '합', '섭', '복')
         ORDER BY s.id ASC;
         `;
 
