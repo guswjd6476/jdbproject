@@ -152,6 +152,7 @@ export default function StudentViewer() {
                 교사지역: student.교사지역 ?? '',
                 교사구역: student.교사팀 ? `${String(student.교사팀).trim()}` : '',
                 교사이름: student.교사이름 ?? '',
+                목표월 : student.target
             };
 
             COMPLETION_KEYS.forEach((key) => {
