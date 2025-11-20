@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
                 s.인도자_고유번호, s.교사_고유번호,
                 s.발_완료일 AS "발", s.찾_완료일 AS "찾", s.합_완료일 AS "합",
                 s.섭_완료일 AS "섭", s.복_완료일 AS "복", s.예정_완료일 AS "예정",
-                s.센확_완료일 AS "센확", s.탈락 AS "g", 
+                s.센확_완료일 AS "센확", s.탈락 AS "g",  s.target,
                 m_ind.지역 AS "인도자지역", m_ind.구역 AS "인도자팀", m_ind.이름 AS "인도자이름",
                 m_tch.지역 AS "교사지역", m_tch.구역 AS "교사팀", m_tch.이름 AS "교사이름"
             FROM students s
