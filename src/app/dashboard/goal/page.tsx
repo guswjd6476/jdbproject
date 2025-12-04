@@ -867,6 +867,7 @@ const calculateWeeklyAchievements = (
     viewMode: 'region' | 'month'
 ) => {
     const weekly: Record<string, Record<string, Record<string, Record<Step, number>>>> = {};
+
     const weekCount = getWeekCount(year, String(selectedMonth));
 
     const emptyStepRecord: Record<Step, number> = {
@@ -890,24 +891,9 @@ const calculateWeeklyAchievements = (
             if (!dateStr) return;
 
             const date = dayjs(dateStr);
+            // 🔥 연도 제한 제거 → cross-year 데이터도 허용
             if (!date.isValid()) return;
 
-            // 🔥 1월일 때는 전년도 12월도 포함
-            let isValidMonth = false;
-
-            if (selectedMonth === 1) {
-                if (date.year() === year - 1 && date.month() + 1 === 12) isValidMonth = true;
-                if (date.year() === year && date.month() + 1 === 1) isValidMonth = true;
-            } else {
-                // 기존 로직
-                if (date.year() === year && date.month() + 1 === selectedMonth) isValidMonth = true;
-            }
-
-            if (!isValidMonth) return;
-
-            /* ----------------------------
-                인도자 / 교사 점수 분배
-            ----------------------------- */
             let targets: { 지역: string; 팀: string; 점수: number }[] = [];
 
             if (step === '발' || step === '찾' || step === '합') {
@@ -922,14 +908,17 @@ const calculateWeeklyAchievements = (
                 ];
             }
 
-            /* ----------------------------
-                주차 매칭
-            ----------------------------- */
             targets.forEach(({ 지역, 팀, 점수 }) => {
+                if (!지역 || !팀) return;
+                if (!REGIONS.includes(지역 as Region)) return;
+                if (!fixedTeams.includes(팀)) return;
+
                 const teamNum = 팀.match(/\d+/)?.[0] ?? 팀;
 
                 for (let i = 0; i < weekCount; i++) {
                     const { start, end } = getWeekDateRange(selectedMonth, year, i);
+
+                    // 🔥 여기서 날짜 범위로만 판단 (연도 신경 안 씀)
                     if (!date.isBetween(start, end, 'day', '[]')) continue;
 
                     weekly[지역] ??= {};
