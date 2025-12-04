@@ -129,15 +129,30 @@ export default function DashboardPage() {
 
                 const month = (date.month() + 1).toString();
                 const teacherBasedSteps: STEP[] = ['섭', '복', '예정'];
-                const useTeacherData = teacherBasedSteps.includes(step);
+                const isHalfStep = teacherBasedSteps.includes(step);
 
-                const target지역 = useTeacherData ? (s.교사지역 ?? '').trim() : (s.인도자지역 ?? '').trim();
-                const targetRaw팀 = useTeacherData ? (s.교사팀 ?? '').trim() : (s.인도자팀 ?? '').trim();
-                const target팀 = targetRaw팀.includes('-') ? targetRaw팀.split('-')[0] : targetRaw팀;
-                const target구역 = targetRaw팀;
-                const 점수 = 1;
+                // 기본 인도자 기준(발/찾/합)
+                const leader지역 = (s.인도자지역 ?? '').trim();
+                const leaderRaw팀 = (s.인도자팀 ?? '').trim();
+                const leader팀 = leaderRaw팀.includes('-') ? leaderRaw팀.split('-')[0] : leaderRaw팀;
 
-                const targets = [{ 지역: target지역, 팀: target팀, 구역: target구역, 점수 }];
+                // 교사 기준(섭/복/예정)
+                const teacher지역 = (s.교사지역 ?? '').trim();
+                const teacherRaw팀 = (s.교사팀 ?? '').trim();
+                const teacher팀 = teacherRaw팀.includes('-') ? teacherRaw팀.split('-')[0] : teacherRaw팀;
+
+                let targets: { 지역: string; 팀: string; 구역: string; 점수: number }[] = [];
+
+                if (isHalfStep) {
+                    // 섭/복/예정일 경우 → 인도자 0.5 + 교사 0.5
+                    targets = [
+                        { 지역: leader지역, 팀: leader팀, 구역: leaderRaw팀, 점수: 0.5 },
+                        { 지역: teacher지역, 팀: teacher팀, 구역: teacherRaw팀, 점수: 0.5 },
+                    ];
+                } else {
+                    // 발/찾/합은 기존처럼 인도자 기준 1점
+                    targets = [{ 지역: leader지역, 팀: leader팀, 구역: leaderRaw팀, 점수: 1 }];
+                }
 
                 targets.forEach(({ 지역, 팀, 구역, 점수 }) => {
                     if (!REGIONS.includes(지역) || !fixedTeams.includes(팀)) return;

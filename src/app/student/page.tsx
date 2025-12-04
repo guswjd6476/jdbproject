@@ -108,20 +108,26 @@ export default function DashboardPage() {
             if (!단계) return;
 
             if (lastMonthSearchTerm && 단계.includes('센확')) {
+                const 인도자지역 = (s.인도자지역 ?? '').trim();
+                const 인도자팀Raw = (s.인도자팀 ?? '').replace(/\s/g, '');
+                if (인도자지역 && 인도자팀Raw && REGIONS.includes(인도자지역)) {
+                    const 인도자팀 = 인도자팀Raw.includes('-') ? 인도자팀Raw.split('-')[0] : 인도자팀Raw;
+                    const leaderKey = `${인도자지역}-${인도자팀}`;
+                    lastMonthScoreMap[leaderKey] = (lastMonthScoreMap[leaderKey] ?? 0) + 0.5;
+                }
+
                 const 교사지역 = (s.교사지역 ?? '').trim();
                 const 교사팀Raw = (s.교사팀 ?? '').replace(/\s/g, '');
                 if (교사지역 && 교사팀Raw && REGIONS.includes(교사지역)) {
                     const 교사팀 = 교사팀Raw.includes('-') ? 교사팀Raw.split('-')[0] : 교사팀Raw;
                     const teacherKey = `${교사지역}-${교사팀}`;
-                    lastMonthScoreMap[teacherKey] = (lastMonthScoreMap[teacherKey] ?? 0) + 1;
+                    lastMonthScoreMap[teacherKey] = (lastMonthScoreMap[teacherKey] ?? 0) + 0.5;
                 }
             }
 
             if (!STEPS2.includes(단계 as STEP2)) return;
-
-            const isABStep = ['발', '찾'].includes(단계);
-            const isLeaderHalfStep = 단계 === '합';
-            const isTeacherHalfStep = ['섭', '복', '예정'].includes(단계);
+            const isCFStep = ['섭', '복', '예정'].includes(단계);
+            const isABStep = ['발', '찾', '합'].includes(단계);
 
             // ✅ 발/찾: 인도자 기준 +1
             if (isABStep) {
@@ -133,7 +139,33 @@ export default function DashboardPage() {
                 scoreMap[key] = (scoreMap[key] ?? 0) + 1;
             }
 
-            if (isLeaderHalfStep && selectedTargetMonth) {
+            // if (isLeaderHalfStep && selectedTargetMonth) {
+            //     const targetMonth = `${selectedTargetMonth}월`;
+            //     if (s.target?.trim() === targetMonth) {
+            //         const 인도자지역 = (s.인도자지역 ?? '').trim();
+            //         const 인도자팀Raw = (s.인도자팀 ?? '').replace(/\s/g, '');
+            //         if (인도자지역 && 인도자팀Raw && REGIONS.includes(인도자지역)) {
+            //             const 인도자팀 = 인도자팀Raw.includes('-') ? 인도자팀Raw.split('-')[0] : 인도자팀Raw;
+            //             const leaderKey = `${인도자지역}-${인도자팀}-${단계}`;
+            //             scoreMap[leaderKey] = (scoreMap[leaderKey] ?? 0) + 1;
+            //         }
+            //     }
+            // }
+
+            // if (isTeacherHalfStep && selectedTargetMonth) {
+            //     const targetMonth = `${selectedTargetMonth}월`;
+            //     if (s.target?.trim() === targetMonth) {
+            //         const 교사지역 = (s.교사지역 ?? '').trim();
+            //         const 교사팀Raw = (s.교사팀 ?? '').replace(/\s/g, '');
+            //         if (교사지역 && 교사팀Raw && REGIONS.includes(교사지역)) {
+            //             const 교사팀 = 교사팀Raw.includes('-') ? 교사팀Raw.split('-')[0] : 교사팀Raw;
+            //             const teacherKey = `${교사지역}-${교사팀}-${단계}`;
+            //             scoreMap[teacherKey] = (scoreMap[teacherKey] ?? 0) + 1;
+            //         }
+            //     }
+            // }
+
+            if (isCFStep && selectedTargetMonth) {
                 const targetMonth = `${selectedTargetMonth}월`;
                 if (s.target?.trim() === targetMonth) {
                     const 인도자지역 = (s.인도자지역 ?? '').trim();
@@ -141,20 +173,14 @@ export default function DashboardPage() {
                     if (인도자지역 && 인도자팀Raw && REGIONS.includes(인도자지역)) {
                         const 인도자팀 = 인도자팀Raw.includes('-') ? 인도자팀Raw.split('-')[0] : 인도자팀Raw;
                         const leaderKey = `${인도자지역}-${인도자팀}-${단계}`;
-                        scoreMap[leaderKey] = (scoreMap[leaderKey] ?? 0) + 1;
+                        scoreMap[leaderKey] = (scoreMap[leaderKey] ?? 0) + 0.5;
                     }
-                }
-            }
-
-            if (isTeacherHalfStep && selectedTargetMonth) {
-                const targetMonth = `${selectedTargetMonth}월`;
-                if (s.target?.trim() === targetMonth) {
                     const 교사지역 = (s.교사지역 ?? '').trim();
                     const 교사팀Raw = (s.교사팀 ?? '').replace(/\s/g, '');
                     if (교사지역 && 교사팀Raw && REGIONS.includes(교사지역)) {
                         const 교사팀 = 교사팀Raw.includes('-') ? 교사팀Raw.split('-')[0] : 교사팀Raw;
                         const teacherKey = `${교사지역}-${교사팀}-${단계}`;
-                        scoreMap[teacherKey] = (scoreMap[teacherKey] ?? 0) + 1;
+                        scoreMap[teacherKey] = (scoreMap[teacherKey] ?? 0) + 0.5;
                     }
                 }
             }
@@ -265,8 +291,15 @@ export default function DashboardPage() {
     return (
         <div className="w-full mx-auto p-6">
             <Title level={2}>개강 점검</Title>
-            <Space direction="vertical" size="large" style={{ marginBottom: 24, width: '100%' }}>
-                <Space wrap size="middle">
+            <Space
+                direction="vertical"
+                size="large"
+                style={{ marginBottom: 24, width: '100%' }}
+            >
+                <Space
+                    wrap
+                    size="middle"
+                >
                     <Select
                         value={selectedYear}
                         onChange={setSelectedYear}
@@ -291,7 +324,10 @@ export default function DashboardPage() {
                     </Button>
                     <Button onClick={handleExportExcel}>엑셀 다운로드</Button>
                 </Space>
-                <Spin spinning={isLoading} tip="데이터를 불러오는 중입니다...">
+                <Spin
+                    spinning={isLoading}
+                    tip="데이터를 불러오는 중입니다..."
+                >
                     <Table<TableRow3>
                         columns={[
                             {

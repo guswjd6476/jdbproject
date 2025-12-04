@@ -60,9 +60,23 @@ export interface ConversionRates {
 export type 예정Goals = Record<string, string>;
 
 export interface TeamResult {
-    team: number;
-    goals: WeeklyGoals;
-    weeks: WeeklyGoals[];
+    team: string;
+    goals: {
+        발: number;
+        찾: number;
+        합: number;
+        섭: number;
+        복: number;
+        예정: number;
+    };
+    weeks: {
+        발: number;
+        찾: number;
+        합: number;
+        섭: number;
+        복: number;
+        예정: number;
+    }[];
 }
 
 export interface Results {

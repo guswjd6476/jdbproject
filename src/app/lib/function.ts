@@ -16,26 +16,48 @@ import isBetween from 'dayjs/plugin/isBetween';
 import { Students } from '../hook/useStudentsQuery';
 dayjs.extend(isBetween);
 
-export const getWeekDateRange = (
-    month: number,
-    year: number,
-    weekIndex: number
-): { start: Dayjs; end: Dayjs; display: string } => {
+export const getWeekDateRange = (month: number, year: number, weekIndex: number) => {
+    // 1월이면: 전년도 12월 5주차부터 이어지는 구조
+    if (month === 1) {
+        const prevYear = year - 1;
+
+        // 12월 주차 1~8주 계산 (기존 알고리즘 사용)
+        const decemberWeeks = [];
+        for (let i = 0; i < 8; i++) {
+            decemberWeeks.push(computeWeek(prevYear, 12, i));
+        }
+
+        // 1월 1주차 = 12월 5주차
+        const sourceIndex = 4 + weekIndex;
+
+        // 12월의 이어지는 주차가 있으면 그대로 사용
+        if (sourceIndex < decemberWeeks.length) {
+            return decemberWeeks[sourceIndex];
+        }
+
+        // 넘어가면 1월 자체 주차 계산
+        return computeWeek(year, 1, sourceIndex - decemberWeeks.length);
+    }
+
+    // 1월 외에는 기존 방식
+    return computeWeek(year, month, weekIndex);
+};
+
+function computeWeek(year: number, month: number, weekIndex: number) {
     const firstDay = dayjs(new Date(year, month - 1, 1));
     const firstMonday = firstDay.add((8 - firstDay.day()) % 7 || 7, 'day');
 
-    // 2025년 9월부터는 3주 전, 그 전은 2주 전으로 기준 변경
     const baseOffset = year === 2025 && month >= 9 ? -35 : -14;
 
-    const startDate = firstMonday.add(weekIndex * 7 + baseOffset, 'day');
-    const endDate = startDate.add(6, 'day');
+    const start = firstMonday.add(weekIndex * 7 + baseOffset, 'day');
+    const end = start.add(6, 'day');
 
     return {
-        start: startDate,
-        end: endDate,
-        display: `${startDate.format('M.D')}~${endDate.format('M.D')}`,
+        start,
+        end,
+        display: `${start.format('M.D')}~${end.format('M.D')}`,
     };
-};
+}
 
 export const getTeamName = (team?: string | null): string => {
     if (!team) return '기타팀';
@@ -75,7 +97,11 @@ export const initializeResults = (
             };
         });
 
-        return { team: index + 1, goals: { 발: 발, 찾: 찾, 합: 합, 섭: 섭, 복: 복, 예정: 예정Value }, weeks };
+        return {
+            team: String(index + 1), // ⭐ FIXED
+            goals: { 발, 찾, 합, 섭, 복, 예정: 예정Value },
+            weeks,
+        };
     });
 
     // DEBUG: '복'의 총합이 '예정' 값으로 더해지던 오류 수정 및 acc 타입 명시

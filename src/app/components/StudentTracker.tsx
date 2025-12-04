@@ -157,8 +157,8 @@ function StudentTracker() {
             errors.push('찾기단계는 생년월일이 필요합니다.');
         }
         if (['합', '섭', '복', '예정', '센확'].includes(stage)) {
-            if (!row.target.trim()) {
-                errors.push('합 단계부터 목표월 입력이 필수입니다.');
+            if (stage === '합' && !row.target.trim()) {
+                errors.push('합 단계는 목표월 입력이 반드시 필요합니다.');
             } else {
                 const validMonths = [
                     '1월',
@@ -196,18 +196,22 @@ function StudentTracker() {
         if (!row.이름.trim()) errors.push('이름이 필요합니다.');
         return errors;
     }
-
     const handleChange = (index: number, field: keyof Student, value: string) => {
         setData((prev) => {
             const newData = [...prev];
-            if (field === '인도자_고유번호' || field === '교사_고유번호') return newData;
-            const newRow = { ...newData[index], [field]: value };
+            const prevRow = newData[index];
+
+            // 🔥 기존 데이터 유지하면서 필요한 필드만 변경
+            const newRow = { ...prevRow, [field]: value };
+
+            // 인도자 또는 교사 정보 변경 시 고유번호 초기화
             if (['인도자지역', '인도자팀', '인도자이름'].includes(field)) {
                 newRow.인도자_고유번호 = null;
             }
             if (['교사지역', '교사팀', '교사이름'].includes(field)) {
                 newRow.교사_고유번호 = null;
             }
+
             newData[index] = newRow;
             return newData;
         });
