@@ -32,12 +32,22 @@ export default function AdminPage() {
         fetchData();
     }, [isAdmin]);
 
-    if (isLoading) return <Spin tip="사용자 정보 확인 중..." className="mt-10 block mx-auto" />;
+    if (isLoading)
+        return (
+            <Spin
+                spinning
+                fullscreen
+                tip="로딩 중..."
+            />
+        );
 
     if (!isAdmin) {
         return (
             <div className="max-w-xl mx-auto mt-20 text-center">
-                <Alert message="접근 권한이 없습니다." type="error" />
+                <Alert
+                    message="접근 권한이 없습니다."
+                    type="error"
+                />
             </div>
         );
     }
@@ -47,7 +57,11 @@ export default function AdminPage() {
             <h1 className="text-2xl font-bold mb-6">관리자 페이지</h1>
 
             {loading ? (
-                <Spin tip="데이터 불러오는 중..." />
+                <Spin
+                    spinning
+                    fullscreen
+                    tip="로딩 중..."
+                />
             ) : (
                 <Table
                     dataSource={data}

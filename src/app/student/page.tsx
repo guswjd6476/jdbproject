@@ -326,7 +326,8 @@ export default function DashboardPage() {
                 </Space>
                 <Spin
                     spinning={isLoading}
-                    tip="데이터를 불러오는 중입니다..."
+                    fullscreen
+                    tip="로딩 중..."
                 >
                     <Table<TableRow3>
                         columns={[
