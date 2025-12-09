@@ -33,12 +33,20 @@ const menuItems = [
         icon: <WarningOutlined />,
         label: <Link href="/admin/error">중복 처리</Link>,
     },
+    {
+        key: '월',
+        icon: <WarningOutlined />,
+        label: <Link href="/admin/month">월 단향</Link>,
+    },
 ];
 
 export default function SidebarLayout({ children }: { children: React.ReactNode }) {
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <Sider breakpoint="lg" collapsedWidth="0">
+            <Sider
+                breakpoint="lg"
+                collapsedWidth="0"
+            >
                 <div
                     style={{
                         height: 48,

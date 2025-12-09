@@ -324,66 +324,61 @@ export default function DashboardPage() {
                     </Button>
                     <Button onClick={handleExportExcel}>엑셀 다운로드</Button>
                 </Space>
-                <Spin
-                    spinning={isLoading}
-                    fullscreen
-                    tip="로딩 중..."
-                >
-                    <Table<TableRow3>
-                        columns={[
-                            {
-                                title: '지역',
-                                dataIndex: '지역',
-                                key: 'region',
-                                fixed: 'left',
-                                width: 100,
-                                align: 'center',
-                            },
-                            { title: '팀', dataIndex: '팀', key: 'team', fixed: 'left', width: 70, align: 'center' },
-                            { title: '재적', dataIndex: '재적', key: '재적', width: 70, align: 'center' },
-                            ...STEPS2.map((step) => ({
-                                title: step,
-                                dataIndex: `${step}_보유`,
-                                key: `${step}_보유`,
-                                width: 60,
-                                align: 'center' as const,
-                            })),
-                            {
-                                title: '개강 목표',
-                                dataIndex: '예정_goal',
-                                key: '예정_goal',
-                                width: 90,
-                                align: 'center',
-                            },
-                            {
-                                title: '지난달결과',
-                                dataIndex: 'last_month_result',
-                                key: 'last_month_result',
-                                width: 100,
-                                align: 'center',
-                            },
-                            {
-                                title: '복음방 점수',
-                                dataIndex: 'gospel_score',
-                                key: 'gospel_score',
-                                width: 110,
-                                align: 'center',
-                            },
-                            {
-                                title: '목표 달성률',
-                                dataIndex: 'gospel_rate',
-                                key: 'gospel_rate',
-                                width: 120,
-                                align: 'center',
-                                render: (rate: number) => `${rate}%`, // % 기호 추가
-                            },
-                        ]}
-                        dataSource={renderData}
-                        scroll={{ x: 'max-content' }}
-                        pagination={{ pageSize: 50 }}
-                        sticky
-                    />
-                </Spin>
+
+                <Table<TableRow3>
+                    columns={[
+                        {
+                            title: '지역',
+                            dataIndex: '지역',
+                            key: 'region',
+                            fixed: 'left',
+                            width: 100,
+                            align: 'center',
+                        },
+                        { title: '팀', dataIndex: '팀', key: 'team', fixed: 'left', width: 70, align: 'center' },
+                        { title: '재적', dataIndex: '재적', key: '재적', width: 70, align: 'center' },
+                        ...STEPS2.map((step) => ({
+                            title: step,
+                            dataIndex: `${step}_보유`,
+                            key: `${step}_보유`,
+                            width: 60,
+                            align: 'center' as const,
+                        })),
+                        {
+                            title: '개강 목표',
+                            dataIndex: '예정_goal',
+                            key: '예정_goal',
+                            width: 90,
+                            align: 'center',
+                        },
+                        {
+                            title: '지난달결과',
+                            dataIndex: 'last_month_result',
+                            key: 'last_month_result',
+                            width: 100,
+                            align: 'center',
+                        },
+                        {
+                            title: '복음방 점수',
+                            dataIndex: 'gospel_score',
+                            key: 'gospel_score',
+                            width: 110,
+                            align: 'center',
+                        },
+                        {
+                            title: '목표 달성률',
+                            dataIndex: 'gospel_rate',
+                            key: 'gospel_rate',
+                            width: 120,
+                            align: 'center',
+                            render: (rate: number) => `${rate}%`, // % 기호 추가
+                        },
+                    ]}
+                    dataSource={renderData}
+                    scroll={{ x: 'max-content' }}
+                    pagination={{ pageSize: 50 }}
+                    sticky
+                />
             </Space>
         </div>
     );
