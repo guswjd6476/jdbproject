@@ -157,26 +157,18 @@ function StudentTracker() {
             errors.push('찾기단계는 생년월일이 필요합니다.');
         }
         if (['합', '섭', '복', '예정', '센확'].includes(stage)) {
-            if (stage === '합' && !row.target.trim()) {
-                errors.push('합 단계는 목표월 입력이 반드시 필요합니다.');
-            } else {
-                const validMonths = [
-                    '1월',
-                    '2월',
-                    '3월',
-                    '4월',
-                    '5월',
-                    '6월',
-                    '7월',
-                    '8월',
-                    '9월',
-                    '10월',
-                    '11월',
-                    '12월',
-                ];
-                if (!validMonths.includes(row.target.trim())) {
-                    errors.push('목표월은 "1월"부터 "12월"까지만 가능합니다.');
-                }
+            const target = row.target?.trim();
+
+            // 1️⃣ target 필수
+            if (!target) {
+                errors.push(`${stage} 단계는 목표월 입력이 반드시 필요합니다.`);
+            }
+
+            // 2️⃣ 유효한 월인지 검사
+            const validMonths = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
+
+            if (!validMonths.includes(target)) {
+                errors.push('목표월은 "1월"부터 "12월"까지만 가능합니다.');
             }
         }
 

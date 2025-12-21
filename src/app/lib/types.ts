@@ -106,7 +106,7 @@ export const DEFAULT_예정_goals: Record<Region, 예정Goals> = {
     중랑: { team1: '1.5', team2: '1.5', team3: '1.5', team4: '1.5' },
     강북: { team1: '1.5', team2: '1.5', team3: '1.5', team4: '1.5' },
     대학: { team1: '1.5', team2: '1.5', team3: '1.5', team4: '1.5' },
-    새신자: { team1: '0', team2: '0' },
+    새신자: { team1: '0.5', team2: '0.5' },
 };
 
 export interface TableRow {
