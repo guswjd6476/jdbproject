@@ -38,41 +38,30 @@ function normalizeBirth(value: string): string {
     return value;
 }
 
-/**
- * dayjs 안전 파싱
- */
 export function parseDateSafe(value: any) {
     if (!value) return null;
 
-    // 이미 Date 객체면 바로 처리
     if (value instanceof Date) {
         const d = dayjs(value);
         return d.isValid() ? d : null;
     }
 
     const v = String(value).trim();
-
-    // 1️⃣ ISO 문자열 (Z 포함) — 최우선
     if (v.includes('T')) {
         const d = dayjs(v);
         if (d.isValid()) return d;
     }
 
     const formats = [
-        // 날짜만
         'YYYY-MM-DD',
         'YYYY-M-D',
         'YYYY/MM/DD',
         'YYYY.M.D',
         'YYYYMMDD',
-
-        // 날짜 + 시간
         'YYYY-MM-DD HH:mm',
         'YYYY-MM-DD HH:mm:ss',
         'YYYY/MM/DD HH:mm:ss',
         'YYYY.MM.DD HH:mm:ss',
-
-        // YY 기반
         'YYMMDD',
         'YY.MM.DD',
         'YY/MM/DD',
@@ -83,16 +72,11 @@ export function parseDateSafe(value: any) {
         if (d.isValid()) return d;
     }
 
-    // 2️⃣ 숫자만 있는 경우 (예: "50102")
     const digits = v.replace(/\D/g, '');
-
-    // YYYYMMDD
     if (digits.length === 8) {
         const d = dayjs(digits, 'YYYYMMDD', true);
         if (d.isValid()) return d;
     }
-
-    // YYMMDD → 19YY 기준
     if (digits.length === 6) {
         const d = dayjs(`19${digits}`, 'YYYYMMDD', true);
         if (d.isValid()) return d;
@@ -127,22 +111,14 @@ export function parseDateSafe(value: any) {
 //     return computeWeek(year, month, weekIndex);
 // };
 export const getWeekDateRange = (year: number, month: number, weekIndex: number) => {
-    // 1️⃣ 해당 월 1일
     const firstDay = dayjs(new Date(year, month - 1, 1));
-
-    // 2️⃣ 해당 월 기준 첫 번째 월요일
     const dayOfWeek = firstDay.day(); // 0=일, 1=월 ...
     const diffToMonday = dayOfWeek === 1 ? 0 : (8 - dayOfWeek) % 7;
     const firstMonday = firstDay.add(diffToMonday, 'day');
-
-    // 3️⃣ 정책 주차 보정 (기존 로직 그대로)
     const baseOffsetDays =
         year === 2025 && month === 12 ? -28 : year === 2025 && month >= 9 ? -35 : year >= 2026 ? -35 : -14;
-
-    // 4️⃣ 주차 계산
     const start = firstMonday.add(weekIndex * 7 + baseOffsetDays, 'day');
     const end = start.add(6, 'day');
-
     return {
         start,
         end,
