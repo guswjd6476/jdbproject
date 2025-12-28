@@ -9,7 +9,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { Results, TeamResult, REGIONS, Region, fixedTeams, STEPS2, DEFAULT_예정_goals } from '@/app/lib/types';
 import { Students, useStudentsQuery } from '@/app/hook/useStudentsQuery';
 import { useUser } from '@/app/hook/useUser';
-import { getTeamName, getWeekDateRange } from '@/app/lib/function';
+import { getTeamName, getWeekDateRange, parseDateSafe } from '@/app/lib/function';
 
 dayjs.extend(isBetween);
 
@@ -130,7 +130,7 @@ const WeeklyGoalsTable: React.FC<{
         <>
             {Array.from({ length: weekCount }).map((_, wIdx) => {
                 const weekKey = `week${wIdx + 1}`;
-                const { display } = getWeekDateRange(Number(selectedMonth), selectedYear, wIdx);
+                const { display } = getWeekDateRange(selectedYear, Number(selectedMonth), wIdx);
 
                 const rows = data.flatMap(({ region, results }) =>
                     results.teams.map((team) => {
@@ -240,6 +240,8 @@ export default function GoalPage() {
         () => calculateWeeklyAchievements(students, Number(selectedMonth), selectedYear),
         [students, selectedMonth, selectedYear]
     );
+
+    console.log(students, '?st');
 
     /* 유저 지역 고정 */
     useEffect(() => {
@@ -433,9 +435,8 @@ const calculateWeeklyAchievements = (students: Students[], month: number, year: 
             if (step === '합' || step === '섭' || step === '복' || step === '예정') {
                 if ((s as any).target !== `${month}월`) return;
             }
-
-            const date = dayjs(dateStr);
-            if (!date.isValid()) return;
+            const date = parseDateSafe(dateStr);
+            if (!date) return;
 
             // 점수 분배
             const targets =
@@ -450,7 +451,7 @@ const calculateWeeklyAchievements = (students: Students[], month: number, year: 
                 if (!REGIONS.includes(region as Region)) return;
 
                 for (let i = 0; i < weekCount; i++) {
-                    const { start, end } = getWeekDateRange(month, year, i);
+                    const { start, end } = getWeekDateRange(year, month, i);
                     if (!date.isBetween(start, end, 'day', '[]')) continue;
 
                     weekly[region] ??= {};

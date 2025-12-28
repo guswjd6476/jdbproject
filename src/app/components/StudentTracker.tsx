@@ -225,7 +225,7 @@ function StudentTracker() {
         e.preventDefault();
         const paste = e.clipboardData.getData('text');
         const rows = paste.split('\n').filter(Boolean);
-        const parsed = rows.map((row) => row.split(/\t|\//));
+        const parsed = rows.map((row) => row.split('\t'));
         setData((prev) => {
             const newData = [...prev];
             let writeIndex = newData.findIndex((r) => r.단계 === '');
