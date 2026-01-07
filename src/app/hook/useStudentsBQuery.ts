@@ -4,15 +4,22 @@ export type Students = {
     번호: number;
     이름: string;
     단계: string;
+
     인도자지역?: string;
     인도자팀?: string;
     인도자이름?: string;
+
     교사지역?: string;
     교사팀?: string;
     교사이름?: string;
+
     target?: string;
     trydate?: string;
     numberofweek?: string;
+
+    // 🔥 추가된 필드들
+    prevTarget?: string | null;
+    targetChangeCount?: number;
 };
 
 async function fetchStudentsB(): Promise<Students[]> {

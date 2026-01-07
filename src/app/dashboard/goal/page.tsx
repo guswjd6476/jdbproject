@@ -14,15 +14,14 @@ import { getTeamName, getWeekDateRange, parseDateSafe } from '@/app/lib/function
 dayjs.extend(isBetween);
 
 /* =====================================================
- * 단계 / 타입
+ * 단계
  * ===================================================== */
 const steps = ['발', '찾', '합', '섭', '복', '예정'] as const;
 type Step = (typeof steps)[number];
 
 /* =====================================================
- * 🔥 고정 목표 (확정 규칙)
+ * 고정 목표
  * ===================================================== */
-// 월 전체 목표 (팀당) - 예정은 DEFAULT_예정_goals에서 가져옴(지역/팀별)
 const MONTHLY_GOALS_BASE: Omit<Record<Step, number>, '예정'> = {
     발: 45,
     찾: 15,
@@ -31,19 +30,17 @@ const MONTHLY_GOALS_BASE: Omit<Record<Step, number>, '예정'> = {
     복: 2,
 };
 
-// 주차별 고정 목표 (index = 주차 - 1)
 const WEEKLY_GOALS: Record<number, Partial<Record<Step, number>>> = {
-    0: { 발: 22 }, // 1주차
-    1: { 발: 23, 찾: 6 }, // 2주차
-    2: { 찾: 4, 합: 3 }, // 3주차
-    3: { 합: 3 }, // 4주차
-    4: { 섭: 1.5 }, // 5주차
-    5: { 섭: 1.5, 복: 1 }, // 6주차
-    6: { 복: 1 }, // 7주차
+    0: { 발: 22 },
+    1: { 발: 23, 찾: 6 },
+    2: { 찾: 4, 합: 3 },
+    3: { 합: 3 },
+    4: { 섭: 1.5 },
+    5: { 섭: 1.5, 복: 1 },
+    6: { 복: 1 },
 };
-
 /* =====================================================
- * 주차 수 계산
+ * 주차 수
  * ===================================================== */
 const getWeekCount = (year: number, month: string) => {
     const m = Number(month);
@@ -53,31 +50,36 @@ const getWeekCount = (year: number, month: string) => {
 };
 
 /* =====================================================
- * 누적 달성 계산
+ * 누적 달성 계산 (target + all)
  * ===================================================== */
 const getCumulativeAchievement = (achievements: any, region: string, teamKey: string, weekIndex: number) => {
-    const sum: Record<Step, number> = {
-        발: 0,
-        찾: 0,
-        합: 0,
-        섭: 0,
-        복: 0,
-        예정: 0,
+    const sum = {
+        발: { all: 0, target: 0 },
+        찾: { all: 0, target: 0 },
+        합: { all: 0, target: 0 },
+        섭: { all: 0, target: 0 },
+        복: { all: 0, target: 0 },
+        예정: { all: 0, target: 0 },
     };
 
     for (let i = 0; i <= weekIndex; i++) {
         const wk = achievements?.[region]?.[teamKey]?.[`week${i + 1}`];
         if (!wk) continue;
-        steps.forEach((s) => (sum[s] += wk[s] ?? 0));
+
+        steps.forEach((s) => {
+            sum[s].all += wk[s]?.all ?? 0;
+            sum[s].target += wk[s]?.target ?? 0;
+        });
     }
+
     return sum;
 };
 
 /* =====================================================
- * 월 요약 계산
+ * 월 요약
  * ===================================================== */
 const calculateMonthlySummary = (results: Results, achievements: any, region: string) => {
-    const summary: Record<Step, { goal: number; done: number; rate: number }> = {
+    const summary: any = {
         발: { goal: 0, done: 0, rate: 0 },
         찾: { goal: 0, done: 0, rate: 0 },
         합: { goal: 0, done: 0, rate: 0 },
@@ -87,17 +89,16 @@ const calculateMonthlySummary = (results: Results, achievements: any, region: st
     };
 
     results.teams.forEach((team) => {
-        const teamKey = team.team;
-        steps.forEach((step) => {
-            summary[step].goal += team.goals[step];
+        steps.forEach((s) => {
+            summary[s].goal += team.goals[s];
         });
 
-        const teamWeeks = achievements?.[region]?.[teamKey];
+        const teamWeeks = achievements?.[region]?.[team.team];
         if (!teamWeeks) return;
 
         Object.values(teamWeeks).forEach((wk: any) => {
-            steps.forEach((step) => {
-                summary[step].done += wk?.[step] ?? 0;
+            steps.forEach((s) => {
+                summary[s].done += wk[s]?.target ?? 0;
             });
         });
     });
@@ -134,7 +135,7 @@ const WeeklyGoalsTable: React.FC<{
 
                 const rows = data.flatMap(({ region, results }) =>
                     results.teams.map((team) => {
-                        const weeklyAch = achievements?.[region]?.[team.team]?.[weekKey] ?? {};
+                        const weeklyAchRaw = achievements?.[region]?.[team.team]?.[weekKey] ?? {};
                         const cumulative = getCumulativeAchievement(achievements, region, team.team, wIdx);
 
                         const row: any = {
@@ -144,21 +145,31 @@ const WeeklyGoalsTable: React.FC<{
 
                         steps.forEach((s) => {
                             const weeklyGoal = team.weeks[wIdx]?.[s] ?? 0;
-                            const weeklyDone = weeklyAch?.[s] ?? 0;
-                            const weeklyRate = weeklyGoal > 0 ? (weeklyDone / weeklyGoal) * 100 : 0;
+                            const wk = weeklyAchRaw[s] ?? { all: 0, target: 0 };
 
                             const totalGoal = team.goals[s];
-                            const cumDone = cumulative[s];
-                            const cumRate = totalGoal > 0 ? (cumDone / totalGoal) * 100 : 0;
+                            const cum = cumulative[s];
 
-                            row[`${s}-weekly`] = `${weeklyDone} | ${weeklyGoal}`;
+                            const weeklyRate = weeklyGoal > 0 ? (wk.target / weeklyGoal) * 100 : 0;
+                            const cumRate = totalGoal > 0 ? (cum.target / totalGoal) * 100 : 0;
+
+                            row[`${s}-weekly`] =
+                                s === '합' || s === '섭' || s === '복' || s === '예정'
+                                    ? `${wk.target} (${wk.all}) | ${weeklyGoal}`
+                                    : `${wk.all} | ${weeklyGoal}`;
+
                             row[`${s}-weeklyRate`] = {
                                 text: weeklyGoal ? `${weeklyRate.toFixed(1)}%` : '-',
                                 style: getRateStyle(weeklyRate),
                             };
-                            row[`${s}-cum`] = `${cumDone} | ${totalGoal}`;
+
+                            row[`${s}-cum`] =
+                                s === '합' || s === '섭' || s === '복' || s === '예정'
+                                    ? `${cum.target} (${cum.all}) | ${totalGoal}`
+                                    : `${cum.all} | ${totalGoal}`;
+
                             row[`${s}-cumRate`] = {
-                                text: cumRate >= 100 ? `⭐ ${cumRate.toFixed(1)}%` : `${cumRate.toFixed(1)}%`,
+                                text: `${cumRate.toFixed(1)}%`,
                                 style: getRateStyle(cumRate),
                             };
                         });
@@ -198,10 +209,7 @@ const WeeklyGoalsTable: React.FC<{
                 ];
 
                 return (
-                    <div
-                        key={weekKey}
-                        className="mb-10"
-                    >
+                    <div key={weekKey} className="mb-10">
                         <h3 className="font-semibold mb-2">
                             {selectedYear}년 {selectedMonth}월 {wIdx + 1}주차 ({display})
                         </h3>
@@ -241,21 +249,16 @@ export default function GoalPage() {
         [students, selectedMonth, selectedYear]
     );
 
-    console.log(students, '?st');
-
-    /* 유저 지역 고정 */
     useEffect(() => {
         if (userRegion && userRegion !== 'all') {
             setRegion(userRegion as Region);
         }
     }, [userRegion]);
 
-    /* 지역별 결과 */
     useEffect(() => {
         setResults(initializeResults(region));
     }, [region, selectedMonth, selectedYear]);
 
-    /* 월별 전체 지역 */
     useEffect(() => {
         if (viewMode !== 'month') return;
         setAllRegionsResults(
@@ -287,40 +290,27 @@ export default function GoalPage() {
 
             {/* 상단 컨트롤 */}
             <div className="flex flex-wrap justify-center gap-3 mb-6">
-                <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(+e.target.value)}
-                >
+                <select value={selectedYear} onChange={(e) => setSelectedYear(+e.target.value)}>
                     {[selectedYear - 1, selectedYear, selectedYear + 1].map((y) => (
                         <option key={y}>{y}</option>
                     ))}
                 </select>
 
-                <select
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
-                >
+                <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
                     {Array.from({ length: 12 }, (_, i) => (
                         <option key={i + 1}>{i + 1}</option>
                     ))}
                 </select>
 
                 {viewMode === 'region' && userRegion === 'all' && (
-                    <select
-                        value={region}
-                        onChange={(e) => setRegion(e.target.value as Region)}
-                    >
+                    <select value={region} onChange={(e) => setRegion(e.target.value as Region)}>
                         {REGIONS.map((r) => (
                             <option key={r}>{r}</option>
                         ))}
                     </select>
                 )}
 
-                <Radio.Group
-                    value={viewMode}
-                    onChange={(e) => setViewMode(e.target.value)}
-                    optionType="button"
-                >
+                <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} optionType="button">
                     <Radio.Button value="region">지역별</Radio.Button>
                     <Radio.Button value="month">월별</Radio.Button>
                 </Radio.Group>
@@ -330,10 +320,7 @@ export default function GoalPage() {
             {monthlySummary && (
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-4 mb-8">
                     {steps.map((s) => (
-                        <div
-                            key={s}
-                            className="border rounded p-3 text-center"
-                        >
+                        <div key={s} className="border rounded p-3 text-center">
                             <div className="text-sm text-gray-500">{s}</div>
                             <div className="font-bold">
                                 {monthlySummary[s].done} | {monthlySummary[s].goal}
@@ -355,7 +342,7 @@ export default function GoalPage() {
 }
 
 /* =====================================================
- * 목표 계산 (🔥 고정 목표 + 예정은 DEFAULT_예정_goals)
+ * 목표 초기화
  * ===================================================== */
 const initializeResults = (region: Region): Results => {
     const regionFGoals = DEFAULT_예정_goals[region];
@@ -363,31 +350,23 @@ const initializeResults = (region: Region): Results => {
         return { teams: [], totals: { 발: 0, 찾: 0, 합: 0, 섭: 0, 복: 0, 예정: 0 } };
     }
 
-    // 🔥 여기서 실제 존재하는 팀만 추출
-    const teamIds = Object.keys(regionFGoals); // ['team1','team2',...]
+    const teamIds = Object.keys(regionFGoals);
 
     const teamResults: TeamResult[] = teamIds.map((teamId) => {
         const teamNum = teamId.replace('team', '');
         const 예정Goal = Number(regionFGoals[teamId]);
 
-        const goals: Record<Step, number> = {
-            ...MONTHLY_GOALS_BASE,
-            예정: 예정Goal,
-        };
-
-        const weeks = Array.from({ length: 8 }).map((_, idx) => ({
-            발: WEEKLY_GOALS[idx]?.발 ?? 0,
-            찾: WEEKLY_GOALS[idx]?.찾 ?? 0,
-            합: WEEKLY_GOALS[idx]?.합 ?? 0,
-            섭: WEEKLY_GOALS[idx]?.섭 ?? 0,
-            복: WEEKLY_GOALS[idx]?.복 ?? 0,
-            예정: 0,
-        }));
-
         return {
             team: teamNum,
-            goals,
-            weeks,
+            goals: { ...MONTHLY_GOALS_BASE, 예정: 예정Goal },
+            weeks: Array.from({ length: 8 }).map((_, idx) => ({
+                발: WEEKLY_GOALS[idx]?.발 ?? 0,
+                찾: WEEKLY_GOALS[idx]?.찾 ?? 0,
+                합: WEEKLY_GOALS[idx]?.합 ?? 0,
+                섭: WEEKLY_GOALS[idx]?.섭 ?? 0,
+                복: WEEKLY_GOALS[idx]?.복 ?? 0,
+                예정: 0,
+            })),
         };
     });
 
@@ -407,10 +386,7 @@ const initializeResults = (region: Region): Results => {
 };
 
 /* =====================================================
- * 주간 달성 집계
- * - 합/섭/복/센확 : target === `${month}월` 일 때만 인정
- * - 섭/복/센확 : 인도자 0.5 + 교사 0.5
- * - 발/찾/합 : 인도자 1
+ * 주간 달성 집계 (확장 버전)
  * ===================================================== */
 const calculateWeeklyAchievements = (students: Students[], month: number, year: number) => {
     const weekly: any = {};
@@ -426,19 +402,14 @@ const calculateWeeklyAchievements = (students: Students[], month: number, year: 
         if (!REGIONS.includes(leaderRegion as Region)) return;
 
         STEPS2.forEach((step) => {
-            // 화면은 '예정'을 쓰지만, 실제 학생 데이터에는 날짜 필드가 없을 수 있어.
-            // (예: 예정=null) → 이 경우 자동으로 스킵됨
             const dateStr = (s as any)[step];
             if (!dateStr) return;
 
-            // 🔥 합/섭/복/센확은 target 기준
-            if (step === '합' || step === '섭' || step === '복' || step === '예정') {
-                if ((s as any).target !== `${month}월`) return;
-            }
             const date = parseDateSafe(dateStr);
             if (!date) return;
 
-            // 점수 분배
+            const isTargetMonth = (s as any).target === `${month}월`;
+
             const targets =
                 step === '섭' || step === '복' || step === '예정'
                     ? [
@@ -457,18 +428,23 @@ const calculateWeeklyAchievements = (students: Students[], month: number, year: 
                     weekly[region] ??= {};
                     weekly[region][team] ??= {};
                     weekly[region][team][`week${i + 1}`] ??= {
-                        발: 0,
-                        찾: 0,
-                        합: 0,
-                        섭: 0,
-                        복: 0,
-                        예정: 0,
+                        발: { all: 0, target: 0 },
+                        찾: { all: 0, target: 0 },
+                        합: { all: 0, target: 0 },
+                        섭: { all: 0, target: 0 },
+                        복: { all: 0, target: 0 },
+                        예정: { all: 0, target: 0 },
                     };
 
-                    // step이 steps(발/찾/합/섭/복/예정) 안에 있지 않으면 스킵
                     if (!steps.includes(step as Step)) return;
 
-                    weekly[region][team][`week${i + 1}`][step] += score;
+                    // 전체 달성
+                    weekly[region][team][`week${i + 1}`][step].all += score;
+
+                    // 기존 목표월 기준
+                    if (step === '발' || step === '찾' || isTargetMonth) {
+                        weekly[region][team][`week${i + 1}`][step].target += score;
+                    }
                 }
             });
         });

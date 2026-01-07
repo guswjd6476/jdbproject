@@ -215,7 +215,33 @@ export async function POST(request: NextRequest) {
                     [row.이름.trim()]
                 );
             }
+
             const existing = existingRes.rows.length > 0 ? existingRes.rows[0] : null;
+
+            // =====================================================
+            // ✅ TARGET 변경 누적 로직 (추가된 부분)
+            // =====================================================
+            if (existing && row.target) {
+                const prevTarget = existing.target;
+                if (prevTarget !== row.target) {
+                    const countRes = await client.query(
+                        `SELECT COALESCE(MAX(change_count), 0) AS count
+                         FROM student_target_history
+                         WHERE student_id = $1`,
+                        [existing.id]
+                    );
+
+                    const nextCount = Number(countRes.rows[0].count) + 1;
+
+                    await client.query(
+                        `INSERT INTO student_target_history
+                            (student_id, target, change_count)
+                         VALUES ($1, $2, $3)`,
+                        [existing.id, row.target, nextCount]
+                    );
+                }
+            }
+            // =====================================================
 
             if (existing) {
                 const currentStageIndex = 단계순서.indexOf(단계);
@@ -236,7 +262,6 @@ export async function POST(request: NextRequest) {
                 }
             }
 
-            // ✨ FIX: `g`를 다시 `탈락`으로 수정합니다.
             const 완료일: { [key: string]: Date | null } = {
                 발_완료일: null,
                 찾_완료일: null,
@@ -247,23 +272,27 @@ export async function POST(request: NextRequest) {
                 센확_완료일: null,
                 탈락: null,
             };
+
             const colName = 단계완료일컬럼[단계];
-            if (colName) {
-                완료일[colName] = now;
-            }
+            if (colName) 완료일[colName] = now;
 
             if (existing) {
                 await client.query(
-                    // ✨ FIX: 쿼리에서 `g`를 다시 `탈락`으로 변경합니다.
                     `UPDATE students SET
                         단계 = $1, 연락처 = COALESCE($2, 연락처), 생년월일 = COALESCE($3, 생년월일),
-                        인도자_고유번호 = COALESCE($4, 인도자_고유번호), 교사_고유번호 = COALESCE($5, 교사_고유번호),
-                        발_완료일 = COALESCE(발_완료일, $6), 찾_완료일 = COALESCE(찾_완료일, $7),
-                        합_완료일 = COALESCE(합_완료일, $8), 섭_완료일 = COALESCE(섭_완료일, $9),
-                        복_완료일 = COALESCE(복_완료일, $10), 예정_완료일 = COALESCE(예정_완료일, $11),
+                        인도자_고유번호 = COALESCE($4, 인도자_고유번호),
+                        교사_고유번호 = COALESCE($5, 교사_고유번호),
+                        발_완료일 = COALESCE(발_완료일, $6),
+                        찾_완료일 = COALESCE(찾_완료일, $7),
+                        합_완료일 = COALESCE(합_완료일, $8),
+                        섭_완료일 = COALESCE(섭_완료일, $9),
+                        복_완료일 = COALESCE(복_완료일, $10),
+                        예정_완료일 = COALESCE(예정_완료일, $11),
                         센확_완료일 = COALESCE(센확_완료일, $12),
-                        탈락 = COALESCE(탈락, $13) , 도구 = COALESCE(도구, $14) , target = COALESCE(target, $15) 
-                    WHERE id = $16`,
+                        탈락 = COALESCE(탈락, $13),
+                        도구 = COALESCE(도구, $14),
+                        target = COALESCE(target, $15)
+                     WHERE id = $16`,
                     [
                         단계,
                         row.연락처,
@@ -277,7 +306,7 @@ export async function POST(request: NextRequest) {
                         완료일.복_완료일,
                         완료일.예정_완료일,
                         완료일.센확_완료일,
-                        완료일.탈락, // ✨ FIX: '탈락' 컬럼에 해당하는 값을 전달합니다.
+                        완료일.탈락,
                         row.도구,
                         row.target,
                         existing.id,
@@ -285,10 +314,11 @@ export async function POST(request: NextRequest) {
                 );
             } else {
                 await client.query(
-                    // ✨ FIX: 쿼리에서 `g`를 다시 `탈락`으로 변경합니다.
                     `INSERT INTO students
-                        (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일, 센확_완료일, 탈락, 도구, target)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+                        (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호,
+                         발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일,
+                         예정_완료일, 센확_완료일, 탈락, 도구, target)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
                     [
                         단계,
                         row.이름.trim(),
@@ -303,7 +333,7 @@ export async function POST(request: NextRequest) {
                         완료일.복_완료일,
                         완료일.예정_완료일,
                         완료일.센확_완료일,
-                        완료일.탈락, // ✨ FIX: '탈락' 컬럼에 해당하는 값을 전달합니다.
+                        완료일.탈락,
                         row.도구,
                         row.target,
                     ]

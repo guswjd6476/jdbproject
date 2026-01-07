@@ -4,7 +4,7 @@ import { pool } from '@/app/lib/db';
 type TargetItem = {
     번호: number;
     month: string | null;
-    date: string | null; // 'YYYY-MM-DD' 형식 문자열
+    date: string | null;
     week: string | null;
 };
 
@@ -14,41 +14,75 @@ export async function POST(req: NextRequest) {
     try {
         const { targets } = (await req.json()) as { targets: TargetItem[] };
 
-        if (targets.length === 0) {
-            client.release();
+        if (!targets || targets.length === 0) {
             return NextResponse.json({ success: true });
         }
 
-        const values: string[] = [];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params: any[] = [];
+        await client.query('BEGIN');
 
-        targets.forEach(({ 번호, month, date, week }, idx) => {
-            const base = idx * 4;
-            values.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`);
-            params.push(번호.toString(), month, date, week);
-        });
+        for (const t of targets) {
+            const studentId = t.번호;
 
-        const query = `
-      UPDATE students AS s
-      SET 
-        target = v.month,
-        trydate = v.date::timestamp,
-        numberofweek = v.week
-      FROM (
-        VALUES
-        ${values.join(',')}
-      ) AS v(id, month, date, week)
-      WHERE s.id = v.id::integer
-    `;
+            /* =========================
+               1️⃣ 기존 target 조회
+            ========================= */
+            const prevRes = await client.query(`SELECT target FROM students WHERE id = $1 FOR UPDATE`, [studentId]);
 
-        await client.query(query, params);
-        client.release();
+            if (prevRes.rowCount === 0) continue;
 
+            const prevTarget: string | null = prevRes.rows[0].target;
+            const nextTarget: string | null = t.month;
+
+            /* =========================
+               2️⃣ target 변경된 경우만 history 기록
+            ========================= */
+            if (nextTarget && nextTarget !== prevTarget) {
+                // 현재 최대 change_count 조회
+                const countRes = await client.query(
+                    `
+                    SELECT COALESCE(MAX(change_count), 0) AS max
+                    FROM student_target_history
+                    WHERE student_id = $1
+                    `,
+                    [studentId]
+                );
+
+                const nextCount = Number(countRes.rows[0].max) + 1;
+
+                await client.query(
+                    `
+                    INSERT INTO student_target_history
+                      (student_id, target, change_count)
+                    VALUES
+                      ($1, $2, $3)
+                    `,
+                    [studentId, nextTarget, nextCount]
+                );
+            }
+
+            /* =========================
+               3️⃣ students 테이블 업데이트
+            ========================= */
+            await client.query(
+                `
+                UPDATE students
+                SET
+                    target = $2,
+                    trydate = $3,
+                    numberofweek = $4
+                WHERE id = $1
+                `,
+                [studentId, nextTarget, t.date ? new Date(t.date) : null, t.week]
+            );
+        }
+
+        await client.query('COMMIT');
         return NextResponse.json({ success: true });
     } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('update-targets error:', err);
+        return NextResponse.json({ error: '타겟 저장 중 오류 발생' }, { status: 500 });
+    } finally {
         client.release();
-        console.error('DB 업데이트 오류:', err);
-        return NextResponse.json({ error: '서버 오류 발생' }, { status: 500 });
     }
 }
