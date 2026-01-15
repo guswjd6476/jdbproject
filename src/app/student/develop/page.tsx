@@ -41,7 +41,7 @@ export default function RegionWiseRemarks() {
        초기 target 세팅 (⭐ FIX)
     ======================= */
     useEffect(() => {
-        if (initializedRef.current) return; // ✅ 한 번만
+        if (initializedRef.current) return;
         if (!students || students.length === 0) return;
 
         const initial: Record<number, { month?: string; date?: string; week?: string }> = {};
@@ -152,25 +152,32 @@ export default function RegionWiseRemarks() {
     };
 
     /* =======================
-       테이블 컬럼
+       테이블 컬럼 ✅ 정렬 추가
     ======================= */
     const columns: ColumnsType<Students> = [
         { title: '단계', dataIndex: '단계', width: 60 },
+
         {
             title: '이름',
             dataIndex: '이름',
             width: 40 as any,
+            sorter: (a, b) => String(a.이름 ?? '').localeCompare(String(b.이름 ?? ''), 'ko'),
+            sortDirections: ['ascend', 'descend'],
             render: (name: string, r) => {
                 const visible = visibleId === r.번호;
                 const masked =
                     name.length <= 2 ? name[0] + 'O' : name[0] + 'O'.repeat(name.length - 2) + name[name.length - 1];
                 return (
-                    <span style={{ cursor: 'pointer' }} onClick={() => setVisibleId(visible ? null : r.번호)}>
+                    <span
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setVisibleId(visible ? null : r.번호)}
+                    >
                         {visible ? name : masked}
                     </span>
                 );
             },
         },
+
         { title: '인도자지역', dataIndex: '인도자지역', width: 60 },
         { title: '인도자팀', dataIndex: '인도자팀', width: 60 },
         { title: '인도자이름', dataIndex: '인도자이름', width: 60 },
@@ -183,24 +190,40 @@ export default function RegionWiseRemarks() {
             width: 80,
             render: (_, r) => (r as any).prevTarget ?? '-',
         },
+
         {
             title: '변경횟수',
             width: 80,
             align: 'center',
+            sorter: (a, b) => Number((a as any).targetChangeCount ?? 0) - Number((b as any).targetChangeCount ?? 0),
+            sortDirections: ['descend', 'ascend'],
+            defaultSortOrder: 'descend', // ✅ 기본 내림차순 정렬
             render: (_, r) => (r as any).targetChangeCount ?? 0,
         },
+
         {
             title: '히스토리',
             width: 80,
             render: (_, r) => (
-                <Button size="small" disabled={!(r as any).targetChangeCount} onClick={() => openHistoryModal(r)}>
+                <Button
+                    size="small"
+                    disabled={!(r as any).targetChangeCount}
+                    onClick={() => openHistoryModal(r)}
+                >
                     보기
                 </Button>
             ),
         },
+
         {
             title: '목표월',
             width: 90,
+            sorter: (a, b) => {
+                const am = targets[a.번호]?.month ?? a.target ?? '';
+                const bm = targets[b.번호]?.month ?? b.target ?? '';
+                return String(am).localeCompare(String(bm), 'ko');
+            },
+            sortDirections: ['ascend', 'descend'],
             render: (_, r) => (
                 <Select
                     value={targets[r.번호]?.month}
@@ -209,13 +232,17 @@ export default function RegionWiseRemarks() {
                     style={{ width: '100%' }}
                 >
                     {monthOptions.map((m) => (
-                        <Option key={m} value={m}>
+                        <Option
+                            key={m}
+                            value={m}
+                        >
                             {m}
                         </Option>
                     ))}
                 </Select>
             ),
         },
+
         {
             title: '실행일자',
             width: 110,
@@ -231,6 +258,7 @@ export default function RegionWiseRemarks() {
                 />
             ),
         },
+
         {
             title: '주횟수',
             width: 110,
@@ -251,7 +279,7 @@ export default function RegionWiseRemarks() {
     ];
 
     /* =======================
-       저장 (⭐ 업데이트가 "안 보이는" 문제 해결)
+       저장
     ======================= */
     const handleSave = async () => {
         if (saving) return;
@@ -274,7 +302,6 @@ export default function RegionWiseRemarks() {
             const result = await res.json().catch(() => null);
 
             if (!res.ok) {
-                // ✅ 서버 에러 메시지 그대로 표시
                 message.error(result?.error || result?.message || '저장 실패');
                 return;
             }
@@ -283,10 +310,8 @@ export default function RegionWiseRemarks() {
             setSavedMessage(true);
             setTimeout(() => setSavedMessage(false), 2000);
 
-            // ✅ 저장 후 React Query 재조회 → 화면에 즉시 반영
             await queryClient.invalidateQueries({ queryKey: ['students-b'] });
 
-            // ✅ 새 데이터 기준으로 targets 다시 맞추기 (무한루프 방지용 리셋)
             initializedRef.current = false;
             setTargets({});
         } catch (e: any) {
@@ -310,9 +335,16 @@ export default function RegionWiseRemarks() {
     if (!isAdmin) {
         return (
             <div className="p-10 text-center">
-                <Alert message="접근 권한 없음" type="error" showIcon />
+                <Alert
+                    message="접근 권한 없음"
+                    type="error"
+                    showIcon
+                />
                 <Link href="/student/view">
-                    <Button type="primary" className="mt-4">
+                    <Button
+                        type="primary"
+                        className="mt-4"
+                    >
                         돌아가기
                     </Button>
                 </Link>
@@ -326,9 +358,11 @@ export default function RegionWiseRemarks() {
                 <div className="p-6">
                     <h2 className="text-xl font-bold mb-4">지역별 합등 이상 특이사항 관리</h2>
 
-                    {/* 🔹 지역 선택 버튼 */}
                     <div className="flex flex-wrap gap-2 mb-3">
-                        <Button type={!selectedRegion ? 'primary' : 'default'} onClick={() => setSelectedRegion(null)}>
+                        <Button
+                            type={!selectedRegion ? 'primary' : 'default'}
+                            onClick={() => setSelectedRegion(null)}
+                        >
                             전체
                         </Button>
                         {allRegions.map((region) => (
@@ -342,7 +376,6 @@ export default function RegionWiseRemarks() {
                         ))}
                     </div>
 
-                    {/* 🔹 검색 + 액션 */}
                     <div className="flex gap-3 mb-3">
                         <Search
                             placeholder="이름 검색"
@@ -352,7 +385,11 @@ export default function RegionWiseRemarks() {
                             style={{ width: 200 }}
                         />
                         <Button onClick={handleExportExcel}>엑셀 다운로드</Button>
-                        <Button type="primary" onClick={handleSave} disabled={saving}>
+                        <Button
+                            type="primary"
+                            onClick={handleSave}
+                            disabled={saving}
+                        >
                             저장
                         </Button>
                         {savedMessage && <Text type="success">✅ 저장 완료</Text>}
@@ -368,7 +405,6 @@ export default function RegionWiseRemarks() {
                 </div>
             </Spin>
 
-            {/* 🔹 히스토리 Modal */}
             <Modal
                 open={historyOpen}
                 title={`${selectedStudent?.이름} 목표 변경 이력`}
