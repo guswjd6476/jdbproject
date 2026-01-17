@@ -8,6 +8,13 @@ type TargetItem = {
     week: string | null;
 };
 
+// ✅ 공백 / null 안전 처리
+const normalizeText = (v: any): string | null => {
+    if (v === null || v === undefined) return null;
+    const s = String(v).trim();
+    return s.length === 0 ? null : s;
+};
+
 export async function POST(req: NextRequest) {
     const client = await pool.connect();
 
@@ -20,17 +27,21 @@ export async function POST(req: NextRequest) {
 
         await client.query('BEGIN');
 
-        // 1) payload를 VALUES로 만들기
         const values: any[] = [];
         const placeholders: string[] = [];
 
         targets.forEach((t, i) => {
             const idx = i * 4;
 
-            // ✅ 여기서 타입 캐스팅 강제!!
+            // ✅ 타입 강제 캐스팅 (integer=text 에러 방지)
             placeholders.push(`($${idx + 1}::int, $${idx + 2}::text, $${idx + 3}::timestamptz, $${idx + 4}::text)`);
 
-            values.push(t.번호, t.month, t.date ? new Date(t.date) : null, t.week);
+            values.push(
+                Number(t.번호),
+                normalizeText(t.month), // ✅ trim 적용
+                t.date ? new Date(t.date) : null,
+                normalizeText(t.week), // week도 공백 들어오면 정리
+            );
         });
 
         const tempCTE = `
@@ -40,7 +51,8 @@ export async function POST(req: NextRequest) {
     `;
 
         /**
-         * 2) 학생 update 한번에
+         * ✅ 1) 바뀐 row만 students 업데이트
+         * - update 전에 trim 된 next_target로 들어감
          */
         await client.query(
             `
@@ -62,7 +74,15 @@ export async function POST(req: NextRequest) {
         );
 
         /**
-         * 3) target 변경된 애들만 history insert
+         * ✅ 2) 히스토리 insert 조건 강화
+         *
+         * ✅ 요구사항 충족:
+         * - prevTarget(현재 students.target) == nextTarget 이면 history 쌓이면 안됨
+         * - 1월 -> 2월 -> 1월 (현재 2월이고 next 1월이면) 쌓여야 함
+         *
+         * ✅ 따라서 조건은:
+         *   next_target IS NOT NULL
+         *   AND trim(prev_target) != trim(next_target)
          */
         await client.query(
             `
@@ -70,12 +90,12 @@ export async function POST(req: NextRequest) {
       changed AS (
         SELECT
           s.id AS student_id,
-          s.target AS prev_target,
-          i.next_target
+          NULLIF(TRIM(s.target), '') AS prev_target_norm,
+          NULLIF(TRIM(i.next_target), '') AS next_target_norm
         FROM students s
         JOIN incoming i ON i.student_id = s.id
-        WHERE i.next_target IS NOT NULL
-          AND s.target IS DISTINCT FROM i.next_target
+        WHERE NULLIF(TRIM(i.next_target), '') IS NOT NULL
+          AND NULLIF(TRIM(s.target), '') IS DISTINCT FROM NULLIF(TRIM(i.next_target), '')
       ),
       max_count AS (
         SELECT
@@ -88,7 +108,7 @@ export async function POST(req: NextRequest) {
       numbered AS (
         SELECT
           c.student_id,
-          c.next_target AS target,
+          c.next_target_norm AS target,
           (m.max_change + 1) AS change_count
         FROM changed c
         JOIN max_count m ON m.student_id = c.student_id
