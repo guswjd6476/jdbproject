@@ -162,10 +162,7 @@ export default function MentorChanger() {
                     showIcon
                 />
                 <Link href="/student/view">
-                    <Button
-                        type="primary"
-                        style={{ marginTop: '20px' }}
-                    >
+                    <Button type="primary" style={{ marginTop: '20px' }}>
                         수강생 조회 페이지로 돌아가기
                     </Button>
                 </Link>
@@ -183,11 +180,7 @@ export default function MentorChanger() {
                     onChange={(e) => setSearchKeyword(e.target.value)}
                     allowClear
                 />
-                <Button
-                    type="primary"
-                    onClick={fetchStudents}
-                    style={{ marginTop: 8 }}
-                >
+                <Button type="primary" onClick={fetchStudents} style={{ marginTop: 8 }}>
                     검색
                 </Button>
 
@@ -274,10 +267,7 @@ export default function MentorChanger() {
                     </div>
 
                     <div style={{ textAlign: 'right', marginTop: 16 }}>
-                        <Button
-                            type="primary"
-                            onClick={handleSave}
-                        >
+                        <Button type="primary" onClick={handleSave}>
                             저장
                         </Button>
                     </div>
