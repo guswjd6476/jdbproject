@@ -20,61 +20,85 @@ export async function POST(req: NextRequest) {
 
         await client.query('BEGIN');
 
-        for (const t of targets) {
-            const studentId = t.번호;
+        // 1) payload를 VALUES로 만들기
+        const values: any[] = [];
+        const placeholders: string[] = [];
 
-            /* =========================
-               1️⃣ 기존 target 조회
-            ========================= */
-            const prevRes = await client.query(`SELECT target FROM students WHERE id = $1 FOR UPDATE`, [studentId]);
+        targets.forEach((t, i) => {
+            const idx = i * 4;
 
-            if (prevRes.rowCount === 0) continue;
+            // ✅ 여기서 타입 캐스팅 강제!!
+            placeholders.push(`($${idx + 1}::int, $${idx + 2}::text, $${idx + 3}::timestamptz, $${idx + 4}::text)`);
 
-            const prevTarget: string | null = prevRes.rows[0].target;
-            const nextTarget: string | null = t.month;
+            values.push(t.번호, t.month, t.date ? new Date(t.date) : null, t.week);
+        });
 
-            /* =========================
-               2️⃣ target 변경된 경우만 history 기록
-            ========================= */
-            if (nextTarget && nextTarget !== prevTarget) {
-                // 현재 최대 change_count 조회
-                const countRes = await client.query(
-                    `
-                    SELECT COALESCE(MAX(change_count), 0) AS max
-                    FROM student_target_history
-                    WHERE student_id = $1
-                    `,
-                    [studentId]
-                );
+        const tempCTE = `
+      WITH incoming(student_id, next_target, next_trydate, next_week) AS (
+        VALUES ${placeholders.join(',')}
+      )
+    `;
 
-                const nextCount = Number(countRes.rows[0].max) + 1;
+        /**
+         * 2) 학생 update 한번에
+         */
+        await client.query(
+            `
+      ${tempCTE}
+      UPDATE students s
+      SET
+        target = i.next_target,
+        trydate = i.next_trydate,
+        numberofweek = i.next_week
+      FROM incoming i
+      WHERE s.id = i.student_id
+        AND (
+          s.target IS DISTINCT FROM i.next_target OR
+          s.trydate IS DISTINCT FROM i.next_trydate OR
+          s.numberofweek IS DISTINCT FROM i.next_week
+        )
+      `,
+            values,
+        );
 
-                await client.query(
-                    `
-                    INSERT INTO student_target_history
-                      (student_id, target, change_count)
-                    VALUES
-                      ($1, $2, $3)
-                    `,
-                    [studentId, nextTarget, nextCount]
-                );
-            }
-
-            /* =========================
-               3️⃣ students 테이블 업데이트
-            ========================= */
-            await client.query(
-                `
-                UPDATE students
-                SET
-                    target = $2,
-                    trydate = $3,
-                    numberofweek = $4
-                WHERE id = $1
-                `,
-                [studentId, nextTarget, t.date ? new Date(t.date) : null, t.week]
-            );
-        }
+        /**
+         * 3) target 변경된 애들만 history insert
+         */
+        await client.query(
+            `
+      ${tempCTE},
+      changed AS (
+        SELECT
+          s.id AS student_id,
+          s.target AS prev_target,
+          i.next_target
+        FROM students s
+        JOIN incoming i ON i.student_id = s.id
+        WHERE i.next_target IS NOT NULL
+          AND s.target IS DISTINCT FROM i.next_target
+      ),
+      max_count AS (
+        SELECT
+          student_id,
+          COALESCE(MAX(change_count), 0) AS max_change
+        FROM student_target_history
+        WHERE student_id IN (SELECT student_id FROM changed)
+        GROUP BY student_id
+      ),
+      numbered AS (
+        SELECT
+          c.student_id,
+          c.next_target AS target,
+          (m.max_change + 1) AS change_count
+        FROM changed c
+        JOIN max_count m ON m.student_id = c.student_id
+      )
+      INSERT INTO student_target_history (student_id, target, change_count)
+      SELECT student_id, target, change_count
+      FROM numbered
+      `,
+            values,
+        );
 
         await client.query('COMMIT');
         return NextResponse.json({ success: true });
