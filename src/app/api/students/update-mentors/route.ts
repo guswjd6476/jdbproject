@@ -7,14 +7,46 @@ function extractTeamNumber(team: string): string {
     return match ? match[0] : '';
 }
 
-async function getMemberUniqueId(client: PoolClient, 지역: string, 팀: string, 이름: string): Promise<number | null> {
-    const teamNumber = extractTeamNumber(팀);
-    if (!teamNumber) return null;
+// ✅ 추가: special region 리스트
+const specialRegions = ['타지파', '타부서', '지교회'];
+
+async function getMemberUniqueId(client: PoolClient, 지역: string, 팀: string, 이름: string): Promise<any | null> {
+    const trimmedRegion = (지역 ?? '').trim();
+    const trimmedTeam = (팀 ?? '').trim();
+    const trimmedName = (이름 ?? '').trim();
+
+    if (!trimmedRegion || !trimmedName) return null;
+
+    const isSpecialRegion = specialRegions.includes(trimmedRegion);
 
     try {
+        // ✅ special region이면 (지역 + 이름)으로 찾고 없으면 INSERT
+        if (isSpecialRegion) {
+            const result = await client.query(`SELECT 고유번호 FROM members WHERE 지역 = $1 AND 이름 = $2 LIMIT 1`, [
+                trimmedRegion,
+                trimmedName,
+            ]);
+
+            if (result.rows[0]?.고유번호) return result.rows[0].고유번호;
+
+            // 없으면 자동 추가
+            const insertRes = await client.query(
+                `INSERT INTO members (고유번호, 지역, 이름, 구역)
+                 VALUES (gen_random_uuid(), $1, $2, $3)
+                 RETURNING 고유번호`,
+                [trimmedRegion, trimmedName, trimmedTeam],
+            );
+
+            return insertRes.rows[0]?.고유번호 ?? null;
+        }
+
+        // ✅ 기존 로직 그대로: 일반 지역은 팀번호 기반 조회
+        const teamNumber = extractTeamNumber(trimmedTeam);
+        if (!teamNumber) return null;
+
         const result = await client.query(
             `SELECT 고유번호 FROM members WHERE 지역 = $1 AND (구역 = $2 OR 구역 LIKE $3) AND 이름 = $4 LIMIT 1`,
-            [지역, teamNumber, `${teamNumber}-%`, 이름]
+            [trimmedRegion, teamNumber, `${teamNumber}-%`, trimmedName],
         );
 
         return result.rows[0]?.고유번호 ?? null;
@@ -43,12 +75,12 @@ export async function POST(req: NextRequest) {
         if (!인도자_고유번호) {
             return NextResponse.json(
                 { success: false, message: '인도자 정보가 members 테이블에 없습니다.' },
-                { status: 400 }
+                { status: 400 },
             );
         }
 
         // 교사 고유번호 조회 (필요 시)
-        let 교사_고유번호: number | null = null;
+        let 교사_고유번호: any | null = null;
         if (교사필요) {
             if (!교사이름 || !교사지역 || !교사팀) {
                 return NextResponse.json({ success: false, message: '교사 정보 누락' }, { status: 400 });
@@ -57,7 +89,7 @@ export async function POST(req: NextRequest) {
             if (!교사_고유번호) {
                 return NextResponse.json(
                     { success: false, message: '교사 정보가 members 테이블에 없습니다.' },
-                    { status: 400 }
+                    { status: 400 },
                 );
             }
         }
@@ -67,7 +99,7 @@ export async function POST(req: NextRequest) {
         if (memberCheck.rowCount === 0) {
             return NextResponse.json(
                 { success: false, message: '인도자 고유번호가 members에 없습니다.' },
-                { status: 400 }
+                { status: 400 },
             );
         }
 
