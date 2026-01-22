@@ -20,6 +20,7 @@ export function getUserAuthInfo(userEmail: string): UserAuthInfo {
         gangbook: '강북',
         dae: '대학',
         sae: '새신자',
+        hoo: '후광',
     };
 
     if (superAdmins.includes(userEmail)) {
