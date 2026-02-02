@@ -20,7 +20,7 @@ export function getUserAuthInfo(userEmail: string): UserAuthInfo {
         gangbook: '강북',
         dae: '대학',
         sae: '새신자',
-        hoo: '후광',
+        hoo: '이음',
     };
 
     if (superAdmins.includes(userEmail)) {
@@ -63,7 +63,7 @@ export function getQueryConditionForUser(userEmail: string): string {
 
 export function getParameterizedQueryConditionForUser(
     userEmail: string,
-    startingIndex: number = 1
+    startingIndex: number = 1,
 ): ParameterizedCondition {
     const authInfo = getUserAuthInfo(userEmail);
     switch (authInfo.role) {
@@ -86,7 +86,7 @@ export function getParameterizedQueryConditionForUser(
 export function getMemberTableQueryCondition(
     userEmail: string,
     memberTableAlias: string,
-    startingIndex: number = 1
+    startingIndex: number = 1,
 ): ParameterizedCondition {
     const authInfo = getUserAuthInfo(userEmail);
     switch (authInfo.role) {
