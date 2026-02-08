@@ -1,73 +1,76 @@
-// src/app/components/table/TableRow.tsx
+'use client';
+
+import React from 'react';
 import { Input as AntInput } from 'antd';
 import { STEPNAME, Student } from '@/app/lib/types';
 
-interface TableRowProps {
-    row: Student;
+export interface TableRowProps {
     index: number;
-    onChange: (i: number, field: keyof Student, v: string) => void;
-    onDelete?: () => void;
-    errors: string[];
+    row: Student;
+    onChange: (index: number, field: keyof Student, value: string) => void;
+    onDelete: (index: number) => void;
     selectStages: string[];
+    errors?: string[];
 }
 
-export default function TableRow({ row, index, onChange, onDelete, errors, selectStages }: TableRowProps) {
-    const editableFields: (keyof Student)[] = [
-        '단계',
-        '이름',
-        '연락처',
-        '생년월일',
-        '인도자지역',
-        '인도자팀',
-        '인도자이름',
-        '교사지역',
-        '교사팀',
-        '교사이름',
-        '도구',
-        'target',
-    ];
-    const isInvalidStage = row.단계 && !STEPNAME.includes(row.단계.trim().toUpperCase());
+// 1. React.memo로 감싸서 props가 변하지 않으면 리렌더링을 건너뜁니다.
+const TableRow = React.memo(
+    function TableRow({ row, index, onChange, onDelete }: TableRowProps) {
+        const editableFields: (keyof Student)[] = [
+            '단계',
+            '이름',
+            '연락처',
+            '생년월일',
+            '인도자지역',
+            '인도자팀',
+            '인도자이름',
+            '교사지역',
+            '교사팀',
+            '교사이름',
+            '도구',
+            'target',
+        ];
 
-    return (
-        <tr className={errors.length ? 'bg-red-50' : ''}>
-            {/* 번호 열 */}
-            <td className="border p-1 text-center text-sm font-medium">{index + 1}</td>
+        const isInvalidStage = row.단계 && !STEPNAME.includes(row.단계.trim().toUpperCase());
 
-            {/* 입력 필드 */}
-            {editableFields.map((field) => (
-                <td
-                    key={field}
-                    className="border p-1"
-                >
-                    {field === '단계' ? (
+        return (
+            <tr className="hover:bg-gray-50 transition-colors">
+                {/* 번호 열 */}
+                <td className="border p-1 text-center text-sm font-medium bg-gray-50 w-10">{index + 1}</td>
+
+                {/* 입력 필드 */}
+                {editableFields.map((field) => (
+                    <td
+                        key={field}
+                        className="border p-0.5"
+                    >
                         <AntInput
-                            className={`text-sm ${isInvalidStage ? 'border-red-500 border' : ''}`}
-                            value={row.단계 || ''}
+                            className={`text-sm border-none focus:ring-1 ${
+                                field === '단계' && isInvalidStage ? 'bg-red-50 text-red-600' : ''
+                            }`}
+                            variant="borderless" // 테두리를 없애서 엑셀 같은 느낌을 줍니다
+                            value={(row[field] as string) || ''}
                             onChange={(e) => onChange(index, field, e.target.value)}
-                            placeholder="발,찾,합 등"
+                            placeholder={field === '단계' ? '발,찾,합' : ''}
                         />
-                    ) : (
-                        <AntInput
-                            className="text-sm"
-                            value={row[field] || ''}
-                            onChange={(e) => onChange(index, field, e.target.value)}
-                            placeholder={field}
-                        />
-                    )}
-                </td>
-            ))}
+                    </td>
+                ))}
 
-            {/* 삭제 버튼 */}
-            <td className="border p-1 text-center">
-                {onDelete && (
+                {/* 삭제 버튼 */}
+                <td className="border p-1 text-center w-14">
                     <button
-                        onClick={onDelete}
-                        className="px-2 py-1 text-xs text-white bg-red-500 rounded hover:bg-red-600"
+                        onClick={() => onDelete(index)}
+                        className="px-2 py-1 text-xs text-red-400 border border-red-100 rounded hover:bg-red-500 hover:text-white transition-colors"
                     >
                         삭제
                     </button>
-                )}
-            </td>
-        </tr>
-    );
-}
+                </td>
+            </tr>
+        );
+    },
+    (prevProps, nextProps) => {
+        return prevProps.row === nextProps.row && prevProps.index === nextProps.index;
+    }
+);
+
+export default TableRow;
