@@ -1,6 +1,7 @@
 'use client';
-import React, { useState } from 'react';
-import { Student } from '@/app/lib/types';
+
+import React, { useState, useCallback } from 'react';
+import { Student, STEPNAME } from '@/app/lib/types'; // STEPNAME 추가
 
 import TableHeader from './TableHeader';
 import TableRow from './TableRow';
@@ -18,10 +19,8 @@ const initialRow: Student = {
     교사지역: '',
     교사팀: '',
     교사이름: '',
-
     도구: '',
     target: '',
-
     id: '',
     인도자_고유번호: null,
     교사_고유번호: null,
@@ -30,72 +29,97 @@ const initialRow: Student = {
 export default function StudentTable() {
     const [data, setData] = useState<Student[]>(Array.from({ length: 20 }, () => ({ ...initialRow })));
 
-    const handleChange = (index: number, field: keyof Student, value: string) => {
+    // 1. useCallback을 사용하여 불필요한 리렌더링 방지
+    const handleChange = useCallback((index: number, field: keyof Student, value: string) => {
         setData((prev) => {
             const newData = [...prev];
             newData[index] = { ...newData[index], [field]: value };
             return newData;
         });
-    };
+    }, []);
+
+    // 2. 삭제 함수 추가 (TableRow의 에러 해결 핵심)
+    const handleDeleteRow = useCallback((index: number) => {
+        setData((prev) => prev.filter((_, i) => i !== index));
+    }, []);
 
     const addRows = () => {
         setData((prev) => [...prev, ...Array.from({ length: 10 }, () => ({ ...initialRow }))]);
     };
 
-    const handlePaste = (e: React.ClipboardEvent<HTMLTableSectionElement>) => {
-        e.preventDefault();
+    // 3. 붙여넣기 핸들러 수정 (슬래시/탭 구분 및 캡처링 대응)
+    const handlePaste = (e: React.ClipboardEvent) => {
         const paste = e.clipboardData.getData('text');
-        const rows = paste.split('\n').filter((r) => r.trim() !== '');
+        if (!paste) return;
 
-        // 탭 또는 슬래시 구분자 인식
-        const parsed = rows.map((row) => row.split(/[\t\/]/));
+        // 탭이나 슬래시가 포함된 경우에만 가로채기
+        if (paste.includes('\t') || paste.includes('/')) {
+            e.preventDefault();
 
-        setData((prev) => {
-            const newData = [...prev];
-            parsed.forEach((cols, rowIndex) => {
-                if (rowIndex >= newData.length) newData.push({ ...initialRow });
-
-                newData[rowIndex] = {
-                    단계: cols[0] || '',
-                    이름: cols[1] || '',
-                    연락처: cols[2] || '',
-                    생년월일: cols[3] || '',
-                    인도자지역: cols[4] || '',
-                    인도자팀: cols[5] || '',
-                    인도자이름: cols[6] || '',
-                    교사지역: cols[7] || '',
-                    교사팀: cols[8] || '',
-                    교사이름: cols[9] || '',
-
-                    도구: cols[10] || '',
-                    target: cols[11] || '',
-                    id: '', // 초기값
-                    인도자_고유번호: null,
-                    교사_고유번호: null,
-                };
+            const rows = paste.split(/\r?\n/).filter((r) => r.trim() !== '');
+            const parsed = rows.map((row) => {
+                const delimiter = row.includes('\t') ? '\t' : '/';
+                return row.split(delimiter).map((s) => s.trim());
             });
-            return newData;
-        });
+
+            setData((prev) => {
+                const newData = [...prev];
+                // 첫 번째 비어있는 행 찾기
+                let writeIndex = newData.findIndex((r) => !r.단계 && !r.이름);
+                if (writeIndex === -1) writeIndex = newData.length;
+
+                parsed.forEach((cols) => {
+                    const safe = (idx: number) => cols[idx] || '';
+                    const newRow: Student = {
+                        ...initialRow,
+                        단계: safe(0).toUpperCase(),
+                        이름: safe(1),
+                        연락처: safe(2),
+                        생년월일: safe(3),
+                        인도자지역: safe(4),
+                        인도자팀: safe(5),
+                        인도자이름: safe(6),
+                        교사지역: safe(7),
+                        교사팀: safe(8),
+                        교사이름: safe(9),
+                        도구: safe(10),
+                        target: safe(11),
+                    };
+
+                    if (writeIndex < newData.length) {
+                        newData[writeIndex] = newRow;
+                    } else {
+                        newData.push(newRow);
+                    }
+                    writeIndex++;
+                });
+                return newData;
+            });
+        }
     };
 
     return (
         <div className="p-6">
             <h1 className="text-2xl font-bold mb-4">수강생 리스트</h1>
             <Card>
-                {/* CardContent에 className 직접 전달이 타입 에러 발생하면 div로 래핑 */}
                 <CardContent>
-                    <div className="overflow-x-auto">
+                    {/* CardContent 대신 여기서 이벤트를 낚아챕니다 */}
+                    <div
+                        className="overflow-x-auto"
+                        onPasteCapture={handlePaste}
+                    >
                         <table className="min-w-full table-auto border border-gray-300">
                             <TableHeader />
-                            <tbody onPaste={handlePaste}>
+                            <tbody>
                                 {data.map((row, i) => (
                                     <TableRow
                                         key={i}
                                         index={i}
                                         row={row}
                                         onChange={handleChange}
+                                        onDelete={handleDeleteRow}
                                         errors={[]}
-                                        selectStages={[]}
+                                        selectStages={STEPNAME}
                                     />
                                 ))}
                             </tbody>
