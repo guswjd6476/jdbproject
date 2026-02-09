@@ -55,20 +55,20 @@ const allMenuItems = [
 ];
 
 export default function SidebarLayout({ children }: { children: React.ReactNode }) {
-    // ✨ 3. useUser 훅을 호출하여 사용자 정보를 가져옵니다.
     const { isAdmin, isLoading } = useUser();
 
-    // ✨ 4. useMemo를 사용하여 isAdmin 상태가 변경될 때만 메뉴 항목을 다시 계산합니다.
-    //    이렇게 하면 불필요한 리렌더링을 방지할 수 있습니다.
     const visibleMenuItems = useMemo(() => {
-        // isAdmin이 true이면 모든 메뉴를 반환합니다.
-        // isAdmin이 false이면 adminOnly가 아닌 메뉴만 필터링하여 반환합니다.
-        return allMenuItems.filter((item) => !item.adminOnly || isAdmin);
+        return allMenuItems
+            .filter((item) => !item.adminOnly || isAdmin) // 1. 권한에 따른 필터링
+            .map(({ adminOnly, ...rest }) => rest); // 2. ✨ adminOnly 속성을 제거하고 나머지만 반환
     }, [isAdmin]);
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <Sider breakpoint="lg" collapsedWidth="0">
+            <Sider
+                breakpoint="lg"
+                collapsedWidth="0"
+            >
                 <div
                     style={{
                         height: 48,
@@ -83,7 +83,6 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
                     🎯 학생관리
                 </div>
 
-                {/* ✨ 5. 사용자 정보를 불러오는 동안 로딩 스피너를 표시합니다. */}
                 {isLoading ? (
                     <div style={{ textAlign: 'center', marginTop: 20 }}>
                         <Spin />
@@ -93,8 +92,7 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
                         theme="dark"
                         mode="inline"
                         defaultSelectedKeys={['dashboard']}
-                        // ✨ 6. 동적으로 필터링된 메뉴 항목을 사용합니다.
-                        items={visibleMenuItems}
+                        items={visibleMenuItems} // 이제 adminOnly가 없는 깨끗한 객체가 전달됩니다.
                         style={{ fontSize: 16 }}
                     />
                 )}

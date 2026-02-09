@@ -151,14 +151,20 @@ export async function POST(request: NextRequest) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-
         const body = await request.json();
         const data = body.data || [];
         const now = new Date();
 
+        // 💡 핵심: 빈 문자열('')을 null로 변환하여 COALESCE가 작동하게 함
+        const emptyToNull = (val: any) => {
+            if (typeof val === 'string' && val.trim() === '') return null;
+            return val ?? null;
+        };
+
         for (const row of data) {
             const 단계 = row.단계.trim().toUpperCase();
 
+            // 인도자/교사 고유번호 확인 로직
             if (!row.인도자_고유번호) {
                 const indojaResult = await getOrInsertMemberUniqueId(
                     client,
@@ -171,14 +177,13 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json(
                         {
                             success: false,
-                            message: '동명이인이 있습니다. 선택이 필요합니다.',
                             code: 'NEEDS_SELECTION',
                             context: { rowIndex: row.originalIndex, field: '인도자', choices: indojaResult },
                         },
                         { status: 409 }
                     );
                 }
-                row.인도자_고유번호 = indojaResult as string | null;
+                row.인도자_고유번호 = indojaResult;
             }
 
             if (!['발', '찾'].includes(단계) && !row.교사_고유번호) {
@@ -188,98 +193,62 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json(
                         {
                             success: false,
-                            message: '동명이인이 있습니다. 선택이 필요합니다.',
                             code: 'NEEDS_SELECTION',
                             context: { rowIndex: row.originalIndex, field: '교사', choices: gyosaResult },
                         },
                         { status: 409 }
                     );
                 }
-                row.교사_고유번호 = gyosaResult as string | null;
+                row.교사_고유번호 = gyosaResult;
             }
 
-            let existingRes;
-            if (row.인도자_고유번호) {
-                existingRes = await client.query(
-                    'SELECT * FROM students WHERE 이름 = $1 AND 인도자_고유번호 = $2 ORDER BY id DESC LIMIT 1',
-                    [row.이름.trim(), row.인도자_고유번호]
+            // 기존 데이터 존재 여부 확인
+            const existingRes = await client.query(
+                `SELECT * FROM students WHERE 이름 = $1 AND (인도자_고유번호 = $2 OR 교사_고유번호 = $3) ORDER BY id DESC LIMIT 1`,
+                [row.이름.trim(), row.인도자_고유번호, row.교사_고유번호]
+            );
+            const existing = existingRes.rows[0];
+
+            // Target 변경 이력 로직
+            if (existing && row.target && existing.target !== row.target) {
+                const countRes = await client.query(
+                    `SELECT COALESCE(MAX(change_count), 0) AS count FROM student_target_history WHERE student_id = $1`,
+                    [existing.id]
                 );
-            } else if (row.교사_고유번호) {
-                existingRes = await client.query(
-                    'SELECT * FROM students WHERE 이름 = $1 AND 교사_고유번호 = $2 ORDER BY id DESC LIMIT 1',
-                    [row.이름.trim(), row.교사_고유번호]
-                );
-            } else {
-                existingRes = await client.query(
-                    'SELECT * FROM students WHERE 이름 = $1 AND 인도자_고유번호 IS NULL AND 교사_고유번호 IS NULL ORDER BY id DESC LIMIT 1',
-                    [row.이름.trim()]
+                await client.query(
+                    `INSERT INTO student_target_history (student_id, target, change_count) VALUES ($1, $2, $3)`,
+                    [existing.id, row.target, Number(countRes.rows[0].count) + 1]
                 );
             }
 
-            const existing = existingRes.rows.length > 0 ? existingRes.rows[0] : null;
-
-            // =====================================================
-            // ✅ TARGET 변경 누적 로직 (추가된 부분)
-            // =====================================================
-            if (existing && row.target) {
-                const prevTarget = existing.target;
-                if (prevTarget !== row.target) {
-                    const countRes = await client.query(
-                        `SELECT COALESCE(MAX(change_count), 0) AS count
-                         FROM student_target_history
-                         WHERE student_id = $1`,
-                        [existing.id]
-                    );
-
-                    const nextCount = Number(countRes.rows[0].count) + 1;
-
-                    await client.query(
-                        `INSERT INTO student_target_history
-                            (student_id, target, change_count)
-                         VALUES ($1, $2, $3)`,
-                        [existing.id, row.target, nextCount]
-                    );
-                }
-            }
-            // =====================================================
-
+            // 오늘 이미 완료했는지 체크
             if (existing) {
-                const currentStageIndex = 단계순서.indexOf(단계);
-                if (currentStageIndex > 0) {
-                    const previousStage = 단계순서[currentStageIndex - 1];
-                    const prevStageCompletionDateCol = 단계완료일컬럼[previousStage];
-                    if (prevStageCompletionDateCol && existing[prevStageCompletionDateCol]) {
-                        const completionDate = new Date(existing[prevStageCompletionDateCol]);
-                        const today = new Date();
-                        completionDate.setHours(0, 0, 0, 0);
-                        today.setHours(0, 0, 0, 0);
-                        if (completionDate.getTime() === today.getTime()) {
+                const currentIdx = 단계순서.indexOf(단계);
+                if (currentIdx > 0) {
+                    const prevStage = 단계순서[currentIdx - 1];
+                    const prevCol = 단계완료일컬럼[prevStage];
+                    if (prevCol && existing[prevCol]) {
+                        const compDate = new Date(existing[prevCol]);
+                        if (compDate.toDateString() === now.toDateString()) {
                             throw new Error(
-                                `'${row.이름}' 학생은 '${previousStage}' 단계를 오늘 완료하여 다음 단계 등록이 불가능합니다.`
+                                `'${row.이름}' 학생은 오늘 '${prevStage}' 단계를 완료하여 승급이 불가합니다.`
                             );
                         }
                     }
                 }
             }
 
-            const 완료일: { [key: string]: Date | null } = {
-                발_완료일: null,
-                찾_완료일: null,
-                합_완료일: null,
-                섭_완료일: null,
-                복_완료일: null,
-                예정_완료일: null,
-                센확_완료일: null,
-                탈락: null,
-            };
-
             const colName = 단계완료일컬럼[단계];
+            const 완료일: any = {};
             if (colName) 완료일[colName] = now;
 
             if (existing) {
+                // 💡 UPDATE: 모든 필드에 emptyToNull 적용
                 await client.query(
                     `UPDATE students SET
-                        단계 = $1, 연락처 = COALESCE($2, 연락처), 생년월일 = COALESCE($3, 생년월일),
+                        단계 = $1, 
+                        연락처 = COALESCE($2, 연락처), 
+                        생년월일 = COALESCE($3, 생년월일),
                         인도자_고유번호 = COALESCE($4, 인도자_고유번호),
                         교사_고유번호 = COALESCE($5, 교사_고유번호),
                         발_완료일 = COALESCE(발_완료일, $6),
@@ -290,15 +259,15 @@ export async function POST(request: NextRequest) {
                         예정_완료일 = COALESCE(예정_완료일, $11),
                         센확_완료일 = COALESCE(센확_완료일, $12),
                         탈락 = COALESCE(탈락, $13),
-                        도구 = COALESCE(도구, $14),
-                        target = COALESCE(target, $15)
+                        도구 = COALESCE($14, 도구),
+                        target = COALESCE($15, target)
                      WHERE id = $16`,
                     [
                         단계,
-                        row.연락처,
-                        row.생년월일,
-                        row.인도자_고유번호,
-                        row.교사_고유번호,
+                        emptyToNull(row.연락처),
+                        emptyToNull(row.생년월일),
+                        emptyToNull(row.인도자_고유번호),
+                        emptyToNull(row.교사_고유번호),
                         완료일.발_완료일,
                         완료일.찾_완료일,
                         완료일.합_완료일,
@@ -307,23 +276,20 @@ export async function POST(request: NextRequest) {
                         완료일.예정_완료일,
                         완료일.센확_완료일,
                         완료일.탈락,
-                        row.도구,
-                        row.target,
+                        emptyToNull(row.도구),
+                        emptyToNull(row.target),
                         existing.id,
                     ]
                 );
             } else {
                 await client.query(
-                    `INSERT INTO students
-                        (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호,
-                         발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일,
-                         예정_완료일, 센확_완료일, 탈락, 도구, target)
+                    `INSERT INTO students (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일, 센확_완료일, 탈락, 도구, target)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
                     [
                         단계,
                         row.이름.trim(),
-                        row.연락처,
-                        row.생년월일,
+                        emptyToNull(row.연락처),
+                        emptyToNull(row.생년월일),
                         row.인도자_고유번호,
                         row.교사_고유번호,
                         완료일.발_완료일,
@@ -334,20 +300,18 @@ export async function POST(request: NextRequest) {
                         완료일.예정_완료일,
                         완료일.센확_완료일,
                         완료일.탈락,
-                        row.도구,
-                        row.target,
+                        emptyToNull(row.도구),
+                        emptyToNull(row.target),
                     ]
                 );
             }
         }
 
         await client.query('COMMIT');
-        return NextResponse.json({ success: true, message: '성공적으로 저장되었습니다.' });
-    } catch (err) {
+        return NextResponse.json({ success: true, message: '저장 성공' });
+    } catch (err: any) {
         await client.query('ROLLBACK');
-        console.error('POST /api/students 에러:', err);
-        const message = err instanceof Error ? err.message : '서버 오류가 발생했습니다.';
-        return NextResponse.json({ success: false, message }, { status: 500 });
+        return NextResponse.json({ success: false, message: err.message }, { status: 500 });
     } finally {
         client.release();
     }

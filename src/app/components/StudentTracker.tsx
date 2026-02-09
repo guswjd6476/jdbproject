@@ -157,7 +157,7 @@ function StudentTracker() {
                     newRow.인도자지역 = safe(3);
                     newRow.인도자팀 = safe(4);
                     newRow.인도자이름 = safe(5);
-                } else if (['합', '섭', '복', '예정', '센확'].includes(단계)) {
+                } else if (['합', '섭', '복', '예정', '센확', '탈락'].includes(단계)) {
                     newRow.인도자지역 = safe(2);
                     newRow.인도자팀 = safe(3);
                     newRow.인도자이름 = safe(4);
