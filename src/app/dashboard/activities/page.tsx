@@ -323,7 +323,7 @@ export default function ActivitiesPage() {
                 <div className="text-sm text-gray-600">
                     붙여넣기 예시
                     <br />
-                    2026-03-01/강북/2/강현정/교사/메모
+                    2026-03-01/강북/2/강현정/교사
                     <br />
                     강북/2/강현정/노방 (날짜 생략 시 오늘로 저장)
                 </div>
