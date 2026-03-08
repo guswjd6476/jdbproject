@@ -283,7 +283,9 @@ export default function ActivitiesPage() {
                     >
                         + 행 추가
                     </button>
-
+                    <Link href="/dashboard/activities/view">
+                        <Button type="default">조회 화면</Button>
+                    </Link>
                     <button
                         onClick={handleSubmit}
                         disabled={loading || isSaveDisabled}

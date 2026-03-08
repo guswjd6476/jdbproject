@@ -24,6 +24,11 @@ const menuItems = [
         label: <Link href="/dashboard/ban">반전도점검</Link>,
     },
     {
+        key: 'activities',
+        icon: <SettingOutlined />,
+        label: <Link href="/dashboard/activities/view">활동자 관리</Link>,
+    },
+    {
         key: 'teacher',
         icon: <UserSwitchOutlined />,
         label: <Link href="/dashboard/teacher">교사관리</Link>,

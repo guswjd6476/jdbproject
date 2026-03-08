@@ -26,6 +26,12 @@ const allMenuItems = [
         adminOnly: true, // 관리자 전용
     },
     {
+        key: 'activities',
+        icon: <UserAddOutlined />,
+        label: <Link href="/dashboard/activities">활동자등록</Link>,
+        adminOnly: true, // 관리자 전용
+    },
+    {
         key: 'view',
         icon: <UserSwitchOutlined />,
         label: <Link href="/student/view">수강생 조회</Link>,
