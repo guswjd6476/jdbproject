@@ -8,9 +8,9 @@ export async function POST(request: NextRequest) {
         const internalSecret = process.env.INTERNAL_REPORT_SECRET;
         const authHeader = request.headers.get('authorization');
 
-        if (internalSecret && authHeader !== `Bearer ${internalSecret}`) {
-            return NextResponse.json({ success: false, error: '인증 실패' }, { status: 401 });
-        }
+        // if (internalSecret && authHeader !== `Bearer ${internalSecret}`) {
+        //     return NextResponse.json({ success: false, error: '인증 실패' }, { status: 401 });
+        // }
 
         if (!token) {
             return NextResponse.json({ success: false, error: 'TELEGRAM_BOT_TOKEN 없음' }, { status: 500 });
