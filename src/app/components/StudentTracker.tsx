@@ -217,7 +217,7 @@ function StudentTracker() {
                 if (curIdx > 0) {
                     const prevStage = sequentialStages[curIdx - 1];
                     const existsInUI = data.some(
-                        (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === prevStage
+                        (r) => r.이름.trim() === row.이름.trim() && r.단계.trim().toUpperCase() === prevStage,
                     );
                     const { exists: existsInDB, completedToday } = await checkPreviousStageExists(row, prevStage);
 
@@ -233,9 +233,14 @@ function StudentTracker() {
             }
             if (stage === '찾' && !row.생년월일.trim()) rowErrors.push('생년월일 누락');
             if (['합', '섭', '복', '예정', '센확'].includes(stage)) {
-                if (!row.target?.trim()) rowErrors.push('목표월 누락');
-                if (['섭', '복', '예정', '센확'].includes(stage) && (!row.교사지역 || !row.교사이름)) {
-                    if (!isSkipTeamCheck(row.교사팀)) rowErrors.push('교사 정보 누락');
+                if (!row.target?.trim()) {
+                    rowErrors.push('목표월 누락');
+                }
+
+                if (!row.교사지역 || !row.교사이름) {
+                    if (!isSkipTeamCheck(row.교사팀)) {
+                        rowErrors.push('교사 정보 누락');
+                    }
                 }
             }
 
@@ -302,16 +307,9 @@ function StudentTracker() {
     if (!isAdmin) {
         return (
             <div className="p-10 text-center">
-                <Alert
-                    message="접근 권한 없음"
-                    type="error"
-                    showIcon
-                />
+                <Alert message="접근 권한 없음" type="error" showIcon />
                 <Link href="/student/view">
-                    <Button
-                        type="primary"
-                        className="mt-5"
-                    >
+                    <Button type="primary" className="mt-5">
                         조회 페이지로 돌아가기
                     </Button>
                 </Link>
@@ -336,25 +334,11 @@ function StudentTracker() {
                         </button>
                     </div>
                     {error && (
-                        <Alert
-                            message={<div className="whitespace-pre-wrap">{error}</div>}
-                            type="error"
-                            showIcon
-                        />
+                        <Alert message={<div className="whitespace-pre-wrap">{error}</div>} type="error" showIcon />
                     )}
-                    {success && (
-                        <Alert
-                            message={success}
-                            type="success"
-                            showIcon
-                        />
-                    )}
+                    {success && <Alert message={success} type="success" showIcon />}
                     {isSaveDisabled && !error && (
-                        <Alert
-                            message="자정 전후 1시간은 superAdmin만 가능합니다."
-                            type="warning"
-                            showIcon
-                        />
+                        <Alert message="자정 전후 1시간은 superAdmin만 가능합니다." type="warning" showIcon />
                     )}
                 </div>
             </CardHeader>
