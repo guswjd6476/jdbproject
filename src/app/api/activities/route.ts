@@ -130,6 +130,7 @@ export async function GET(request: NextRequest) {
 
         const rawMode = (sp.get('mode') ?? 'log').trim();
         const rawGroupBy = (sp.get('groupBy') ?? 'region_team').trim();
+        const isExport = sp.get('export') === '1';
 
         if (!isValidMode(rawMode)) {
             return NextResponse.json({ success: false, error: 'mode 값 오류' }, { status: 400 });
@@ -167,7 +168,11 @@ export async function GET(request: NextRequest) {
         const role = (sp.get('role') ?? '').trim();
 
         const page = Math.max(1, Number(sp.get('page') ?? '1'));
-        const pageSize = Math.min(200, Math.max(1, Number(sp.get('pageSize') ?? '50')));
+        const pageSizeRaw = Number(sp.get('pageSize') ?? '50');
+        const safePageSizeRaw = Number.isFinite(pageSizeRaw) ? pageSizeRaw : 50;
+
+        const pageSize = isExport ? 1000000 : Math.min(200, Math.max(1, safePageSizeRaw));
+
         const offset = (page - 1) * pageSize;
 
         const baseValues: any[] = [];
@@ -345,11 +350,10 @@ export async function GET(request: NextRequest) {
             JOIN members m ON a.member_id = m.고유번호
             ${whereSql}
             ORDER BY a.activity_date DESC NULLS LAST, a.id DESC
-            LIMIT $${baseValues.length + 1}
-            OFFSET $${baseValues.length + 2}
+            ${isExport ? '' : `LIMIT $${baseValues.length + 1} OFFSET $${baseValues.length + 2}`}
         `;
 
-        const listValues = [...baseValues, pageSize, offset];
+        const listValues = isExport ? baseValues : [...baseValues, pageSize, offset];
 
         const [cntRes, listRes] = await Promise.all([
             client.query(countSql, baseValues),
@@ -362,7 +366,7 @@ export async function GET(request: NextRequest) {
             meta: {
                 total: cntRes.rows[0]?.total ?? 0,
                 page,
-                pageSize,
+                pageSize: isExport ? listRes.rows.length : pageSize,
             },
         });
     } catch (err: any) {

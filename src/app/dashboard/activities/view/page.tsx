@@ -4,12 +4,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Button, DatePicker, Input, Select, Spin, Table, Tabs } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 import { useUser } from '@/app/hook/useUser';
 
 type Role = '노방' | '온라인' | '만남' | '교사' | '잎사귀';
 const ROLES: Role[] = ['노방', '온라인', '만남', '교사', '잎사귀'];
 
-type TabKey = 'all' | 'region' | 'log';
+type TabKey = 'all' | 'region' | 'log' | 'weekly-board';
 type PeriodType = 'daily' | 'weekly' | 'monthly';
 type RegionGroupBy = 'team' | 'team_subteam';
 
@@ -45,6 +46,25 @@ type LogMeta = {
     pageSize: number;
 };
 
+type WeeklyBoardRow = {
+    key: string;
+    region: string | null;
+    team: string | null;
+    subteam: string | null;
+    monday_count: number;
+    tuesday_count: number;
+    wednesday_count: number;
+    thursday_count: number;
+    friday_count: number;
+    saturday_count: number;
+    sunday_count: number;
+    total_active_members: number;
+    reported_days_count: number;
+    missing_days: string[];
+    week_start: string;
+    week_end: string;
+};
+
 export default function ActivitiesViewPage() {
     const { isAdmin, isLoading } = useUser();
 
@@ -74,6 +94,8 @@ export default function ActivitiesViewPage() {
         page: 1,
         pageSize: 50,
     });
+
+    const [weeklyBoardRows, setWeeklyBoardRows] = useState<WeeklyBoardRow[]>([]);
 
     const fetchJson = useCallback(async (url: string) => {
         const res = await fetch(url, {
@@ -108,7 +130,23 @@ export default function ActivitiesViewPage() {
 
         return sp.toString();
     }, [logFrom, logTo, logMeta.page, logMeta.pageSize, logRole, logQ]);
+    const fetchAllLogsForExport = useCallback(async () => {
+        if (logFrom.isAfter(logTo, 'day')) {
+            throw new Error('로그 조회 시작일은 종료일보다 늦을 수 없습니다.');
+        }
 
+        const sp = new URLSearchParams();
+        sp.set('mode', 'log');
+        sp.set('from', logFrom.format('YYYY-MM-DD'));
+        sp.set('to', logTo.format('YYYY-MM-DD'));
+        sp.set('export', '1');
+
+        if (logRole) sp.set('role', logRole);
+        if (logQ.trim()) sp.set('q', logQ.trim());
+
+        const res = await fetchJson(`/api/activities?${sp.toString()}`);
+        return Array.isArray(res?.rows) ? res.rows : [];
+    }, [fetchJson, logFrom, logTo, logRole, logQ]);
     const fetchData = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -153,6 +191,12 @@ export default function ActivitiesViewPage() {
                     ...(res?.meta ?? {}),
                 }));
             }
+
+            if (tab === 'weekly-board') {
+                const base = baseDate.format('YYYY-MM-DD');
+                const res = await fetchJson(`/api/activities/weekly-board?baseDate=${base}`);
+                setWeeklyBoardRows(Array.isArray(res?.rows) ? res.rows : []);
+            }
         } catch (e: any) {
             setError(e?.message ?? '조회 실패');
 
@@ -161,8 +205,10 @@ export default function ActivitiesViewPage() {
                 setAllRegionTeamRows([]);
             } else if (tab === 'region') {
                 setRegionRows([]);
-            } else {
+            } else if (tab === 'log') {
                 setLogRows([]);
+            } else if (tab === 'weekly-board') {
+                setWeeklyBoardRows([]);
             }
         } finally {
             setLoading(false);
@@ -200,6 +246,171 @@ export default function ActivitiesViewPage() {
         { title: '등록시각', dataIndex: 'created_at' },
         { title: '고유번호', dataIndex: '고유번호' },
     ];
+
+    const weeklyBoardColumns = [
+        { title: '지역', dataIndex: 'region', fixed: 'left' as const },
+        { title: '팀', dataIndex: 'team', fixed: 'left' as const },
+        { title: '구역', dataIndex: 'subteam', fixed: 'left' as const },
+        { title: '월', dataIndex: 'monday_count' },
+        { title: '화', dataIndex: 'tuesday_count' },
+        { title: '수', dataIndex: 'wednesday_count' },
+        { title: '목', dataIndex: 'thursday_count' },
+        { title: '금', dataIndex: 'friday_count' },
+        { title: '토', dataIndex: 'saturday_count' },
+        { title: '일', dataIndex: 'sunday_count' },
+        { title: '주간 활동자수', dataIndex: 'total_active_members' },
+        { title: '보고한 요일수', dataIndex: 'reported_days_count' },
+        {
+            title: '미보고 요일',
+            dataIndex: 'missing_days',
+            render: (v: string[]) => (Array.isArray(v) && v.length ? v.join(', ') : '-'),
+        },
+        { title: '주 시작', dataIndex: 'week_start' },
+        { title: '주 종료', dataIndex: 'week_end' },
+    ];
+
+    const exportToExcel = useCallback(async () => {
+        const wb = XLSX.utils.book_new();
+
+        const safeSheet = (name: string) => name.replace(/[\\/?*[\]:]/g, '').slice(0, 31);
+
+        if (tab === 'all') {
+            const sheet1 = XLSX.utils.json_to_sheet(
+                allRegionRows.map((r) => ({
+                    구분: r.key,
+                    지역: r.region,
+                    팀: r.team,
+                    구역: r.subteam,
+                    전체인원: r.total_members,
+                    활동인원: r.active_members,
+                    활동율: r.activity_rate,
+                    기간시작: r.start_date,
+                    기간종료: r.end_date,
+                }))
+            );
+
+            const sheet2 = XLSX.utils.json_to_sheet(
+                allRegionTeamRows.map((r) => ({
+                    구분: r.key,
+                    지역: r.region,
+                    팀: r.team,
+                    구역: r.subteam,
+                    전체인원: r.total_members,
+                    활동인원: r.active_members,
+                    활동율: r.activity_rate,
+                    기간시작: r.start_date,
+                    기간종료: r.end_date,
+                }))
+            );
+
+            XLSX.utils.book_append_sheet(wb, sheet1, safeSheet('전체-지역활동율'));
+            XLSX.utils.book_append_sheet(wb, sheet2, safeSheet('전체-지역팀활동율'));
+
+            XLSX.writeFile(wb, `청년회_전체_${baseDate.format('YYYYMMDD')}.xlsx`);
+            return;
+        }
+
+        if (tab === 'region') {
+            const sheet = XLSX.utils.json_to_sheet(
+                regionRows.map((r) => ({
+                    구분: r.key,
+                    지역: r.region,
+                    팀: r.team,
+                    구역: r.subteam,
+                    전체인원: r.total_members,
+                    활동인원: r.active_members,
+                    활동율: r.activity_rate,
+                    기간시작: r.start_date,
+                    기간종료: r.end_date,
+                }))
+            );
+
+            XLSX.utils.book_append_sheet(wb, sheet, safeSheet(`${selectedRegion}-활동율`));
+            XLSX.writeFile(wb, `${selectedRegion}_활동율_${baseDate.format('YYYYMMDD')}.xlsx`);
+            return;
+        }
+
+        if (tab === 'log') {
+            setLoading(true);
+            setError(null);
+
+            try {
+                const allLogs = await fetchAllLogsForExport();
+
+                const sheet = XLSX.utils.json_to_sheet(
+                    allLogs.map((r: LogRow) => ({
+                        날짜: r.날짜,
+                        지역: r.지역,
+                        팀: r.팀,
+                        이름: r.이름,
+                        활동: r.활동,
+                        메모: r.memo,
+                        등록시각: r.created_at,
+                        고유번호: r.고유번호,
+                    }))
+                );
+
+                XLSX.utils.book_append_sheet(wb, sheet, safeSheet('활동로그'));
+                XLSX.writeFile(wb, `활동로그_${logFrom.format('YYYYMMDD')}_${logTo.format('YYYYMMDD')}.xlsx`);
+            } catch (e: any) {
+                setError(e?.message ?? '엑셀 다운로드 실패');
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
+
+        if (tab === 'weekly-board') {
+            const summarySheet = XLSX.utils.json_to_sheet(
+                weeklyBoardRows.map((r) => ({
+                    지역: r.region,
+                    팀: r.team,
+                    구역: r.subteam,
+                    월: r.monday_count,
+                    화: r.tuesday_count,
+                    수: r.wednesday_count,
+                    목: r.thursday_count,
+                    금: r.friday_count,
+                    토: r.saturday_count,
+                    일: r.sunday_count,
+                    주간활동자수: r.total_active_members,
+                    보고한요일수: r.reported_days_count,
+                    미보고요일: Array.isArray(r.missing_days) ? r.missing_days.join(', ') : '',
+                    주시작: r.week_start,
+                    주종료: r.week_end,
+                }))
+            );
+
+            const missingOnlySheet = XLSX.utils.json_to_sheet(
+                weeklyBoardRows
+                    .filter((r) => Array.isArray(r.missing_days) && r.missing_days.length > 0)
+                    .map((r) => ({
+                        지역: r.region,
+                        팀: r.team,
+                        구역: r.subteam,
+                        미보고요일: r.missing_days.join(', '),
+                        보고한요일수: r.reported_days_count,
+                        주시작: r.week_start,
+                        주종료: r.week_end,
+                    }))
+            );
+
+            XLSX.utils.book_append_sheet(wb, summarySheet, safeSheet('주간현황'));
+            XLSX.utils.book_append_sheet(wb, missingOnlySheet, safeSheet('미보고요일'));
+            XLSX.writeFile(wb, `주간현황_${baseDate.format('YYYYMMDD')}.xlsx`);
+        }
+    }, [
+        tab,
+        allRegionRows,
+        allRegionTeamRows,
+        regionRows,
+        weeklyBoardRows,
+        baseDate,
+        selectedRegion,
+        logFrom,
+        logTo,
+        fetchAllLogsForExport,
+    ]);
 
     if (isLoading) {
         return (
@@ -252,6 +463,7 @@ export default function ActivitiesViewPage() {
                                     { value: 'weekly', label: '주간' },
                                     { value: 'monthly', label: '월간' },
                                 ]}
+                                disabled={tab === 'weekly-board'}
                             />
                         </div>
 
@@ -285,6 +497,14 @@ export default function ActivitiesViewPage() {
                             disabled={loading}
                         >
                             새로고침
+                        </Button>
+
+                        <Button
+                            type="primary"
+                            onClick={exportToExcel}
+                            disabled={loading}
+                        >
+                            엑셀 다운로드
                         </Button>
                     </div>
                 ) : (
@@ -333,6 +553,14 @@ export default function ActivitiesViewPage() {
                             disabled={loading}
                         >
                             새로고침
+                        </Button>
+
+                        <Button
+                            type="primary"
+                            onClick={exportToExcel}
+                            disabled={loading}
+                        >
+                            엑셀 다운로드
                         </Button>
                     </div>
                 )}
@@ -396,6 +624,29 @@ export default function ActivitiesViewPage() {
                                         pagination={false}
                                         size="middle"
                                     />
+                                </Spin>
+                            ),
+                        },
+                        {
+                            key: 'weekly-board',
+                            label: '주간 현황',
+                            children: (
+                                <Spin spinning={loading}>
+                                    <div className="space-y-4">
+                                        <Alert
+                                            type="info"
+                                            showIcon
+                                            message="기준일이 포함된 주간(월~일) 기준으로 지역/팀/구역별 활동자 수와 미보고 요일을 보여줍니다."
+                                        />
+                                        <Table
+                                            rowKey={(r) => `weekly-${r.key}`}
+                                            columns={weeklyBoardColumns as any}
+                                            dataSource={weeklyBoardRows}
+                                            pagination={false}
+                                            size="middle"
+                                            scroll={{ x: 1400 }}
+                                        />
+                                    </div>
                                 </Spin>
                             ),
                         },
