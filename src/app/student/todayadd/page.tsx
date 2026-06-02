@@ -73,10 +73,13 @@ export default function TodayStudentList() {
     const calculateSummary = (students: StudentBrief[], range: [Dayjs, Dayjs]) => {
         const [start, end] = range;
         const regionOrder = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자'];
-        const summary: { [key: string]: SummaryData } = regionOrder.reduce((acc, region) => {
-            acc[region] = { key: region, 지역: region, 발: 0, 찾: 0, 합: 0, 섭: 0, 복: 0, 예정: 0 };
-            return acc;
-        }, {} as { [key: string]: SummaryData });
+        const summary: { [key: string]: SummaryData } = regionOrder.reduce(
+            (acc, region) => {
+                acc[region] = { key: region, 지역: region, 발: 0, 찾: 0, 합: 0, 섭: 0, 복: 0, 예정: 0 };
+                return acc;
+            },
+            {} as { [key: string]: SummaryData },
+        );
 
         students.forEach((student) => {
             const { 인도자지역, 교사지역, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일 } =
@@ -111,7 +114,7 @@ export default function TodayStudentList() {
         if (!searchText.trim()) return students;
         const lower = searchText.toLowerCase();
         return students.filter((s) =>
-            Object.values(s).some((value) => typeof value === 'string' && value.toLowerCase().includes(lower))
+            Object.values(s).some((value) => typeof value === 'string' && value.toLowerCase().includes(lower)),
         );
     }, [students, searchText]);
 
@@ -218,14 +221,8 @@ export default function TodayStudentList() {
             title: '관리',
             key: 'action',
             render: (_, record) => (
-                <Popconfirm
-                    title="삭제하시겠습니까?"
-                    onConfirm={() => handleDelete(record.id)}
-                >
-                    <Button
-                        danger
-                        size="small"
-                    >
+                <Popconfirm title="삭제하시겠습니까?" onConfirm={() => handleDelete(record.id)}>
+                    <Button danger size="small">
                         삭제
                     </Button>
                 </Popconfirm>
@@ -234,19 +231,55 @@ export default function TodayStudentList() {
     }
 
     const handleDelete = async (id: number) => {
-        /* 삭제 로직 기존과 동일 */
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/students?ids=${id}`, {
+                method: 'DELETE',
+            });
+            const result = await res.json();
+
+            if (!res.ok) throw new Error(result.message || '삭제 실패');
+
+            message.success('성공적으로 삭제되었습니다.');
+            // 삭제 성공 후 프론트엔드 상태 목록에서 해당 학생 제거
+            setStudents((prev) => prev.filter((student) => student.id !== id));
+            // 선택된 체크박스 목록에서도 초기화
+            setSelectedRowKeys((prev) => prev.filter((key) => key !== id));
+        } catch (e) {
+            message.error((e as Error).message || '삭제 중 오류 발생');
+        } finally {
+            setLoading(false);
+        }
     };
+
     const handleBulkDelete = async () => {
-        /* 삭제 로직 기존과 동일 */
+        if (selectedRowKeys.length === 0) return;
+
+        setLoading(true);
+        try {
+            // 여러 개의 ID를 콤마(,)로 연결하여 쿼리스트링 전달 (예: ?ids=1,2,3)
+            const res = await fetch(`/api/students?ids=${selectedRowKeys.join(',')}`, {
+                method: 'DELETE',
+            });
+            const result = await res.json();
+
+            if (!res.ok) throw new Error(result.message || '일괄 삭제 실패');
+
+            message.success(`${selectedRowKeys.length}명의 데이터가 삭제되었습니다.`);
+            // 삭제된 항목들만 필터링하여 화면 갱신
+            setStudents((prev) => prev.filter((student) => !selectedRowKeys.includes(student.id)));
+            // 선택 키 배열 초기화
+            setSelectedRowKeys([]);
+        } catch (e) {
+            message.error((e as Error).message || '일괄 삭제 중 오류 발생');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
         <div className="mt-6 px-2 sm:px-4 w-full mx-auto pb-10">
-            <Space
-                direction="vertical"
-                size="large"
-                style={{ width: '100%' }}
-            >
+            <Space direction="vertical" size="large" style={{ width: '100%' }}>
                 <section>
                     <Title level={4}>📊 오늘의 현황</Title>
                     <Table
@@ -261,11 +294,7 @@ export default function TodayStudentList() {
 
                 <section>
                     <Title level={4}>📋 등록/수정된 명단</Title>
-                    <Space
-                        direction="vertical"
-                        size="middle"
-                        style={{ width: '100%' }}
-                    >
+                    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                         <div className="flex flex-wrap gap-2 justify-between">
                             <Space wrap>
                                 <RangePicker
@@ -293,14 +322,8 @@ export default function TodayStudentList() {
                                 />
                             </Space>
                             {isAdmin && selectedRowKeys.length > 0 && (
-                                <Popconfirm
-                                    title="일괄 삭제하시겠습니까?"
-                                    onConfirm={handleBulkDelete}
-                                >
-                                    <Button
-                                        danger
-                                        type="primary"
-                                    >
+                                <Popconfirm title="일괄 삭제하시겠습니까?" onConfirm={handleBulkDelete}>
+                                    <Button danger type="primary">
                                         선택 삭제 ({selectedRowKeys.length}명)
                                     </Button>
                                 </Popconfirm>

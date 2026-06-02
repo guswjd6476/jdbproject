@@ -11,7 +11,7 @@ async function getOrInsertMemberUniqueId(
     client: PoolClient,
     지역: string,
     팀: string,
-    이름: string
+    이름: string,
 ): Promise<string | null | any[]> {
     if (!지역?.trim() || !이름?.trim()) {
         return null;
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
         // 1. 검색어 조건 처리
         if (search) {
             whereConditions.push(
-                `(s.이름 ILIKE $1 OR m_ind.이름 ILIKE $1 OR m_tch.이름 ILIKE $1 OR m_ind.지역 ILIKE $1 OR m_tch.지역 ILIKE $1 OR m_ind.구역 ILIKE $1 OR m_tch.구역 ILIKE $1)`
+                `(s.이름 ILIKE $1 OR m_ind.이름 ILIKE $1 OR m_tch.이름 ILIKE $1 OR m_ind.지역 ILIKE $1 OR m_tch.지역 ILIKE $1 OR m_ind.구역 ILIKE $1 OR m_tch.구역 ILIKE $1)`,
             );
             values.push(`%${search}%`);
         }
@@ -155,7 +155,36 @@ export async function POST(request: NextRequest) {
         const data = body.data || [];
         const now = new Date();
 
-        // 💡 핵심: 빈 문자열('')을 null로 변환하여 COALESCE가 작동하게 함
+        // 🔐 현재 유저의 토큰을 검증하여 role 및 superAdmin 여부 추출
+        const token = request.cookies.get('token')?.value;
+        let userRole: string | null = null;
+        let isSuperAdmin = false; // ✨ 불리언(boolean) 타입으로 변경
+
+        if (token) {
+            try {
+                const user = verifyToken(token);
+                if (typeof user === 'object' && user !== null) {
+                    // 1. 토큰 role이 superAdmin이거나 특정 이메일('jdb@jdb.com')인 경우 둘 다 체크
+                    const hasSuperRole = 'role' in user && user.role === 'superAdmin';
+                    const hasSuperEmail = 'email' in user && user.email === 'jdb@jdb.com';
+
+                    if (hasSuperRole || hasSuperEmail) {
+                        isSuperAdmin = true;
+                    }
+
+                    // 기존 userRole에 email 매핑하던 로직 유지
+                    if ('email' in user) {
+                        userRole = (user as JwtPayload).email ?? null;
+                    }
+                }
+            } catch (err) {
+                console.error('토큰 검증 실패:', err);
+                userRole = null;
+                isSuperAdmin = false;
+            }
+        }
+
+        // 빈 문자열('')을 null로 변환하여 COALESCE가 작동하게 함
         const emptyToNull = (val: any) => {
             if (typeof val === 'string' && val.trim() === '') return null;
             return val ?? null;
@@ -170,7 +199,7 @@ export async function POST(request: NextRequest) {
                     client,
                     row.인도자지역,
                     row.인도자팀,
-                    row.인도자이름
+                    row.인도자이름,
                 );
                 if (Array.isArray(indojaResult)) {
                     await client.query('ROLLBACK');
@@ -180,7 +209,7 @@ export async function POST(request: NextRequest) {
                             code: 'NEEDS_SELECTION',
                             context: { rowIndex: row.originalIndex, field: '인도자', choices: indojaResult },
                         },
-                        { status: 409 }
+                        { status: 409 },
                     );
                 }
                 row.인도자_고유번호 = indojaResult;
@@ -196,7 +225,7 @@ export async function POST(request: NextRequest) {
                             code: 'NEEDS_SELECTION',
                             context: { rowIndex: row.originalIndex, field: '교사', choices: gyosaResult },
                         },
-                        { status: 409 }
+                        { status: 409 },
                     );
                 }
                 row.교사_고유번호 = gyosaResult;
@@ -205,7 +234,7 @@ export async function POST(request: NextRequest) {
             // 기존 데이터 존재 여부 확인
             const existingRes = await client.query(
                 `SELECT * FROM students WHERE 이름 = $1 AND (인도자_고유번호 = $2 OR 교사_고유번호 = $3) ORDER BY id DESC LIMIT 1`,
-                [row.이름.trim(), row.인도자_고유번호, row.교사_고유번호]
+                [row.이름.trim(), row.인도자_고유번호, row.교사_고유번호],
             );
             const existing = existingRes.rows[0];
 
@@ -213,16 +242,16 @@ export async function POST(request: NextRequest) {
             if (existing && row.target && existing.target !== row.target) {
                 const countRes = await client.query(
                     `SELECT COALESCE(MAX(change_count), 0) AS count FROM student_target_history WHERE student_id = $1`,
-                    [existing.id]
+                    [existing.id],
                 );
                 await client.query(
                     `INSERT INTO student_target_history (student_id, target, change_count) VALUES ($1, $2, $3)`,
-                    [existing.id, row.target, Number(countRes.rows[0].count) + 1]
+                    [existing.id, row.target, Number(countRes.rows[0].count) + 1],
                 );
             }
 
-            // 오늘 이미 완료했는지 체크
-            if (existing) {
+            // 오늘 이미 완료했는지 체크 (superAdmin은 프리패스)
+            if (existing && !isSuperAdmin) {
                 const currentIdx = 단계순서.indexOf(단계);
                 if (currentIdx > 0) {
                     const prevStage = 단계순서[currentIdx - 1];
@@ -231,19 +260,49 @@ export async function POST(request: NextRequest) {
                         const compDate = new Date(existing[prevCol]);
                         if (compDate.toDateString() === now.toDateString()) {
                             throw new Error(
-                                `'${row.이름}' 학생은 오늘 '${prevStage}' 단계를 완료하여 승급이 불가합니다.`
+                                `'${row.이름}' 학생은 오늘 '${prevStage}' 단계를 완료하여 승급이 불가합니다.`,
                             );
                         }
                     }
                 }
             }
 
-            const colName = 단계완료일컬럼[단계];
-            const 완료일: any = {};
-            if (colName) 완료일[colName] = now;
+            // 완료일 객체 세팅 생성
+            const 완료일: Record<string, Date | null> = {
+                발_완료일: null,
+                찾_완료일: null,
+                합_완료일: null,
+                섭_완료일: null,
+                복_완료일: null,
+                예정_완료일: null,
+                센확_완료일: null,
+                탈락: null,
+            };
+
+            const currentColName = 단계완료일컬럼[단계];
+            if (currentColName) {
+                완료일[currentColName] = now;
+            }
+
+            console.log('isSuperAdmin 결과:', isSuperAdmin);
+
+            // 💡 superAdmin 특권: 단계를 건너뛰고 등록했을 때 이전 단계 완료일들도 현재 일자로 자동 부여
+            if (isSuperAdmin && 단계 !== '탈락') {
+                const currentIdx = 단계순서.indexOf(단계);
+                if (currentIdx > 0) {
+                    for (let i = 0; i < currentIdx; i++) {
+                        const prevStage = 단계순서[i];
+                        const prevColName = 단계완료일컬럼[prevStage];
+
+                        if (!existing || !existing[prevColName]) {
+                            완료일[prevColName] = now;
+                        }
+                    }
+                }
+            }
 
             if (existing) {
-                // 💡 UPDATE: 모든 필드에 emptyToNull 적용
+                // UPDATE 로직
                 await client.query(
                     `UPDATE students SET
                         단계 = $1, 
@@ -279,11 +338,12 @@ export async function POST(request: NextRequest) {
                         emptyToNull(row.도구),
                         emptyToNull(row.target),
                         existing.id,
-                    ]
+                    ],
                 );
             } else {
+                // INSERT 로직
                 await client.query(
-                    `INSERT INTO students (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일, 센확_완료일, 탈락, 도구, target)
+                    `INSERT INTO students (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일,복_완료일, 예정_완료일, 센확_완료일, 탈락, 도구, target)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
                     [
                         단계,
@@ -302,7 +362,7 @@ export async function POST(request: NextRequest) {
                         완료일.탈락,
                         emptyToNull(row.도구),
                         emptyToNull(row.target),
-                    ]
+                    ],
                 );
             }
         }
@@ -317,152 +377,38 @@ export async function POST(request: NextRequest) {
     }
 }
 
-// export async function POST(request: NextRequest) {
-//     const client = await pool.connect();
-//     try {
-//         await client.query('BEGIN');
+export async function DELETE(request: NextRequest) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
 
-//         const body = await request.json();
-//         const data = body.data || [];
+        // URL 쿼리 스트링에서 ids 가져오기 (?ids=1,2,3)
+        const { searchParams } = new URL(request.url);
+        const idsString = searchParams.get('ids');
 
-//         // 🌟 수정: 모든 시간 처리를 UTC 기준으로 통일합니다.
-//         // 현재 시점의 UTC Date 객체를 생성합니다.
-//         const nowUTC = new Date(); // 이 시점에서 서버의 로컬 시간이지만,
-//         // toISOString()을 통해 UTC 문자열로 변환하고, 다시 Date 객체로 파싱하여 명확히 UTC Date 객체를 만듭니다.
-//         const currentUTC = new Date(nowUTC.toISOString());
+        if (!idsString) {
+            return NextResponse.json({ success: false, message: '삭제할 ID가 없습니다.' }, { status: 400 });
+        }
 
-//         for (const row of data) {
-//             const 단계 = row.단계.trim().toUpperCase();
+        // 숫자로 변환된 배열 생성
+        const ids = idsString
+            .split(',')
+            .map((id) => parseInt(id.trim()))
+            .filter((id) => !isNaN(id));
 
-//             // ... (동명이인 및 인도자/교사 고유번호 처리 로직 - 변경 없음) ...
+        if (ids.length === 0) {
+            return NextResponse.json({ success: false, message: '유효한 ID가 없습니다.' }, { status: 400 });
+        }
 
-//             let existingRes;
-//             if (row.인도자_고유번호) {
-//                 existingRes = await client.query(
-//                     'SELECT * FROM students WHERE 이름 = $1 AND 인도자_고유번호 = $2 ORDER BY id DESC LIMIT 1',
-//                     [row.이름.trim(), row.인도자_고유번호]
-//                 );
-//             } else if (row.교사_고유번호) {
-//                 existingRes = await client.query(
-//                     'SELECT * FROM students WHERE 이름 = $1 AND 교사_고유번호 = $2 ORDER BY id DESC LIMIT 1',
-//                     [row.이름.trim(), row.교사_고유번호]
-//                 );
-//             } else {
-//                 existingRes = await client.query(
-//                     'SELECT * FROM students WHERE 이름 = $1 AND 인도자_고유번호 IS NULL AND 교사_고유번호 IS NULL ORDER BY id DESC LIMIT 1',
-//                     [row.이름.trim()]
-//                 );
-//             }
-//             const existing = existingRes.rows.length > 0 ? existingRes.rows[0] : null;
+        // PostgreSQL에서 다중 삭제 (IN 연산자 활용)
+        await client.query(`DELETE FROM students WHERE id = ANY($1::int[])`, [ids]);
 
-//             if (existing) {
-//                 const currentStageIndex = 단계순서.indexOf(단계);
-//                 if (currentStageIndex > 0) {
-//                     const previousStage = 단계순서[currentStageIndex - 1];
-//                     const prevStageCompletionDateCol = 단계완료일컬럼[previousStage];
-//                     if (prevStageCompletionDateCol && existing[prevStageCompletionDateCol]) {
-//                         const completionDateFromDB = new Date(existing[prevStageCompletionDateCol]);
-
-//                         // 🌟 수정: UTC 기준으로 날짜만 비교하도록 합니다.
-//                         // 데이터베이스에서 가져온 완료일의 UTC 날짜 부분 (시간은 00:00:00으로 설정)
-//                         const completionDateUTC = new Date(
-//                             completionDateFromDB.getUTCFullYear(),
-//                             completionDateFromDB.getUTCMonth(),
-//                             completionDateFromDB.getUTCDate()
-//                         );
-
-//                         // 현재 UTC 날짜의 00:00:00 (시간은 00:00:00으로 설정)
-//                         const todayUTC = new Date(
-//                             currentUTC.getUTCFullYear(),
-//                             currentUTC.getUTCMonth(),
-//                             currentUTC.getUTCDate()
-//                         );
-
-//                         if (completionDateUTC.getTime() === todayUTC.getTime()) {
-//                             throw new Error(
-//                                 `'${row.이름}' 학생은 '${previousStage}' 단계를 오늘 완료하여 다음 단계 등록이 불가능합니다.`
-//                             );
-//                         }
-//                     }
-//                 }
-//             }
-
-//             const 완료일: { [key: string]: Date | null } = {
-//                 발_완료일: null,
-//                 찾_완료일: null,
-//                 합_완료일: null,
-//                 섭_완료일: null,
-//                 복_완료일: null,
-//                 예정_완료일: null,
-//                 센확_완료일: null,
-//                 탈락: null,
-//             };
-//             const colName = 단계완료일컬럼[단계];
-//             if (colName) {
-//                 완료일[colName] = currentUTC; // 🌟 수정: UTC Date 객체를 할당합니다.
-//             }
-
-//             if (existing) {
-//                 await client.query(
-//                     `UPDATE students SET
-//                         단계 = $1, 연락처 = COALESCE($2, 연락처), 생년월일 = COALESCE($3, 생년월일),
-//                         인도자_고유번호 = COALESCE($4, 인도자_고유번호), 교사_고유번호 = COALESCE($5, 교사_고유번호),
-//                         발_완료일 = COALESCE(발_완료일, $6), 찾_완료일 = COALESCE(찾_완료일, $7),
-//                         합_완료일 = COALESCE(합_완료일, $8), 섭_완료일 = COALESCE(섭_완료일, $9),
-//                         복_완료일 = COALESCE(복_완료일, $10), 예정_완료일 = COALESCE(예정_완료일, $11),
-//                         센확_완료일 = COALESCE(센확_완료일, $12),
-//                         탈락 = COALESCE(탈락, $13)
-//                     WHERE id = $14`,
-//                     [
-//                         단계,
-//                         row.연락처,
-//                         row.생년월일,
-//                         row.인도자_고유번호,
-//                         row.교사_고유번호,
-//                         완료일.발_완료일,
-//                         완료일.찾_완료일,
-//                         완료일.합_완료일,
-//                         완료일.섭_완료일,
-//                         완료일.복_완료일,
-//                         완료일.예정_완료일,
-//                         완료일.센확_완료일,
-//                         완료일.탈락,
-//                         existing.id,
-//                     ]
-//                 );
-//             } else {
-//                 await client.query(
-//                     `INSERT INTO students
-//                         (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일, 센확_완료일, 탈락)
-//                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-//                     [
-//                         단계,
-//                         row.이름.trim(),
-//                         row.연락처,
-//                         row.생년월일,
-//                         row.인도자_고유번호,
-//                         row.교사_고유번호,
-//                         완료일.발_완료일,
-//                         완료일.찾_완료일,
-//                         완료일.합_완료일,
-//                         완료일.섭_완료일,
-//                         완료일.복_완료일,
-//                         완료일.예정_완료일,
-//                         완료일.센확_완료일,
-//                         완료일.탈락,
-//                     ]
-//                 );
-//             }
-//         }
-
-//         await client.query('COMMIT');
-//         return NextResponse.json({ success: true, message: '성공적으로 저장되었습니다.' });
-//     } catch (err) {
-//         await client.query('ROLLBACK');
-//         console.error('POST /api/students 에러:', err);
-//         const message = err instanceof Error ? err.message : '서버 오류가 발생했습니다.';
-//         return NextResponse.json({ success: false, message }, { status: 500 });
-//     } finally {
-//         client.release();
-//     }
-// }
+        await client.query('COMMIT');
+        return NextResponse.json({ success: true, message: '삭제 성공' });
+    } catch (err: any) {
+        await client.query('ROLLBACK');
+        return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    } finally {
+        client.release();
+    }
+}
