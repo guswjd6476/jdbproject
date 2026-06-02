@@ -184,6 +184,7 @@ function StudentTracker() {
     }, []);
 
     // 저장 프로세스
+    // 저장 프로세스
     const handleSubmit = async () => {
         if (isSaveDisabled) {
             setError('새벽 12시부터 1시까지는 superAdmin만 저장할 수 있습니다.');
@@ -211,7 +212,8 @@ function StudentTracker() {
             if (!STEPNAME.includes(stage)) rowErrors.push('유효하지 않은 단계');
             if (!row.이름.trim()) rowErrors.push('이름 누락');
 
-            if (stage !== '탈락') {
+            // 1. 순차 단계 선행 체크 (superAdmin은 프리패스)
+            if (stage !== '탈락' && role !== 'superAdmin') {
                 const sequentialStages = ['발', '찾', '합', '섭', '복', '예정', '센확'];
                 const curIdx = sequentialStages.indexOf(stage);
                 if (curIdx > 0) {
@@ -231,7 +233,12 @@ function StudentTracker() {
                 if (!['온라인', '노방', '지인'].includes(row.도구.trim()))
                     rowErrors.push('도구 오류(온라인/노방/지인)');
             }
-            if (stage === '찾' && !row.생년월일.trim()) rowErrors.push('생년월일 누락');
+
+            // 2. 생년월일 체크 (superAdmin은 검사 안 함)
+            if (stage === '찾' && role !== 'superAdmin' && !row.생년월일.trim()) {
+                rowErrors.push('생년월일 누락');
+            }
+
             if (['합', '섭', '복', '예정', '센확'].includes(stage)) {
                 if (!row.target?.trim()) {
                     rowErrors.push('목표월 누락');
@@ -255,6 +262,7 @@ function StudentTracker() {
             return;
         }
 
+        // 🔥 [유실되었던 구간] 실제 백엔드로 데이터를 보내는 핵심 저장 로직
         try {
             const res = await fetch('/api/students', {
                 method: 'POST',
@@ -274,11 +282,13 @@ function StudentTracker() {
                 }
             } else {
                 setSuccess('모든 정보가 성공적으로 저장되었습니다.');
+                // 저장 성공 후 테이블 초기화
                 setData(Array.from({ length: INITIAL_ROWS }, () => ({ ...initialRow })));
             }
         } catch (err: any) {
-            setError(err.message);
+            setError(err.message || '저장 중 오류가 발생했습니다.');
         } finally {
+            // 성공하든 실패하든 무조건 로딩 스피너를 꺼줍니다.
             setLoading(false);
         }
     };
