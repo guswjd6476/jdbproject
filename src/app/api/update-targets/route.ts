@@ -8,7 +8,6 @@ type TargetItem = {
     week: string | null;
 };
 
-// ✅ 공백 / null 안전 처리
 const normalizeText = (v: any): string | null => {
     if (v === null || v === undefined) return null;
     const s = String(v).trim();
@@ -32,91 +31,86 @@ export async function POST(req: NextRequest) {
 
         targets.forEach((t, i) => {
             const idx = i * 4;
-
-            // ✅ 타입 강제 캐스팅 (integer=text 에러 방지)
             placeholders.push(`($${idx + 1}::int, $${idx + 2}::text, $${idx + 3}::timestamptz, $${idx + 4}::text)`);
-
             values.push(
                 Number(t.번호),
-                normalizeText(t.month), // ✅ trim 적용
+                normalizeText(t.month),
                 t.date ? new Date(t.date) : null,
-                normalizeText(t.week), // week도 공백 들어오면 정리
+                normalizeText(t.week),
             );
         });
 
         const tempCTE = `
-      WITH incoming(student_id, next_target, next_trydate, next_week) AS (
-        VALUES ${placeholders.join(',')}
-      )
-    `;
+          WITH incoming(student_id, next_target, next_trydate, next_week) AS (
+            VALUES ${placeholders.join(',')}
+          )
+        `;
 
         /**
-         * ✅ 1) 바뀐 row만 students 업데이트
-         * - update 전에 trim 된 next_target로 들어감
+         * ✅ 1) 히스토리 insert를 먼저 수행 (순서 변경 🔥)
+         * - students 테이블의 target 값이 업데이트되기 전이므로 기존 목표월(s.target)과의 비교가 정확하게 작동합니다.
          */
         await client.query(
             `
-      ${tempCTE}
-      UPDATE students s
-      SET
-        target = i.next_target,
-        trydate = i.next_trydate,
-        numberofweek = i.next_week
-      FROM incoming i
-      WHERE s.id = i.student_id
-        AND (
-          s.target IS DISTINCT FROM i.next_target OR
-          s.trydate IS DISTINCT FROM i.next_trydate OR
-          s.numberofweek IS DISTINCT FROM i.next_week
-        )
-      `,
+            ${tempCTE},
+            changed AS (
+              SELECT
+                s.id AS student_id,
+                NULLIF(TRIM(s.target), '') AS prev_target_norm,
+                NULLIF(TRIM(i.next_target), '') AS next_target_norm
+              FROM students s
+              JOIN incoming i ON i.student_id = s.id
+              WHERE NULLIF(TRIM(i.next_target), '') IS NOT NULL
+                AND NULLIF(TRIM(s.target), '') IS DISTINCT FROM NULLIF(TRIM(i.next_target), '')
+            ),
+            history_stats AS (
+              SELECT
+                student_id,
+                COUNT(*) AS cnt,
+                COALESCE(MAX(change_count), 0) AS max_change
+              FROM student_target_history
+              WHERE student_id IN (SELECT student_id FROM changed)
+              GROUP BY student_id
+            ),
+            numbered AS (
+              SELECT
+                c.student_id,
+                c.next_target_norm AS target,
+                CASE 
+                  WHEN COALESCE(h.cnt, 0) = 0 THEN 0
+                  ELSE h.max_change + 1
+                END AS change_count
+              FROM changed c
+              LEFT JOIN history_stats h ON h.student_id = c.student_id
+            )
+            INSERT INTO student_target_history (student_id, target, change_count)
+            SELECT student_id, target, change_count
+            FROM numbered
+            `,
             values,
         );
 
         /**
-         * ✅ 2) 히스토리 insert 조건 강화
-         *
-         * ✅ 요구사항 충족:
-         * - prevTarget(현재 students.target) == nextTarget 이면 history 쌓이면 안됨
-         * - 1월 -> 2월 -> 1월 (현재 2월이고 next 1월이면) 쌓여야 함
-         *
-         * ✅ 따라서 조건은:
-         *   next_target IS NOT NULL
-         *   AND trim(prev_target) != trim(next_target)
+         * ✅ 2) 히스토리를 다 쌓은 후 students 테이블 업데이트 진행
+         * - s.prevtarget 컬럼에도 기존의 s.target 값을 백업해 주도록 동기화 로직을 추가했습니다.
          */
         await client.query(
             `
-      ${tempCTE},
-      changed AS (
-        SELECT
-          s.id AS student_id,
-          NULLIF(TRIM(s.target), '') AS prev_target_norm,
-          NULLIF(TRIM(i.next_target), '') AS next_target_norm
-        FROM students s
-        JOIN incoming i ON i.student_id = s.id
-        WHERE NULLIF(TRIM(i.next_target), '') IS NOT NULL
-          AND NULLIF(TRIM(s.target), '') IS DISTINCT FROM NULLIF(TRIM(i.next_target), '')
-      ),
-      max_count AS (
-        SELECT
-          student_id,
-          COALESCE(MAX(change_count), 0) AS max_change
-        FROM student_target_history
-        WHERE student_id IN (SELECT student_id FROM changed)
-        GROUP BY student_id
-      ),
-      numbered AS (
-        SELECT
-          c.student_id,
-          c.next_target_norm AS target,
-          (m.max_change + 1) AS change_count
-        FROM changed c
-        JOIN max_count m ON m.student_id = c.student_id
-      )
-      INSERT INTO student_target_history (student_id, target, change_count)
-      SELECT student_id, target, change_count
-      FROM numbered
-      `,
+            ${tempCTE}
+            UPDATE students s
+            SET
+              prevtarget = CASE WHEN s.target IS DISTINCT FROM i.next_target THEN s.target ELSE s.prevtarget END,
+              target = i.next_target,
+              trydate = i.next_trydate,
+              numberofweek = i.next_week
+            FROM incoming i
+            WHERE s.id = i.student_id
+              AND (
+                s.target IS DISTINCT FROM i.next_target OR
+                s.trydate IS DISTINCT FROM i.next_trydate OR
+                s.numberofweek IS DISTINCT FROM i.next_week
+              )
+            `,
             values,
         );
 

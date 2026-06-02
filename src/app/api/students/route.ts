@@ -65,7 +65,6 @@ async function getOrInsertMemberUniqueId(
     return null;
 }
 
-// ✨ FIX: 'g'를 다시 '탈락'으로 수정합니다.
 const 단계완료일컬럼: Record<string, string> = {
     발: '발_완료일',
     찾: '찾_완료일',
@@ -97,7 +96,7 @@ export async function GET(request: NextRequest) {
 
         let baseQuery = `
             SELECT 
-                s.id AS "번호", s.단계, s.이름, s.연락처, s.생년월일, s.target,s.도구,
+                s.id AS "번호", s.단계, s.이름, s.연락처, s.생년월일, s.target, s.도구,
                 s.인도자_고유번호, s.교사_고유번호,
                 s.발_완료일 AS "발", s.찾_완료일 AS "찾", s.합_완료일 AS "합",
                 s.섭_완료일 AS "섭", s.복_완료일 AS "복", s.예정_완료일 AS "예정",
@@ -112,7 +111,6 @@ export async function GET(request: NextRequest) {
         const values: any[] = [];
         const whereConditions: string[] = [];
 
-        // 1. 검색어 조건 처리
         if (search) {
             whereConditions.push(
                 `(s.이름 ILIKE $1 OR m_ind.이름 ILIKE $1 OR m_tch.이름 ILIKE $1 OR m_ind.지역 ILIKE $1 OR m_tch.지역 ILIKE $1 OR m_ind.구역 ILIKE $1 OR m_tch.구역 ILIKE $1)`,
@@ -120,18 +118,13 @@ export async function GET(request: NextRequest) {
             values.push(`%${search}%`);
         }
 
-        // 현재 파라미터 개수 다음 인덱스부터 시작하도록 설정
         const permissionParam = getParameterizedQueryConditionForUser(userEmail, values.length + 1);
 
-        // authUtils 함수가 반환한 조건과 값을 WHERE 절과 값 배열에 추가
         if (permissionParam.condition) {
             whereConditions.push(permissionParam.condition);
             values.push(...permissionParam.values);
         }
 
-        // =================================================================
-
-        // 3. 최종 쿼리 생성
         if (whereConditions.length > 0) {
             baseQuery += ' WHERE ' + whereConditions.join(' AND ');
         }
@@ -147,6 +140,7 @@ export async function GET(request: NextRequest) {
         client.release();
     }
 }
+
 export async function POST(request: NextRequest) {
     const client = await pool.connect();
     try {
@@ -155,16 +149,14 @@ export async function POST(request: NextRequest) {
         const data = body.data || [];
         const now = new Date();
 
-        // 🔐 현재 유저의 토큰을 검증하여 role 및 superAdmin 여부 추출
         const token = request.cookies.get('token')?.value;
         let userRole: string | null = null;
-        let isSuperAdmin = false; // ✨ 불리언(boolean) 타입으로 변경
+        let isSuperAdmin = false;
 
         if (token) {
             try {
                 const user = verifyToken(token);
                 if (typeof user === 'object' && user !== null) {
-                    // 1. 토큰 role이 superAdmin이거나 특정 이메일('jdb@jdb.com')인 경우 둘 다 체크
                     const hasSuperRole = 'role' in user && user.role === 'superAdmin';
                     const hasSuperEmail = 'email' in user && user.email === 'jdb@jdb.com';
 
@@ -172,7 +164,6 @@ export async function POST(request: NextRequest) {
                         isSuperAdmin = true;
                     }
 
-                    // 기존 userRole에 email 매핑하던 로직 유지
                     if ('email' in user) {
                         userRole = (user as JwtPayload).email ?? null;
                     }
@@ -184,7 +175,6 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 빈 문자열('')을 null로 변환하여 COALESCE가 작동하게 함
         const emptyToNull = (val: any) => {
             if (typeof val === 'string' && val.trim() === '') return null;
             return val ?? null;
@@ -193,7 +183,11 @@ export async function POST(request: NextRequest) {
         for (const row of data) {
             const 단계 = row.단계.trim().toUpperCase();
 
-            // 인도자/교사 고유번호 확인 로직
+            // 💡 벨리데이션 체크 (일반 유저인 경우에만 생년월일 필수 적용 예시 - 필요시 주석 해제)
+            // if (!isSuperAdmin && (!row.생년월일 || row.생년월일.trim() === '')) {
+            //     throw new Error(`'${row.이름}' 학생의 생년월일은 필수 입력 항목입니다.`);
+            // }
+
             if (!row.인도자_고유번호) {
                 const indojaResult = await getOrInsertMemberUniqueId(
                     client,
@@ -231,26 +225,33 @@ export async function POST(request: NextRequest) {
                 row.교사_고유번호 = gyosaResult;
             }
 
-            // 기존 데이터 존재 여부 확인
             const existingRes = await client.query(
                 `SELECT * FROM students WHERE 이름 = $1 AND (인도자_고유번호 = $2 OR 교사_고유번호 = $3) ORDER BY id DESC LIMIT 1`,
                 [row.이름.trim(), row.인도자_고유번호, row.교사_고유번호],
             );
             const existing = existingRes.rows[0];
 
-            // Target 변경 이력 로직
+            // 🛠️ Target 변경 이력 로직 정합성 보정 (최초 변경인 경우 0번 회차부터 생성)
             if (existing && row.target && existing.target !== row.target) {
+                // 기존 히스토리 로우 개수를 조회합니다.
                 const countRes = await client.query(
-                    `SELECT COALESCE(MAX(change_count), 0) AS count FROM student_target_history WHERE student_id = $1`,
+                    `SELECT COUNT(*)::int AS history_count, COALESCE(MAX(change_count), 0) AS max_change 
+                     FROM student_target_history WHERE student_id = $1`,
                     [existing.id],
                 );
+
+                const historyCount = countRes.rows[0].history_count;
+                const maxChange = countRes.rows[0].max_change;
+
+                // 히스토리가 아예 없었다면 최초 등록이므로 0, 존재한다면 max_change + 1
+                const nextChangeCount = historyCount === 0 ? 0 : maxChange + 1;
+
                 await client.query(
                     `INSERT INTO student_target_history (student_id, target, change_count) VALUES ($1, $2, $3)`,
-                    [existing.id, row.target, Number(countRes.rows[0].count) + 1],
+                    [existing.id, row.target, nextChangeCount],
                 );
             }
 
-            // 오늘 이미 완료했는지 체크 (superAdmin은 프리패스)
             if (existing && !isSuperAdmin) {
                 const currentIdx = 단계순서.indexOf(단계);
                 if (currentIdx > 0) {
@@ -267,7 +268,6 @@ export async function POST(request: NextRequest) {
                 }
             }
 
-            // 완료일 객체 세팅 생성
             const 완료일: Record<string, Date | null> = {
                 발_완료일: null,
                 찾_완료일: null,
@@ -286,7 +286,6 @@ export async function POST(request: NextRequest) {
 
             console.log('isSuperAdmin 결과:', isSuperAdmin);
 
-            // 💡 superAdmin 특권: 단계를 건너뛰고 등록했을 때 이전 단계 완료일들도 현재 일자로 자동 부여
             if (isSuperAdmin && 단계 !== '탈락') {
                 const currentIdx = 단계순서.indexOf(단계);
                 if (currentIdx > 0) {
@@ -302,7 +301,6 @@ export async function POST(request: NextRequest) {
             }
 
             if (existing) {
-                // UPDATE 로직
                 await client.query(
                     `UPDATE students SET
                         단계 = $1, 
@@ -341,9 +339,8 @@ export async function POST(request: NextRequest) {
                     ],
                 );
             } else {
-                // INSERT 로직
                 await client.query(
-                    `INSERT INTO students (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일,복_완료일, 예정_완료일, 센확_완료일, 탈락, 도구, target)
+                    `INSERT INTO students (단계, 이름, 연락처, 생년월일, 인도자_고유번호, 교사_고유번호, 발_완료일, 찾_완료일, 합_완료일, 섭_완료일, 복_완료일, 예정_완료일, 센확_완료일, 탈락, 도구, target)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
                     [
                         단계,
@@ -382,7 +379,6 @@ export async function DELETE(request: NextRequest) {
     try {
         await client.query('BEGIN');
 
-        // URL 쿼리 스트링에서 ids 가져오기 (?ids=1,2,3)
         const { searchParams } = new URL(request.url);
         const idsString = searchParams.get('ids');
 
@@ -390,7 +386,6 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ success: false, message: '삭제할 ID가 없습니다.' }, { status: 400 });
         }
 
-        // 숫자로 변환된 배열 생성
         const ids = idsString
             .split(',')
             .map((id) => parseInt(id.trim()))
@@ -400,7 +395,6 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ success: false, message: '유효한 ID가 없습니다.' }, { status: 400 });
         }
 
-        // PostgreSQL에서 다중 삭제 (IN 연산자 활용)
         await client.query(`DELETE FROM students WHERE id = ANY($1::int[])`, [ids]);
 
         await client.query('COMMIT');

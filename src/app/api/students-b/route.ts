@@ -24,9 +24,9 @@ export async function GET(request: NextRequest) {
 
         /**
          * 🔥 핵심 포인트
-         * - LATERAL JOIN 으로 학생별 target 히스토리 집계
-         * - prevTarget: 가장 최근 "이전" 값
-         * - targetChangeCount: 총 변경 횟수
+         * - LATERAL JOIN 으로 학생별 target 히스토리 정확하게 집계
+         * - prevTarget: 현재 target 직전의 최신 변경 이력을 가져옵니다. (없으면 테이블 자체 prevtarget 백업 사용)
+         * - targetChangeCount: 실제 변경된 횟수 (총 히스토리 건수 - 1)
          */
         let baseQuery = `
             SELECT 
@@ -56,10 +56,10 @@ export async function GET(request: NextRequest) {
                 m_tch.구역 AS "교사팀",
                 m_tch.이름 AS "교사이름",
 
-                -- ✅ 이전 목표 (가장 최근 이전 값)
-                h.prev_target AS "prevTarget",
+                -- ✅ 이전 목표: 히스토리 상 현재 직전 값(offset 1)을 최우선으로 하되, 없으면 메인 테이블 컬럼 사용
+                COALESCE(h.prev_target, s.prevtarget) AS "prevTarget",
 
-                -- ✅ 변경 횟수
+                -- ✅ 변경 횟수 (최초 등록 상태면 0, 변경될 때마다 1, 2, 3... 순으로 매핑)
                 COALESCE(h.change_count, 0) AS "targetChangeCount"
 
             FROM students s
@@ -67,10 +67,13 @@ export async function GET(request: NextRequest) {
             LEFT JOIN members m_ind ON s.인도자_고유번호 = m_ind.고유번호
             LEFT JOIN members m_tch ON s.교사_고유번호 = m_tch.고유번호
 
-            -- 🔥 target 히스토리 집계
+            -- 🔥 target 히스토리 카운트 및 '진짜 직전 목표' 집계 보정
             LEFT JOIN LATERAL (
                 SELECT
-                    MAX(change_count) AS change_count,
+                    -- 최초 등록(0회차) 데이터 1건만 존재할 때는 변경 횟수가 0이 됨
+                    GREATEST(COUNT(*) - 1, 0) AS change_count,
+                    
+                    -- 현재 s.target으로 업데이트되기 바로 직전(OFFSET 1)의 이력 값을 가져옵니다.
                     (
                         SELECT target
                         FROM student_target_history h2
@@ -91,6 +94,7 @@ export async function GET(request: NextRequest) {
         baseQuery += ' ORDER BY s.id ASC';
 
         const res = await client.query(baseQuery);
+
         return NextResponse.json(res.rows);
     } catch (err: unknown) {
         console.error('GET /api/students-b 에러:', err);

@@ -26,7 +26,6 @@ export default function RegionWiseRemarks() {
     const [targets, setTargets] = useState<Record<number, TargetValue>>({});
     const [visibleId, setVisibleId] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
-    const [savedMessage, setSavedMessage] = useState(false);
     const [searchText, setSearchText] = useState('');
 
     const [historyOpen, setHistoryOpen] = useState(false);
@@ -63,7 +62,7 @@ export default function RegionWiseRemarks() {
     // 공통 필터 생성기
     const getUniqueFilters = (key: keyof Students) => {
         const uniqueValues = Array.from(
-            new Set(students.map((s) => String(s[key] ?? '')).filter((v) => v.trim() !== ''))
+            new Set(students.map((s) => String(s[key] ?? '')).filter((v) => v.trim() !== '')),
         );
         return uniqueValues.map((v) => ({ text: v, value: v }));
     };
@@ -167,12 +166,10 @@ export default function RegionWiseRemarks() {
             filters: [
                 { text: '신규', value: '신규' },
                 { text: '잔존', value: '잔존' },
-                { text: '-', value: '-' },
             ],
-            onFilter: (value, record) => (getStatus(record) || '-') === value,
+            onFilter: (value, record) => getStatus(record) === value,
             render: (_, r) => {
                 const status = getStatus(r);
-                if (!status) return '-';
                 return status === '신규' ? <Tag color="blue">신규</Tag> : <Tag color="gold">잔존</Tag>;
             },
         },
@@ -181,11 +178,7 @@ export default function RegionWiseRemarks() {
             width: 80,
             align: 'center',
             render: (_, r) => (
-                <Button
-                    size="small"
-                    disabled={!(r as any).targetChangeCount}
-                    onClick={() => openHistoryModal(r)}
-                >
+                <Button size="small" disabled={!(r as any).targetChangeCount} onClick={() => openHistoryModal(r)}>
                     보기
                 </Button>
             ),
@@ -206,10 +199,7 @@ export default function RegionWiseRemarks() {
                     style={{ width: '100%' }}
                 >
                     {monthOptions.map((m) => (
-                        <Option
-                            key={m}
-                            value={m}
-                        >
+                        <Option key={m} value={m}>
                             {m}
                         </Option>
                     ))}
@@ -246,23 +236,44 @@ export default function RegionWiseRemarks() {
         return Array.from(set).sort();
     }, [students]);
 
-    const getStatus = (r: Students): '신규' | '잔존' | '' => {
+    // ✅ 변경된 신규/잔존 판별 로직
+    const getStatus = (r: Students): '신규' | '잔존' => {
         const cnt = Number((r as any).targetChangeCount ?? 0);
+
+        // 1. 변경 횟수가 0이면 무조건 '신규'
         if (cnt === 0) return '신규';
+
         const prevTarget = String((r as any).prevTarget ?? '').trim();
         const currentTarget = String(targets[r.번호]?.month ?? r.target ?? '').trim();
-        if (!prevTarget || !currentTarget) return '';
-        const parseMonth = (v: string) => {
+
+        // 데이터가 누락된 예외 케이스 기본값 처리
+        if (!prevTarget || !currentTarget || prevTarget === '-' || currentTarget === '-') return '신규';
+
+        // '월' 파싱 및 '장기' 텍스트 처리 내장 함수
+        const parseMonthToNumber = (v: string) => {
+            if (v.includes('장기')) return 99; // 장기는 가장 큰 미래 숫자로 세팅
             const m = v.match(/(\d+)\s*월/);
             return m ? Number(m[1]) : null;
         };
-        const prevMonth = parseMonth(prevTarget);
-        const currMonth = parseMonth(currentTarget);
-        if (!prevMonth || !currMonth) return '';
-        const lastMonth = dayjs().subtract(1, 'month').month() + 1;
-        const thisMonth = dayjs().month() + 1;
-        if (prevMonth === lastMonth && currMonth === thisMonth) return '잔존';
-        return '';
+
+        const prevNum = parseMonthToNumber(prevTarget);
+        const currNum = parseMonthToNumber(currentTarget);
+
+        if (prevNum === null || currNum === null) return '신규';
+
+        // 2. 변경 횟수가 1회 이상이면서, 이전목표월보다 현재목표월이 더 크면(미래이면) '잔존'
+        // 연말/연초(예: 12월 -> 1월) 처리를 위해 현재달 기준 보정 처리를 하거나 단순 대소비교 적용
+        // 일반적인 단기 분기 이동 조건: 현재가 더 미래 월일 때
+        if (currNum > prevNum) {
+            return '잔존';
+        }
+
+        // 해가 바뀌는 조건 예외처리 (예: 이전은 11월, 12월인데 현재 설정이 1월, 2월인 경우)
+        if (prevNum >= 10 && currNum <= 3) {
+            return '잔존';
+        }
+
+        return '신규';
     };
 
     const openHistoryModal = async (record: Students) => {
@@ -351,16 +362,9 @@ export default function RegionWiseRemarks() {
     if (!isAdmin)
         return (
             <div className="p-10 text-center">
-                <Alert
-                    message="접근 권한 없음"
-                    type="error"
-                    showIcon
-                />
+                <Alert message="접근 권한 없음" type="error" showIcon />
                 <Link href="/student/view">
-                    <Button
-                        type="primary"
-                        className="mt-4"
-                    >
+                    <Button type="primary" className="mt-4">
                         돌아가기
                     </Button>
                 </Link>
@@ -371,10 +375,7 @@ export default function RegionWiseRemarks() {
         <div className="p-6">
             <h2 className="text-xl font-bold mb-4">지역별 합등 이상 특이사항 관리</h2>
             <div className="flex flex-wrap gap-2 mb-4">
-                <Button
-                    type={!selectedRegion ? 'primary' : 'default'}
-                    onClick={() => setSelectedRegion(null)}
-                >
+                <Button type={!selectedRegion ? 'primary' : 'default'} onClick={() => setSelectedRegion(null)}>
                     전체
                 </Button>
                 {allRegions.map((region) => (
@@ -399,11 +400,7 @@ export default function RegionWiseRemarks() {
                     <Button onClick={handleExportExcel}>엑셀 다운로드</Button>
                 </div>
                 <div className="flex gap-2 items-center">
-                    <Button
-                        type="primary"
-                        onClick={handleSave}
-                        loading={saving}
-                    >
+                    <Button type="primary" onClick={handleSave} loading={saving}>
                         저장하기
                     </Button>
                 </div>
