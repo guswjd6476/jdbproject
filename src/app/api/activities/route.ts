@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { PoolClient } from 'pg';
 import { verifyToken } from '@/app/lib/auth';
 import type { JwtPayload } from 'jsonwebtoken';
-import { getParameterizedQueryConditionForUser } from '@/app/lib/authUtils';
-
 type Role = '노방' | '온라인' | '만남' | '교사' | '잎사귀';
 const allowedRoles: Role[] = ['노방', '온라인', '만남', '교사', '잎사귀'];
 
@@ -205,14 +203,6 @@ export async function GET(request: NextRequest) {
             where.push(
                 `(m.이름 ILIKE $${baseValues.length} OR m.지역 ILIKE $${baseValues.length} OR m.구역 ILIKE $${baseValues.length})`
             );
-        }
-
-        const permissionParam = getParameterizedQueryConditionForUser(userEmail, baseValues.length + 1);
-        if (permissionParam?.condition) {
-            where.push(permissionParam.condition);
-            if (permissionParam.values?.length) {
-                baseValues.push(...permissionParam.values);
-            }
         }
 
         const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';

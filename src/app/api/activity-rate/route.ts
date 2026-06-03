@@ -2,7 +2,7 @@ import { pool } from '@/app/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/app/lib/auth';
 import type { JwtPayload } from 'jsonwebtoken';
-import { getParameterizedQueryConditionForUser } from '@/app/lib/authUtils';
+// import { getMemberTableQueryCondition } from '@/app/lib/authUtils';
 
 type PeriodType = 'daily' | 'weekly' | 'monthly';
 type Scope = 'all' | 'region';
@@ -122,16 +122,15 @@ export async function GET(request: NextRequest) {
         // 제외 지역
         values.push(EXCLUDED_REGIONS);
         memberWhere.push(`COALESCE(m.지역, '') <> ALL($${values.length})`);
-
         // 권한 필터
         // 반드시 m.지역 / m.구역 기준 조건을 반환해야 함
-        const permissionParam = getParameterizedQueryConditionForUser(userEmail, values.length + 1);
-        if (permissionParam?.condition) {
-            memberWhere.push(permissionParam.condition);
-            if (permissionParam.values?.length) {
-                values.push(...permissionParam.values);
-            }
-        }
+        // const permissionParam = getMemberTableQueryCondition(userEmail, 'm', values.length + 1);
+        // if (permissionParam?.condition) {
+        //     memberWhere.push(permissionParam.condition);
+        //     if (permissionParam.values?.length) {
+        //         values.push(...permissionParam.values);
+        //     }
+        // }
 
         if (scope === 'region') {
             values.push(region);

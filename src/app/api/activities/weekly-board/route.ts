@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import { verifyToken } from '@/app/lib/auth';
 import type { JwtPayload } from 'jsonwebtoken';
-import { getMemberTableQueryCondition } from '@/app/lib/authUtils';
+// import { getMemberTableQueryCondition } from '@/app/lib/authUtils';
 
 dayjs.extend(isoWeek);
 
@@ -43,14 +43,15 @@ export async function GET(req: NextRequest) {
         const weekStart = dayjs(baseDate).startOf('isoWeek').format('YYYY-MM-DD');
         const weekEnd = dayjs(baseDate).endOf('isoWeek').format('YYYY-MM-DD');
 
-        const memberAuth = getMemberTableQueryCondition(userEmail, 'm', 3);
-        const memberAuthSql = memberAuth.condition ? ` AND ${memberAuth.condition}` : '';
-        const memberAuthValues = memberAuth.values ?? [];
+        // const memberAuth = getMemberTableQueryCondition(userEmail, 'm', 3);
+        // const memberAuthSql = memberAuth.condition ? ` AND ${memberAuth.condition}` : '';
+        // const memberAuthValues = memberAuth.values ?? [];
 
-        const activityAuth = getMemberTableQueryCondition(userEmail, 'm', 3);
-        const activityAuthSql = activityAuth.condition ? ` AND ${activityAuth.condition}` : '';
-        const activityAuthValues = activityAuth.values ?? [];
-
+        // const activityAuth = getMemberTableQueryCondition(userEmail, 'm', 3);
+        // const activityAuthSql = activityAuth.condition ? ` AND ${activityAuth.condition}` : '';
+        // const activityAuthValues = activityAuth.values ?? [];
+        const memberAuthSql = '';
+        const activityAuthSql = '';
         const sql = `
             WITH base_groups AS (
                 SELECT DISTINCT
@@ -127,7 +128,8 @@ export async function GET(req: NextRequest) {
                 g.subteam NULLS LAST
         `;
 
-        const values = [weekStart, weekEnd, ...activityAuthValues, ...activityAuthValues, ...memberAuthValues];
+        const values = [weekStart, weekEnd];
+        // const values = [weekStart, weekEnd, ...activityAuthValues, ...activityAuthValues, ...memberAuthValues];
 
         const result = await client.query(sql, values);
 
