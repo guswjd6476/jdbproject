@@ -46,7 +46,7 @@ export async function getTeachersDataDirectly(): Promise<TeacherData[]> {
                 END AS "활동여부",
                 (
                     SELECT COUNT(*) FROM students s
-                    WHERE s.교사_고游번호 = m.고유번호 AND s.단계 IN ('섭', '복', '예정', '센확')
+                    WHERE s.교사_고유번호 = m.고유번호 AND s.단계 IN ('섭', '복', '예정', '센확')
                 ) AS "c이상건수",
                 -- 섭외자(학생) 이름들을 콤마로 연결하여 가져오는 서브쿼리 추가
                 (
