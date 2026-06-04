@@ -26,10 +26,11 @@ const STAGE_OPTIONS = [
     '복',
     '예정',
     '탈락',
-    ...Array.from({ length: 3 }, (_, i) => {
-        const date = dayjs().add(i - 1, 'month');
+    ...Array.from({ length: 7 }, (_, i) => {
+        const date = dayjs().add(i - 3, 'month');
         return `${date.year()}년 ${date.month() + 1}월센등`;
     }),
+
     '센확',
 ];
 
@@ -284,7 +285,7 @@ export default function AdminStudentManager() {
                         />
                     );
                 },
-            })
+            }),
         ),
         {
             title: '목표월',
