@@ -149,7 +149,8 @@ function generateReportText(rows: TeacherData[], region: string, sort: string, p
             return (
                 `${start + idx + 1}. ${t.이름}\n` +
                 `   └ ${t.지역} / ${teamInfo} / ${t.활동여부}\n` +
-                `   └ 관리건수 : ${t.c이상건수}건`
+                `   └ 관리건수 : ${t.c이상건수}건\n` +
+                `   └ 실명단 : ${t.섭외자목록 || '없음'}`
             );
         })
         .join('\n\n');
