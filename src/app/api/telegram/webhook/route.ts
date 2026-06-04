@@ -13,7 +13,7 @@ import {
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
-
+const PAGE_SIZE = 15;
 function normalizeText(text: string) {
     return text.trim().replace(/\s+/g, ' ');
 }
@@ -61,21 +61,19 @@ async function sendTelegramDocument(chatId: number, fileBuffer: any, filename: s
 }
 
 // 갱신된 지역 리스트 반영 및 3열 자동 배치 키보드 빌더
-function buildRegionKeyboard(currentRegion: string, currentSort: string) {
-    // 보내주신 실제 지역 목록 전체 반영
+function buildRegionKeyboard(currentRegion: string, currentSort: string, page: number, totalPages: number) {
     const regions = ['전체', '도봉', '성북', '노원', '중랑', '강북', '대학', '새신자', '이음'];
 
     const inline_keyboard: any[][] = [];
     let currentRow: any[] = [];
 
-    // 모바일 화면에서 보기 좋게 3개씩 끊어서 한 줄에 배치
     regions.forEach((region) => {
         const isSelected = currentRegion === region;
         const displayRegion = region === '전체' ? '청년회 전체' : region;
 
         currentRow.push({
             text: isSelected ? `✅ ${displayRegion}` : displayRegion,
-            callback_data: `tg:${region}:${currentSort}`,
+            callback_data: `tg:${region}:${currentSort}:${page}`,
         });
 
         if (currentRow.length === 3) {
@@ -88,47 +86,79 @@ function buildRegionKeyboard(currentRegion: string, currentSort: string) {
         inline_keyboard.push(currentRow);
     }
 
-    // 맨 아래에 정렬 필터 버튼 2개 배치
     inline_keyboard.push([
         {
             text: currentSort === 'name' ? '🔠 이름순 정렬 중' : '정렬: 이름순',
-            callback_data: `tg:${currentRegion}:name`,
+            callback_data: `tg:${currentRegion}:name:1`,
         },
         {
-            text: currentSort === 'count' ? '🔥 섭외자 많은순 중' : '정렬: 섭외자수',
-            callback_data: `tg:${currentRegion}:count`,
+            text: currentSort === 'count' ? '🔥 섭외자수순 정렬 중' : '정렬: 섭외자수',
+            callback_data: `tg:${currentRegion}:count:1`,
         },
     ]);
+
+    if (totalPages > 1) {
+        inline_keyboard.push([
+            {
+                text: '⬅️ 이전',
+                callback_data: `tg:${currentRegion}:${currentSort}:${Math.max(1, page - 1)}`,
+            },
+            {
+                text: `${page}/${totalPages}`,
+                callback_data: 'ignore',
+            },
+            {
+                text: '➡️ 다음',
+                callback_data: `tg:${currentRegion}:${currentSort}:${Math.min(totalPages, page + 1)}`,
+            },
+        ]);
+    }
 
     return { inline_keyboard };
 }
 
-function generateReportText(rows: TeacherData[], region: string, sort: string): string {
+function generateReportText(rows: TeacherData[], region: string, sort: string, page: number) {
     let list = rows.filter((t) => !t.fail);
 
-    // 선택된 지역 필터링링
     if (region !== '전체') {
         list = list.filter((t) => t.지역 === region);
     }
 
-    // 소팅 필터링
     if (sort === 'name') {
         list.sort((a, b) => a.이름.localeCompare(b.이름));
-    } else if (sort === 'count') {
+    } else {
         list.sort((a, b) => b.c이상건수 - a.c이상건수);
     }
 
-    const title = `📍 **지역별 교사 활동 현황 [${region === '전체' ? '청년회 전체' : region} / ${sort === 'name' ? '이름순' : '섭외자수순'}]**\n`;
-    const body = list
+    const totalCount = list.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+    const start = (page - 1) * PAGE_SIZE;
+    const pagedList = list.slice(start, start + PAGE_SIZE);
+
+    const title =
+        `📍 지역별 교사 활동 현황\n` +
+        `[${region}] / ${sort === 'name' ? '이름순' : '섭외자수순'}\n` +
+        `페이지 ${page}/${totalPages}\n` +
+        `전체 ${totalCount}명\n\n`;
+
+    const body = pagedList
         .map((t, idx) => {
             const teamInfo = t.구역 ? `${t.구역.split('-')[0]}팀` : '미지정';
-            return `${idx + 1}. **${t.이름}** (${t.지역}-${teamInfo} / ${t.활동여부})\n   └ 👥 섭외 대상자: _${t.섭외자목록 || '없음'}_\n   └ 총 관리 건수: ${t.c이상건수}건`;
+
+            return (
+                `${start + idx + 1}. ${t.이름}\n` +
+                `   └ ${t.지역} / ${teamInfo} / ${t.활동여부}\n` +
+                `   └ 관리건수 : ${t.c이상건수}건`
+            );
         })
         .join('\n\n');
 
-    return `${title}\n${body || '해당 지역에 등록된 교사가 없습니다.'}`;
+    return {
+        text: title + body,
+        totalPages,
+    };
 }
-
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
@@ -143,13 +173,21 @@ export async function POST(request: NextRequest) {
             const dataStr = callbackQuery.data;
 
             if (dataStr && dataStr.startsWith('tg:')) {
-                const [_, region, sort] = dataStr.split(':');
+                const [_, region, sort, pageStr] = dataStr.split(':');
+
+                if (region === 'ignore') {
+                    return NextResponse.json({ ok: true });
+                }
+
+                const page = Number(pageStr || 1);
 
                 const rows = await getTeachersDataDirectly();
-                const updatedReport = generateReportText(rows, region, sort);
-                const updatedKeyboard = buildRegionKeyboard(region, sort);
 
-                await editTelegramMessage(chatId, messageId, updatedReport, updatedKeyboard);
+                const result = generateReportText(rows, region, sort, page);
+
+                const keyboard = buildRegionKeyboard(region, sort, page, result.totalPages);
+
+                await editTelegramMessage(chatId, messageId, result.text, keyboard);
             }
 
             await fetch(`${TELEGRAM_API}/answerCallbackQuery`, {
@@ -244,15 +282,15 @@ export async function POST(request: NextRequest) {
 
         if (isRegionCommand) {
             const rows = await getTeachersDataDirectly();
-            const report = generateReportText(rows, '전체', 'name');
-            const keyboard = buildRegionKeyboard('전체', 'name');
+            const result = generateReportText(rows, '전체', 'name', 1);
 
+            const keyboard = buildRegionKeyboard('전체', 'name', 1, result.totalPages);
             await fetch(`${TELEGRAM_API}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     chat_id: chatId,
-                    text: report,
+                    text: result.text,
                     parse_mode: 'Markdown',
                     reply_markup: keyboard,
                 }),
