@@ -113,7 +113,7 @@ export const get_DEFAULT_예정_goals = (month: number): Record<Region, 예정Go
             강북: { team1: '1.5', team2: '1.5', team3: '1.5', 사랑: '0.5' }, // 합: 5
             대학: { team1: '0.5', team2: '0.5', team3: '0.5', team4: '0.5', 사랑: '0' }, // 합: 2
             새신자: { team1: '1.5', team2: '1.5' }, // 합: 3
-            이음: { team1: '0.5', team2: '0.5' }, // 합: 1
+            이음: { team1: '1' }, // 합: 1
         };
     } else {
         // 홀수 달: 5개 지역 2점 / 대학 15점 / 새신자 3점 / 이음 1점
@@ -125,7 +125,7 @@ export const get_DEFAULT_예정_goals = (month: number): Record<Region, 예정Go
             강북: { team1: '0.5', team2: '0.5', team3: '0.5', 사랑: '0.5' }, // 합: 2
             대학: { team1: '3.5', team2: '3.5', team3: '3.5', team4: '3.5', 사랑: '1' }, // 합: 15
             새신자: { team1: '1.5', team2: '1.5' }, // 합: 3
-            이음: { team1: '0.5', team2: '0.5' }, // 합: 1
+            이음: { team1: '1' }, // 합: 1
         };
     }
 };
