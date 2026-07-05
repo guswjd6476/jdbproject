@@ -1,7 +1,6 @@
 import { pool } from '@/app/lib/db';
 import { NextResponse } from 'next/server';
 
-// Request 인터페이스에서 conversionRates 제거
 interface ConfigRequest {
     region: string;
     month: number;
@@ -11,96 +10,115 @@ interface ConfigRequest {
     goalMultipliers: Record<string, Record<string, number>>;
 }
 
-export async function POST(request: Request) {
-    let client;
-    try {
-        // conversionRates 제거
-        const { region, month, year, fGoals, weeklyPercentages, goalMultipliers } =
-            (await request.json()) as ConfigRequest;
+// ✅ 추가된 비즈니스 로직: 지역 및 홀/짝수 달에 따른 목표 점수 계산
+const getRegionTargetPoints = (region: string, month: number): number => {
+    const isEvenMonth = month % 2 === 0;
+    const groupA = ['도봉', '성북', '노원', '중랑', '강북'];
 
+    // 1. 도봉, 성북, 노원, 중랑, 강북 (짝수: 5점 / 홀수: 2점)
+    if (groupA.includes(region)) {
+        return isEvenMonth ? 5 : 2;
+    }
+    // 2. 대학 (짝수: 2점 / 홀수: 15점)
+    if (region === '대학') {
+        return isEvenMonth ? 2 : 15;
+    }
+    // 3. 새신자 (고정 3점)
+    if (region === '새신자') {
+        return 3;
+    }
+    // 4. 이음 (고정 1점)
+    if (region === '이음') {
+        return 1;
+    }
+
+    return 0; // 예외/기본값 처리
+};
+
+export async function POST(request: Request) {
+    try {
+        const body = (await request.json()) as ConfigRequest;
+        const { region, month, year, fGoals, weeklyPercentages, goalMultipliers } = body;
+
+        // Validation
         if (!region || !month || !year || !fGoals || !weeklyPercentages) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
-
         if (month < 1 || month > 12) {
             return NextResponse.json({ error: 'Invalid month' }, { status: 400 });
         }
 
-        client = await pool.connect();
+        // ✅ 단일 쿼리는 pool.query()로 실행 (자동으로 커넥션을 가져오고 반환함)
+        const query = `
+            INSERT INTO region_configs (
+                region, month, year,
+                예정_goals, weekly_percentages,
+                conversion_rates, updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+            ON CONFLICT (region, month, year)
+            DO UPDATE SET
+                예정_goals = EXCLUDED.예정_goals,
+                weekly_percentages = EXCLUDED.weekly_percentages,
+                conversion_rates = EXCLUDED.conversion_rates,
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING id, created_at, updated_at;
+        `;
 
-        // conversion_rates 필드에 빈 JSON 객체 추가
-        const result = await client.query(
-            `
-      INSERT INTO region_configs (
-        region, month, year,
-        예정_goals, weekly_percentages,
-        conversion_rates, updated_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-      ON CONFLICT (region, month, year)
-      DO UPDATE SET
-        예정_goals = EXCLUDED.예정_goals,
-        weekly_percentages = EXCLUDED.weekly_percentages,
-        conversion_rates = EXCLUDED.conversion_rates,
-        updated_at = CURRENT_TIMESTAMP
-      RETURNING id, created_at, updated_at;
-    `,
-            [
-                region,
-                month,
-                year,
-                JSON.stringify(fGoals),
-                JSON.stringify(weeklyPercentages),
-                JSON.stringify(goalMultipliers), // conversion_rates 빈 JSON 삽입
-            ]
-        );
+        const values = [
+            region,
+            month,
+            year,
+            JSON.stringify(fGoals),
+            JSON.stringify(weeklyPercentages),
+            JSON.stringify(goalMultipliers),
+        ];
+
+        const result = await pool.query(query, values);
 
         return NextResponse.json({ success: true, data: result.rows[0] }, { status: 200 });
     } catch (error) {
         console.error('Error saving config:', error);
         return NextResponse.json({ error: 'Failed to save configuration' }, { status: 500 });
-    } finally {
-        if (client) {
-            client.release();
-        }
     }
 }
 
 export async function GET(request: Request) {
-    let client;
     try {
         const { searchParams } = new URL(request.url);
         const region = searchParams.get('region');
-        const month = parseInt(searchParams.get('month') || '0');
-        const year = parseInt(searchParams.get('year') || '0');
+        const month = parseInt(searchParams.get('month') || '0', 10);
+        const year = parseInt(searchParams.get('year') || '0', 10);
 
+        // Validation
         if (!region || !month || !year || month < 1 || month > 12) {
             return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
         }
 
-        client = await pool.connect();
+        // ✅ 단일 쿼리 실행
+        const query = `
+            SELECT 예정_goals, weekly_percentages, conversion_rates
+            FROM region_configs
+            WHERE region = $1 AND month = $2 AND year = $3;
+        `;
 
-        // conversion_rates도 SELECT에 포함할지 여부는 필요에 따라 선택 가능
-        const result = await client.query(
-            `
-      SELECT 예정_goals, weekly_percentages,conversion_rates
-      FROM region_configs
-      WHERE region = $1 AND month = $2 AND year = $3;
-    `,
-            [region, month, year]
+        const result = await pool.query(query, [region, month, year]);
+
+        // 데이터가 없으면 null 반환
+        const data = result.rows.length > 0 ? result.rows[0] : null;
+
+        // ✅ 프론트엔드에서 계산된 기준 점수를 바로 쓸 수 있도록 타겟 포인트 추가 반환
+        const targetPoints = getRegionTargetPoints(region, month);
+
+        return NextResponse.json(
+            {
+                data,
+                targetPoints,
+            },
+            { status: 200 },
         );
-
-        if (result.rows.length === 0) {
-            return NextResponse.json({ data: null }, { status: 200 });
-        }
-
-        return NextResponse.json({ data: result.rows[0] }, { status: 200 });
     } catch (error) {
         console.error('Error fetching config:', error);
         return NextResponse.json({ error: 'Failed to fetch configuration' }, { status: 500 });
-    } finally {
-        if (client) {
-            client.release();
-        }
     }
 }

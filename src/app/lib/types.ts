@@ -97,17 +97,37 @@ export interface RawStudent {
     g?: string | null; // 탈락일
     [key: string]: string | number | null | undefined;
 }
-export type Region = (typeof REGIONS)[number];
 
-export const DEFAULT_예정_goals: Record<Region, 예정Goals> = {
-    도봉: { team1: '3', team2: '3', team3: '3', 사랑: '1' },
-    성북: { team1: '2.5', team2: '2.5', team3: '2.5', team4: '2.5', 사랑: '0' },
-    노원: { team1: '5', team2: '5', 사랑: '0' },
-    중랑: { team1: '3', team2: '3', team3: '3', 사랑: '1' },
-    강북: { team1: '3', team2: '3', team3: '3', 사랑: '1' },
-    대학: { team1: '2.5', team2: '2.5', team3: '2.5', team4: '2.5', 사랑: '0' },
-    새신자: { team1: '1', team2: '1' },
-    이음: { team1: '0.5', team2: '0.5' },
+export type Region = '도봉' | '성북' | '노원' | '중랑' | '강북' | '대학' | '새신자' | '이음';
+
+export const get_DEFAULT_예정_goals = (month: number): Record<Region, 예정Goals> => {
+    const isEvenMonth = month % 2 === 0;
+
+    if (isEvenMonth) {
+        // 짝수 달: 5개 지역 5점 / 대학 2점 / 새신자 3점 / 이음 1점
+        return {
+            도봉: { team1: '1.5', team2: '1.5', team3: '1.5', 사랑: '0.5' }, // 합: 5
+            성북: { team1: '1', team2: '1', team3: '1.5', team4: '1.5', 사랑: '0' }, // 합: 5
+            노원: { team1: '1.5', team2: '1.5', team3: '1.5', 사랑: '0.5' }, // 합: 5
+            중랑: { team1: '2', team2: '2', team3: '1', 사랑: '0' }, // 합: 5
+            강북: { team1: '1.5', team2: '1.5', team3: '1.5', 사랑: '0.5' }, // 합: 5
+            대학: { team1: '0.5', team2: '0.5', team3: '0.5', team4: '0.5', 사랑: '0' }, // 합: 2
+            새신자: { team1: '1.5', team2: '1.5' }, // 합: 3
+            이음: { team1: '0.5', team2: '0.5' }, // 합: 1
+        };
+    } else {
+        // 홀수 달: 5개 지역 2점 / 대학 15점 / 새신자 3점 / 이음 1점
+        return {
+            도봉: { team1: '0.5', team2: '0.5', team3: '0.5', 사랑: '0.5' }, // 합: 2
+            성북: { team1: '0.5', team2: '0.5', team3: '0.5', team4: '0.5', 사랑: '0' }, // 합: 2
+            노원: { team1: '1', team2: '1', 사랑: '0' }, // 합: 2
+            중랑: { team1: '0.5', team2: '0.5', team3: '0.5', 사랑: '0.5' }, // 합: 2
+            강북: { team1: '0.5', team2: '0.5', team3: '0.5', 사랑: '0.5' }, // 합: 2
+            대학: { team1: '4', team2: '4', team3: '4', team4: '4', 사랑: '0' }, // 합: 15
+            새신자: { team1: '1.5', team2: '1.5' }, // 합: 3
+            이음: { team1: '0.5', team2: '0.5' }, // 합: 1
+        };
+    }
 };
 
 export interface TableRow {
