@@ -46,7 +46,6 @@ const getUnit = (step: Step) => (['발', '찾', '합'].includes(step) ? 1 : 0.5)
 const roundToUnit = (value: number, unit: number) => Math.round(value / unit) * unit;
 const getWeekCount = (year: number, month: number) => (year < 2025 || (year === 2025 && month <= 8) ? 5 : 8);
 
-// 반복되는 Step 객체 초기화 헬퍼
 const initSteps = <T,>(initVal: () => T): Record<Step, T> =>
     steps.reduce((acc, step) => ({ ...acc, [step]: initVal() }), {} as Record<Step, T>);
 
@@ -81,7 +80,6 @@ const distributeWeeklyGoals = (monthlyGoals: Record<Step, number>, weekCount: nu
             wSum = weekCount;
         }
 
-        // Hamilton method
         const quotas = wArr.map((w) => (totalUnits * w) / wSum);
         const unitsPerWeek = quotas.map((q) => Math.floor(q));
 
@@ -113,7 +111,7 @@ const extractTeamFromRaw = (raw?: string) => {
 
 const normalizeTeamForAchievements = (region: string, rawTeam: string) => {
     const team = extractTeamFromRaw(rawTeam);
-    if (team === '사랑') return region === '중랑' ? '사랑' : ''; // ✅ 핵심: 중랑만 표시
+    if (team === '사랑') return region === '중랑' ? '사랑' : '';
     return team;
 };
 
@@ -159,7 +157,13 @@ const calculateMonthlySummary = (results: Results, achievements: Achievements, r
     return summary;
 };
 
-const calculateWeeklyAchievements = (students: Students[], month: number, year: number): Achievements => {
+// ✅ 지연 기능 추가: 파라미터로 weekOffset을 받습니다.
+const calculateWeeklyAchievements = (
+    students: Students[],
+    month: number,
+    year: number,
+    weekOffset: number,
+): Achievements => {
     const weekly: Achievements = {};
     const weekCount = getWeekCount(year, month);
 
@@ -190,13 +194,14 @@ const calculateWeeklyAchievements = (students: Students[], month: number, year: 
                 : [{ region: leaderRegion, team: leaderTeam, score: 1 }];
 
             targets.forEach(({ region, team, score }) => {
-                if (!REGIONS.includes(region as Region) || !team) return; // ✅ 사랑팀(중랑 외) 필터링
+                if (!REGIONS.includes(region as Region) || !team) return;
 
                 for (let i = 0; i < weekCount; i++) {
-                    const { start, end } = getWeekDateRange(year, month, i);
+                    // ✅ 핵심: 날짜 계산 시 i 에 weekOffset을 더해줍니다!
+                    const { start, end } = getWeekDateRange(year, month, i + weekOffset);
                     if (!date.isBetween(start, end, 'day', '[]')) continue;
 
-                    const weekKey = `week${i + 1}`;
+                    const weekKey = `week${i + 1}`; // 주차 표시는 그대로 week1, week2 유지
                     weekly[region] ??= {};
                     weekly[region][team] ??= {};
                     weekly[region][team][weekKey] ??= initSteps(() => ({ all: 0, target: 0 }));
@@ -216,7 +221,6 @@ const calculateWeeklyAchievements = (students: Students[], month: number, year: 
 };
 
 const initializeResults = (region: Region, year: number, month: number): Results => {
-    // ✅ Fix 1: get_DEFAULT_예정_goals 에 month 인자 전달
     const regionFGoals = get_DEFAULT_예정_goals(month)[region];
     const emptyResult = { teams: [], totals: initSteps(() => 0) };
     if (!regionFGoals) return emptyResult;
@@ -233,10 +237,8 @@ const initializeResults = (region: Region, year: number, month: number): Results
         .map(([teamId, goal]) => createTeamResult(teamId.replace('team', ''), goal))
         .filter((t): t is TeamResult => t !== null);
 
-    // ✅ Fix 2: TypeScript에게 타입 명시 (Record<string, string>)
     const fGoalsRecord = regionFGoals as Record<string, string>;
 
-    // ✅ 중랑만 사랑팀 추가
     if (region === '중랑' && Number(fGoalsRecord['team4'] ?? 0) > 0) {
         const loveTeam = createTeamResult('사랑', fGoalsRecord['team4']);
         if (loveTeam) baseTeams.push(loveTeam);
@@ -264,7 +266,6 @@ const getRateStyle = (rate: number): React.CSSProperties => {
     return { backgroundColor: '#ffa39e' };
 };
 
-// 💡 렌더링 로직 분리: 테이블 Row 데이터 생성기
 const generateWeekRows = (data: { region: string; results: Results }[], achievements: Achievements, wIdx: number) => {
     const weekKey = `week${wIdx + 1}`;
     const needsFormat = ['합', '섭', '복', '예정'];
@@ -313,7 +314,8 @@ const WeeklyGoalsTable: React.FC<{
     achievements: Achievements;
     selectedYear: number;
     selectedMonth: number;
-}> = ({ data, achievements, selectedYear, selectedMonth }) => {
+    weekOffset: number; // ✅ 지연 기능 추가: Props로 받습니다.
+}> = ({ data, achievements, selectedYear, selectedMonth, weekOffset }) => {
     const weekCount = getWeekCount(selectedYear, selectedMonth);
 
     const columns: ColumnsType<any> = [
@@ -343,8 +345,9 @@ const WeeklyGoalsTable: React.FC<{
     return (
         <>
             {Array.from({ length: weekCount }).map((_, wIdx) => {
-                const { display } = getWeekDateRange(selectedYear, selectedMonth, wIdx);
-                const dataSource = generateWeekRows(data, achievements, wIdx); // 렌더링 최적화
+                // ✅ 핵심: 테이블 헤더에 표시할 날짜 범위 텍스트에도 offset 반영
+                const { display } = getWeekDateRange(selectedYear, selectedMonth, wIdx + weekOffset);
+                const dataSource = generateWeekRows(data, achievements, wIdx);
 
                 return (
                     <div key={wIdx} className="mb-10">
@@ -379,9 +382,12 @@ export default function GoalPage() {
     const [viewMode, setViewMode] = useState<'region' | 'month'>('region');
     const [region, setRegion] = useState<Region>('도봉');
 
+    // ✅ 시작 지연 상태 추가 (0: 정상시작, 1: 1주 밀림, 2: 2주 밀림)
+    const [weekOffset, setWeekOffset] = useState<number>(0);
+
     const weeklyAchievements = useMemo(
-        () => calculateWeeklyAchievements(students, selectedMonth, selectedYear),
-        [students, selectedMonth, selectedYear],
+        () => calculateWeeklyAchievements(students, selectedMonth, selectedYear, weekOffset), // ✅ offset 전달
+        [students, selectedMonth, selectedYear, weekOffset],
     );
 
     useEffect(() => {
@@ -395,7 +401,6 @@ export default function GoalPage() {
 
     const allRegionsResults = useMemo(() => {
         if (viewMode !== 'month') return [];
-        // ✅ Fix 3: map의 r 변수를 명시적으로 Region으로 캐스팅
         return REGIONS.map((r) => ({
             region: r as Region,
             results: initializeResults(r as Region, selectedYear, selectedMonth),
@@ -442,6 +447,17 @@ export default function GoalPage() {
                     ))}
                 </select>
 
+                {/* ✅ 시작 주차 지연 선택기 추가 */}
+                <select
+                    className="border rounded p-1 bg-gray-50"
+                    value={weekOffset}
+                    onChange={(e) => setWeekOffset(+e.target.value)}
+                >
+                    <option value={0}>정상 시작</option>
+                    <option value={1}>1주 지연</option>
+                    <option value={2}>2주 지연</option>
+                </select>
+
                 {viewMode === 'region' && userRegion === 'all' && (
                     <select
                         className="border rounded p-1"
@@ -484,6 +500,7 @@ export default function GoalPage() {
                 achievements={weeklyAchievements}
                 selectedYear={selectedYear}
                 selectedMonth={selectedMonth}
+                weekOffset={weekOffset} /* ✅ props 전달 */
             />
         </div>
     );

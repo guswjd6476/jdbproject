@@ -37,7 +37,7 @@ export const STEPS = ['발', '찾', '합', '섭', '복', '예정', '탈락'] as 
 export const STEPS2 = ['발', '찾', '합', '섭', '복', '예정'] as const;
 export type STEP = '발' | '찾' | '합' | '섭' | '복' | '예정' | '탈락';
 export type STEP2 = '발' | '찾' | '합' | '섭' | '복' | '예정';
-export const REGIONS = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자'];
+export const REGIONS = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자', '이음'];
 export const fixedTeams = ['1', '2', '3', '4', '5'] satisfies readonly string[];
 export interface WeeklyGoals {
     발: number;
