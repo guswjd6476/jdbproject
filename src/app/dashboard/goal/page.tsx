@@ -19,68 +19,7 @@ dayjs.extend(isBetween);
 const steps = ['발', '찾', '합', '섭', '복', '예정'] as const;
 type Step = (typeof steps)[number];
 
-<<<<<<< HEAD
-/* =====================================================
- * ✅ 목표 생성: 예정Goal 기반 배수
- * ===================================================== */
-const GOAL_MULTIPLIERS: Record<Step, number> = {
-    발: 20,
-    찾: 10,
-    합: 4,
-    섭: 2,
-    복: 1.5,
-    예정: 1,
-};
-
-/* =====================================================
- * ✅ 단위 정책 (0.25 절대 없음)
- * - 발/찾/합: 1 단위
- * - 섭/복/예정: 0.5 단위
- * ===================================================== */
-const getUnit = (step: Step) => {
-    if (step === '발' || step === '찾' || step === '합') return 1;
-    return 0.5;
-};
-const roundToUnit = (value: number, unit: number) => Math.round(value / unit) * unit;
-
-/* =====================================================
- * ✅ 예정Goal 기반 월 목표 생성 (배수 적용 + 단위 보정)
- * ===================================================== */
-const buildMonthlyGoalsFrom예정 = (예정Goal: number): Record<Step, number> => {
-    const goals: Record<Step, number> = {
-        발: 예정Goal * GOAL_MULTIPLIERS.발,
-        찾: 예정Goal * GOAL_MULTIPLIERS.찾,
-        합: 예정Goal * GOAL_MULTIPLIERS.합,
-        섭: 예정Goal * GOAL_MULTIPLIERS.섭,
-        복: 예정Goal * GOAL_MULTIPLIERS.복,
-        예정: 예정Goal,
-    };
-
-    steps.forEach((s) => {
-        const unit = getUnit(s);
-        goals[s] = roundToUnit(goals[s], unit);
-        if (Object.is(goals[s], -0)) goals[s] = 0;
-    });
-
-    return goals;
-};
-
-/* =====================================================
- * 주차 수
- * ===================================================== */
-const getWeekCount = (year: number, month: string) => {
-    const m = Number(month);
-    if (year < 2025) return 5;
-    if (year === 2025 && m <= 8) return 5;
-    return 8;
-};
-
-/* =====================================================
- * ✅ 주차별 분배 가중치
- * ===================================================== */
-=======
 const GOAL_MULTIPLIERS: Record<Step, number> = { 발: 30, 찾: 10, 합: 4, 섭: 2, 복: 1.5, 예정: 1 };
->>>>>>> c2fbc45b8f4b3ae9f3fec44417b5d2f74e402062
 const WEEK_WEIGHTS: Record<number, Partial<Record<Step, number>>> = {
     0: { 발: 1 },
     1: { 발: 1, 찾: 1 },
@@ -223,7 +162,7 @@ const calculateWeeklyAchievements = (
     students: Students[],
     month: number,
     year: number,
-    weekOffset: number,
+    weekOffset: number
 ): Achievements => {
     const weekly: Achievements = {};
     const weekCount = getWeekCount(year, month);
@@ -312,7 +251,7 @@ const initializeResults = (region: Region, year: number, month: number): Results
             });
             return acc;
         },
-        initSteps(() => 0),
+        initSteps(() => 0)
     );
 
     return { teams: baseTeams, totals };
@@ -366,7 +305,7 @@ const generateWeekRows = (data: { region: string; results: Results }[], achievem
             });
 
             return row;
-        }),
+        })
     );
 };
 
@@ -411,14 +350,10 @@ const WeeklyGoalsTable: React.FC<{
                 const dataSource = generateWeekRows(data, achievements, wIdx);
 
                 return (
-<<<<<<< HEAD
                     <div
-                        key={weekKey}
+                        key={wIdx}
                         className="mb-10"
                     >
-=======
-                    <div key={wIdx} className="mb-10">
->>>>>>> c2fbc45b8f4b3ae9f3fec44417b5d2f74e402062
                         <h3 className="font-semibold mb-2">
                             {selectedYear}년 {selectedMonth}월 {wIdx + 1}주차 ({display})
                         </h3>
@@ -455,7 +390,7 @@ export default function GoalPage() {
 
     const weeklyAchievements = useMemo(
         () => calculateWeeklyAchievements(students, selectedMonth, selectedYear, weekOffset), // ✅ offset 전달
-        [students, selectedMonth, selectedYear, weekOffset],
+        [students, selectedMonth, selectedYear, weekOffset]
     );
 
     useEffect(() => {
@@ -464,7 +399,7 @@ export default function GoalPage() {
 
     const results = useMemo(
         () => initializeResults(region, selectedYear, selectedMonth),
-        [region, selectedMonth, selectedYear],
+        [region, selectedMonth, selectedYear]
     );
 
     const allRegionsResults = useMemo(() => {
@@ -496,10 +431,7 @@ export default function GoalPage() {
 
             <div className="flex flex-wrap justify-center gap-3 mb-6">
                 <select
-<<<<<<< HEAD
-=======
                     className="border rounded p-1"
->>>>>>> c2fbc45b8f4b3ae9f3fec44417b5d2f74e402062
                     value={selectedYear}
                     onChange={(e) => setSelectedYear(+e.target.value)}
                 >
@@ -509,14 +441,9 @@ export default function GoalPage() {
                 </select>
 
                 <select
-<<<<<<< HEAD
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
-=======
                     className="border rounded p-1"
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(+e.target.value)}
->>>>>>> c2fbc45b8f4b3ae9f3fec44417b5d2f74e402062
                 >
                     {Array.from({ length: 12 }, (_, i) => (
                         <option key={i + 1}>{i + 1}</option>
@@ -536,10 +463,7 @@ export default function GoalPage() {
 
                 {viewMode === 'region' && userRegion === 'all' && (
                     <select
-<<<<<<< HEAD
-=======
                         className="border rounded p-1"
->>>>>>> c2fbc45b8f4b3ae9f3fec44417b5d2f74e402062
                         value={region}
                         onChange={(e) => setRegion(e.target.value as Region)}
                     >
@@ -562,26 +486,21 @@ export default function GoalPage() {
             {monthlySummary && (
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-4 mb-8">
                     {steps.map((s) => (
-<<<<<<< HEAD
                         <div
                             key={s}
-                            className="border rounded p-3 text-center"
+                            className="border rounded p-3 text-center bg-white shadow-sm"
                         >
-                            <div className="text-sm text-gray-500">{s}</div>
-                            <div className="font-bold">
-                                {monthlySummary[s].done} | {monthlySummary[s].goal}
-=======
-                        <div key={s} className="border rounded p-3 text-center bg-white shadow-sm">
                             <div className="text-sm text-gray-500 mb-1">{s}</div>
                             <div className="font-bold text-lg">
                                 {monthlySummary[s].done} <span className="text-gray-300 font-normal">|</span>{' '}
                                 {monthlySummary[s].goal}
                             </div>
                             <div
-                                className={`text-sm mt-1 font-medium ${monthlySummary[s].rate >= 100 ? 'text-green-600' : 'text-gray-600'}`}
+                                className={`text-sm mt-1 font-medium ${
+                                    monthlySummary[s].rate >= 100 ? 'text-green-600' : 'text-gray-600'
+                                }`}
                             >
                                 {monthlySummary[s].rate.toFixed(1)}%
->>>>>>> c2fbc45b8f4b3ae9f3fec44417b5d2f74e402062
                             </div>
                         </div>
                     ))}

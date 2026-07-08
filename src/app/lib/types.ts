@@ -98,17 +98,6 @@ export interface RawStudent {
     [key: string]: string | number | null | undefined;
 }
 
-<<<<<<< HEAD
-export const DEFAULT_예정_goals: Record<Region, 예정Goals> = {
-    도봉: { team1: '3', team2: '3', team3: '3', 사랑: '1' },
-    성북: { team1: '2.5', team2: '2.5', team3: '2.5', team4: '2.5', 사랑: '0' },
-    노원: { team1: '5', team2: '5', 사랑: '0' },
-    중랑: { team1: '2', team2: '2', team3: '1', 사랑: '0' },
-    강북: { team1: '3', team2: '3', team3: '3', 사랑: '1' },
-    대학: { team1: '2.5', team2: '2.5', team3: '2.5', team4: '2.5', 사랑: '0' },
-    새신자: { team1: '1', team2: '1' },
-    이음: { team1: '0.5', team2: '0.5' },
-=======
 export type Region = '도봉' | '성북' | '노원' | '중랑' | '강북' | '대학' | '새신자' | '이음';
 
 export const get_DEFAULT_예정_goals = (month: number): Record<Region, 예정Goals> => {
@@ -139,7 +128,6 @@ export const get_DEFAULT_예정_goals = (month: number): Record<Region, 예정Go
             이음: { team1: '1' }, // 합: 1
         };
     }
->>>>>>> c2fbc45b8f4b3ae9f3fec44417b5d2f74e402062
 };
 
 export interface TableRow {
