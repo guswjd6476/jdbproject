@@ -1,6 +1,8 @@
 import { pool } from '@/app/lib/db';
 import { REGIONS } from '@/app/lib/types';
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next'; // 💡 이것만 있으면 됩니다!
+import { getUserAuthInfo } from '@/app/lib/authUtils';
 
 interface Member {
     순번: number;
@@ -16,8 +18,26 @@ interface Member {
 const startsWithDigit = (s: string) => /^\d/.test((s ?? '').trim());
 
 export async function GET() {
+    // 🔒 [C4 보안 보완] 인자 값 없이 세션을 가져옵니다.
+    const session = await getServerSession();
+    if (!session || !session.user?.email) {
+        return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
+    }
+
+    // 🔒 [C4 보안 보완] 내 authUtils를 사용하여 이메일로 권한 판정
+    const authInfo = getUserAuthInfo(session.user.email);
+    if (authInfo.role === 'none') {
+        return NextResponse.json({ error: '접근 권한이 없습니다.' }, { status: 403 });
+    }
+
     const client = await pool.connect();
     try {
+        // 🔒 최고관리자(superAdmin)가 아니면 본인 소속 지역 데이터만 보게 강제 제한
+        let targetRegions = REGIONS;
+        if (authInfo.role !== 'superAdmin' && authInfo.region) {
+            targetRegions = [authInfo.region];
+        }
+
         const query = `
       SELECT
         지역,
@@ -27,7 +47,7 @@ export async function GET() {
       WHERE 지역 = ANY($1)
       GROUP BY 지역, 팀
     `;
-        const values = [REGIONS];
+        const values = [targetRegions];
         const { rows } = await client.query(query, values);
         return NextResponse.json(rows);
     } catch (error) {
@@ -39,6 +59,18 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+    // 🔒 [C4 보안 보완] 인자 값 없이 세션을 가져옵니다.
+    const session = await getServerSession();
+    if (!session || !session.user?.email) {
+        return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
+    }
+
+    // 🔒 [C4 보안 보완] 내 authUtils를 사용하여 이메일로 권한 판정
+    const authInfo = getUserAuthInfo(session.user.email);
+    if (authInfo.role === 'none') {
+        return NextResponse.json({ error: '접근 권한이 없습니다.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const membersRaw: Member[] = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
 
@@ -46,7 +78,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: '잘못된 요청' }, { status: 400 });
     }
 
-    // ✅ 고유번호가 "숫자로 시작"하는 것만 업서트 대상
+    // 고유번호가 "숫자로 시작"하는 것만 업서트 대상
     const members = membersRaw
         .map((m) => ({
             ...m,
@@ -60,9 +92,16 @@ export async function POST(request: Request) {
         }))
         .filter((m) => m.고유번호 && startsWithDigit(m.고유번호));
 
+    // 🔒 [C4 보안 보완] 최고관리자가 아닌데 다른 지역 데이터를 바꾸려고 하면 튕겨냄 (우회 차단)
+    if (authInfo.role !== 'superAdmin' && authInfo.region) {
+        const hasViolation = members.some((m) => m.지역 !== authInfo.region);
+        if (hasViolation) {
+            return NextResponse.json({ error: '본인 담당 지역 외의 데이터는 수정할 수 없습니다.' }, { status: 403 });
+        }
+    }
+
     const skipped = membersRaw.length - members.length;
 
-    // 숫자 고유번호가 하나도 없으면 그냥 성공 처리(문자/UUID는 그대로 둠)
     if (members.length === 0) {
         return NextResponse.json({
             message: '성공(업서트 대상 없음)',
@@ -76,7 +115,6 @@ export async function POST(request: Request) {
     try {
         await client.query('BEGIN');
 
-        // 1) 기존 고유번호들 일괄 조회 (✅ SQL 인젝션 제거: ANY($1))
         const ids = members.map((m) => m.고유번호);
         const { rows: existingMembers } = await client.query(
             `SELECT 순번, 이름, 고유번호, 등록구분, 등록상태, 등록사유, 지역, 구역
@@ -85,7 +123,6 @@ export async function POST(request: Request) {
             [ids]
         );
 
-        // 빠른 비교용 map
         const existingMap = new Map<string, any>();
         for (const r of existingMembers) existingMap.set(r.고유번호, r);
 
@@ -110,8 +147,6 @@ export async function POST(request: Request) {
             }
         }
 
-        // 2) INSERT + ON CONFLICT UPDATE
-        //    (네 방식 유지: values/placeholders 구성)
         const values: (number | string)[] = [];
         const valuePlaceholders: string[] = [];
 
@@ -128,7 +163,6 @@ export async function POST(request: Request) {
                 member.구역
             );
             const placeholders = Array.from({ length: 8 }, (_, j) => `$${idx + j + 1}`);
-            // updated_at은 NOW()로 넣는 구조 유지
             valuePlaceholders.push(`(${placeholders.join(', ')}, NOW())`);
         });
 
@@ -154,9 +188,9 @@ export async function POST(request: Request) {
         return NextResponse.json({
             message: '성공',
             updated: updatedMembers,
-            inserted: newMembers, // 필요 없으면 빼도 됨
+            inserted: newMembers,
             upsertedCount: members.length,
-            skippedNonNumeric: skipped, // ✅ 문자/UUID로 시작해서 제외된 수
+            skippedNonNumeric: skipped,
         });
     } catch (err) {
         await client.query('ROLLBACK');

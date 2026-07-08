@@ -1,20 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/favicon.ico', '/_next', '/api'];
+// [항상] 조직명이나 용어가 노출되지 않는 중립적 경로명 관리 (S12)
+// 인증 없이 '누구나' 접근 가능한 최소한의 공공 경로만 지정합니다.
+const ALLOWED_PUBLIC_PATHS = ['/login', '/favicon.ico'];
 
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
+
+    // [항상] 안전한 방식으로 쿠키 토큰 추출 (S1)
     const token = request.cookies.get('token')?.value;
 
-    const isPublic = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
+    // 1. Next.js 내부 에셋 및 정적 파일은 검증을 패스합니다.
+    if (pathname.startsWith('/_next') || pathname.startsWith('/images')) {
+        return NextResponse.next();
+    }
 
-    if (!token && !isPublic) {
+    // 2. 정확하게 일치하거나 퍼블릭으로 지정된 경로인지 체크 (S6 - 입력 위생 및 매칭)
+    const isPublicPage = ALLOWED_PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(path));
+
+    // 3. API 라우트 보안: 로그인 안 된 상태로 데이터 API(/api/...) 접근 시 401 에러 반환 (S4 위반 방지)
+    if (pathname.startsWith('/api')) {
+        // 단, 로그인 API 자체는 미인증 상태에서도 접근할 수 있어야 합니다.
+        if (pathname === '/api/login') {
+            return NextResponse.next();
+        }
+
+        if (!token) {
+            // [항상] 상세 에러나 경로를 유출하지 않고 중립적 에러만 반환 (S8)
+            return new NextResponse(JSON.stringify({ error: 'Unauthorized Access Denied' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+        return NextResponse.next();
+    }
+
+    // 4. 일반 페이지 보안: 토큰이 없고 퍼블릭 페이지도 아니라면 로그인 페이지로 강제 이동
+    if (!token && !isPublicPage) {
         return NextResponse.redirect(new URL('/login', request.url));
+    }
+
+    // 5. [선택반영] 이미 로그인한 유저가 /login에 접속하면 대시보드로 리다이렉트 (사용자 편의)
+    if (token && pathname === '/login') {
+        return NextResponse.redirect(new URL('/dashboard', request.url)); // 본인의 대시보드 주소로 변경
     }
 
     return NextResponse.next();
 }
 
+// 미들웨어가 모든 경로(API 포함)에서 항상 실행되도록 매처를 안전하게 확장합니다.
 export const config = {
-    matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+    matcher: [
+        /*
+         * 아래의 정적 파일을 제외한 모든 요청 경로와 일치하도록 설정:
+         * - _next/static (정적 파일들)
+         * - _next/image (이미지 최적화 파일들)
+         * - favicon.ico (파비콘 파일)
+         */
+        '/((?!_next/static|_next/image|favicon.ico).*)',
+    ],
 };
