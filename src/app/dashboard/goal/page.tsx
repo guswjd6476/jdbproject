@@ -23,7 +23,7 @@ type Step = (typeof steps)[number];
  * ✅ 목표 생성: 예정Goal 기반 배수
  * ===================================================== */
 const GOAL_MULTIPLIERS: Record<Step, number> = {
-    발: 30,
+    발: 20,
     찾: 10,
     합: 4,
     섭: 2,
@@ -337,7 +337,10 @@ const WeeklyGoalsTable: React.FC<{
                 ];
 
                 return (
-                    <div key={weekKey} className="mb-10">
+                    <div
+                        key={weekKey}
+                        className="mb-10"
+                    >
                         <h3 className="font-semibold mb-2">
                             {selectedYear}년 {selectedMonth}월 {wIdx + 1}주차 ({display})
                         </h3>
@@ -553,27 +556,40 @@ export default function GoalPage() {
 
             {/* 상단 컨트롤 */}
             <div className="flex flex-wrap justify-center gap-3 mb-6">
-                <select value={selectedYear} onChange={(e) => setSelectedYear(+e.target.value)}>
+                <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(+e.target.value)}
+                >
                     {[selectedYear - 1, selectedYear, selectedYear + 1].map((y) => (
                         <option key={y}>{y}</option>
                     ))}
                 </select>
 
-                <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                <select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                >
                     {Array.from({ length: 12 }, (_, i) => (
                         <option key={i + 1}>{i + 1}</option>
                     ))}
                 </select>
 
                 {viewMode === 'region' && userRegion === 'all' && (
-                    <select value={region} onChange={(e) => setRegion(e.target.value as Region)}>
+                    <select
+                        value={region}
+                        onChange={(e) => setRegion(e.target.value as Region)}
+                    >
                         {REGIONS.map((r) => (
                             <option key={r}>{r}</option>
                         ))}
                     </select>
                 )}
 
-                <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} optionType="button">
+                <Radio.Group
+                    value={viewMode}
+                    onChange={(e) => setViewMode(e.target.value)}
+                    optionType="button"
+                >
                     <Radio.Button value="region">지역별</Radio.Button>
                     <Radio.Button value="month">월별</Radio.Button>
                 </Radio.Group>
@@ -583,7 +599,10 @@ export default function GoalPage() {
             {monthlySummary && (
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-4 mb-8">
                     {steps.map((s) => (
-                        <div key={s} className="border rounded p-3 text-center">
+                        <div
+                            key={s}
+                            className="border rounded p-3 text-center"
+                        >
                             <div className="text-sm text-gray-500">{s}</div>
                             <div className="font-bold">
                                 {monthlySummary[s].done} | {monthlySummary[s].goal}
