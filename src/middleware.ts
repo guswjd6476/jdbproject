@@ -20,13 +20,12 @@ export function middleware(request: NextRequest) {
 
     // 3. API 라우트 보안: 로그인 안 된 상태로 데이터 API(/api/...) 접근 시 401 에러 반환 (S4 위반 방지)
     if (pathname.startsWith('/api')) {
-        // 단, 로그인 API 자체는 미인증 상태에서도 접근할 수 있어야 합니다.
-        if (pathname === '/api/login') {
+        // 💡 [수정] 로그인 API와 텔레그램 웹훅 API는 쿠키 검증을 패스하도록 설정
+        if (pathname === '/api/login' || pathname === '/api/telegram/webhook') {
             return NextResponse.next();
         }
 
         if (!token) {
-            // [항상] 상세 에러나 경로를 유출하지 않고 중립적 에러만 반환 (S8)
             return new NextResponse(JSON.stringify({ error: 'Unauthorized Access Denied' }), {
                 status: 401,
                 headers: { 'Content-Type': 'application/json' },
