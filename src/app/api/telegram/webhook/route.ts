@@ -285,7 +285,19 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         });
     });
 
-    const studentResult = await pool.query('SELECT * FROM students');
+    const studentResult = await pool.query(`
+    SELECT
+        s.*,
+        mi.지역 AS "인도자지역",
+        mi.구역 AS "인도자팀",
+        mt.지역 AS "교사지역",
+        mt.구역 AS "교사팀"
+    FROM students s
+    LEFT JOIN members mi
+        ON s.인도자_고유번호 = mi.고유번호
+    LEFT JOIN members mt
+        ON s.교사_고유번호 = mt.고유번호
+`);
     const achievements: any = {};
 
     studentResult.rows.forEach((s) => {
@@ -299,13 +311,13 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         const isTargetMonth = currentTarget === `${month}월` || currentTarget === `${String(month).padStart(2, '0')}월`;
 
         steps.forEach((step) => {
-            const stepColMap: Record<string, string> = {
-                발: '발 완료일',
-                찾: '찾 완료일',
-                합: '합 완료일',
-                섭: '섭 완료일',
-                복: '복 완료일',
-                예정: '만남예정일자',
+            const stepColMap: Record<Step, string> = {
+                발: '발_완료일',
+                찾: '찾_완료일',
+                합: '합_완료일',
+                섭: '섭_완료일',
+                복: '복_완료일',
+                예정: '예정_완료일',
             };
             const dateStr = s[stepColMap[step]];
             if (!dateStr) return;
@@ -534,7 +546,14 @@ export async function POST(request: NextRequest) {
 
             // 💡 [안전 장치]: 만약 현재 달 데이터를 조회했는데 실적이 0개라면,
             // 학생들이 주로 입력되어 있는 target 데이터가 있는 월로 서버 스코프 동기화 시도
-            const checkData = await pool.query('SELECT target FROM students WHERE target IS NOT NULL LIMIT 1');
+            const checkData = await pool.query(`
+    SELECT target
+    FROM students
+    WHERE target IS NOT NULL
+    GROUP BY target
+    ORDER BY COUNT(*) DESC
+    LIMIT 1
+`);
             if (checkData.rows.length > 0) {
                 const match = checkData.rows[0].target.match(/(\d+)월/);
                 if (match) {
