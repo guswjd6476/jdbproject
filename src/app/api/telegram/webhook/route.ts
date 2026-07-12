@@ -218,92 +218,88 @@ function generateReportText(rows: TeacherData[], region: string, sort: string, p
  * 🎯 [목표 달성] 데이터 처리 및 대시보드 렌더링 함수
  * ===================================================== */
 async function generateGoalReport(year: number, month: number, offset: number, regionIdx: number, weekIdx: number) {
-    // 💡 regionIdx가 -1이면 '전체', 0 이상이면 해당 지역명 지정
     const isAllRegions = regionIdx === -1;
     const regionName = isAllRegions ? '전체' : REGIONS[regionIdx];
     const weekCount = getWeekCount(year, month);
 
-    // 전체 지역일 경우 기준 점수는 모든 지역 점수의 합산 처리
     const targetPoints = isAllRegions
         ? REGIONS.reduce((sum, r) => sum + getRegionTargetPoints(r, month), 0)
         : getRegionTargetPoints(regionName, month);
 
-    // 💡 목표 데이터 세팅: 전체일 경우 모든 지역의 팀별 목표치를 추출하여 누적 합산
     const regionGoals = get_DEFAULT_예정_goals(month);
-    const combinedGoals: Record<string, number> = {};
-
-    if (isAllRegions) {
-        REGIONS.forEach((r) => {
-            const goals = regionGoals[r] ?? {};
-            Object.entries(goals).forEach(([teamKey, goalStr]) => {
-                let internalKey = normalizeTeamForAchievements(r, teamKey.replace('team', ''));
-                combinedGoals[internalKey] = (combinedGoals[internalKey] || 0) + Number(goalStr);
-            });
-        });
-    } else {
-        // 💡 regionName을 Region 타입으로 단언(as Region)하여 7053 에러를 해결합니다.
-        const goals = regionGoals[regionName as Region] ?? {};
-        Object.entries(goals).forEach(([teamKey, goalStr]) => {
-            let internalKey = normalizeTeamForAchievements(regionName as Region, teamKey.replace('team', ''));
-            combinedGoals[internalKey] = Number(goalStr);
-        });
-    }
-
     const teamsInfo: any[] = [];
-    Object.entries(combinedGoals).forEach(([internalKey, 예정Goal]) => {
-        if (!예정Goal || 예정Goal <= 0) return;
 
-        const monthlyGoals = initSteps(() => 0);
-        steps.forEach((step) => {
-            let val = roundToUnit(예정Goal * GOAL_MULTIPLIERS[step], getUnit(step));
-            monthlyGoals[step] = Object.is(val, -0) ? 0 : val;
-        });
+    const regionsToProcess = isAllRegions ? REGIONS : [regionName as Region];
 
-        const weeklyGoals = Array.from({ length: weekCount }, () => initSteps(() => 0));
+    regionsToProcess.forEach((r) => {
+        const goals = regionGoals[r] ?? {};
 
-        steps.forEach((step) => {
-            const totalGoal = monthlyGoals[step];
-            if (!totalGoal) return;
+        Object.entries(goals).forEach(([teamKey, goalStr]) => {
+            const 예정Goal = Number(goalStr);
+            if (!예정Goal || 예정Goal <= 0) return;
 
-            const unit = getUnit(step);
-            const totalUnits = Math.round(totalGoal / unit);
-
-            let wArr = Array.from({ length: weekCount }, (_, i) => WEEK_WEIGHTS[i]?.[step] ?? 0);
-            let wSum = wArr.reduce((a, b) => a + b, 0);
-
-            if (wSum === 0) {
-                wArr = Array(weekCount).fill(1);
-                wSum = weekCount;
-            }
-
-            const quotas = wArr.map((w) => (totalUnits * w) / wSum);
-            const units = quotas.map(Math.floor);
-
-            let remain = totalUnits - units.reduce((a, b) => a + b, 0);
-            const remainders = quotas.map((q, i) => ({ i, r: q - Math.floor(q) })).sort((a, b) => b.r - a.r);
-
-            let idx = 0;
-            while (remain > 0) {
-                units[remainders[idx % weekCount].i] += 1;
-                remain -= 1;
-                idx += 1;
-            }
-
-            units.forEach((v, i) => {
-                weeklyGoals[i][step] = v * unit;
+            const monthlyGoals = initSteps(() => 0);
+            steps.forEach((step) => {
+                let val = roundToUnit(예정Goal * GOAL_MULTIPLIERS[step], getUnit(step));
+                monthlyGoals[step] = Object.is(val, -0) ? 0 : val;
             });
-        });
 
-        teamsInfo.push({
-            teamKey: internalKey,
-            displayTeam: internalKey === '사랑' ? '사랑' : `${internalKey}팀`,
-            monthlyGoals,
-            weeklyGoals,
+            const weeklyGoals = Array.from({ length: weekCount }, () => initSteps(() => 0));
+            steps.forEach((step) => {
+                const totalGoal = monthlyGoals[step];
+                if (!totalGoal) return;
+
+                const unit = getUnit(step);
+                const totalUnits = Math.round(totalGoal / unit);
+
+                let wArr = Array.from({ length: weekCount }, (_, i) => WEEK_WEIGHTS[i]?.[step] ?? 0);
+                let wSum = wArr.reduce((a, b) => a + b, 0);
+
+                if (wSum === 0) {
+                    wArr = Array(weekCount).fill(1);
+                    wSum = weekCount;
+                }
+
+                const quotas = wArr.map((w) => (totalUnits * w) / wSum);
+                const units = quotas.map(Math.floor);
+
+                let remain = totalUnits - units.reduce((a, b) => a + b, 0);
+                const remainders = quotas.map((q, i) => ({ i, r: q - Math.floor(q) })).sort((a, b) => b.r - a.r);
+
+                let idx = 0;
+                while (remain > 0) {
+                    units[remainders[idx % weekCount].i] += 1;
+                    remain -= 1;
+                    idx += 1;
+                }
+
+                units.forEach((v, i) => {
+                    weeklyGoals[i][step] = v * unit;
+                });
+            });
+
+            const internalKey = normalizeTeamForAchievements(r, teamKey.replace('team', ''));
+
+            teamsInfo.push({
+                belongsRegion: r,
+                teamKey: internalKey,
+                displayTeam: internalKey === '사랑' ? '사랑' : `${internalKey}팀`,
+                monthlyGoals,
+                weeklyGoals,
+            });
         });
     });
 
-    // 💡 보기 좋게 팀 정렬 (예: 1팀, 2팀 ... 사랑팀순)
-    teamsInfo.sort((a, b) => a.displayTeam.localeCompare(b.displayTeam));
+    if (isAllRegions) {
+        const regionOrder = REGIONS as unknown as string[];
+        teamsInfo.sort((a, b) => {
+            const rComp = regionOrder.indexOf(a.belongsRegion) - regionOrder.indexOf(b.belongsRegion);
+            if (rComp !== 0) return rComp;
+            return a.displayTeam.localeCompare(b.displayTeam);
+        });
+    } else {
+        teamsInfo.sort((a, b) => a.displayTeam.localeCompare(b.displayTeam));
+    }
 
     const studentResult = await pool.query(`
         SELECT
@@ -316,6 +312,7 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         LEFT JOIN members mi ON s.인도자_고유번호 = mi.고유번호
         LEFT JOIN members mt ON s.교사_고유번호 = mt.고유번호
     `);
+
     const achievements: any = {};
 
     studentResult.rows.forEach((s) => {
@@ -351,9 +348,8 @@ async function generateGoalReport(year: number, month: number, offset: number, r
                 : [{ r: lRegion, t: lTeam, score: 1 }];
 
             targets.forEach(({ r, t, score }) => {
-                // 💡 변경: 전체지역(isAllRegions)일 때는 지역 검증을 패스하여 팀이 매칭되면 실적 누적함
                 if (!isAllRegions && r !== regionName) return;
-                if (!t) return;
+                if (!r || !t) return;
 
                 for (let i = 0; i < weekCount; i++) {
                     const { start, end } = getWeekDateRange(year, month, i + offset);
@@ -361,11 +357,12 @@ async function generateGoalReport(year: number, month: number, offset: number, r
                     const dEnd = dayjs(end).endOf('day');
 
                     if (date.isBetween(dStart, dEnd, 'day', '[]')) {
-                        achievements[t] ??= {};
-                        achievements[t][i] ??= initSteps(() => ({ all: 0, target: 0 }));
-                        achievements[t][i][step].all += score;
+                        achievements[r] ??= {};
+                        achievements[r][t] ??= {};
+                        achievements[r][t][i] ??= initSteps(() => ({ all: 0, target: 0 }));
+                        achievements[r][t][i][step].all += score;
                         if (['발', '찾'].includes(step) || isTargetMonth) {
-                            achievements[t][i][step].target += score;
+                            achievements[r][t][i][step].target += score;
                         }
                     }
                 }
@@ -376,15 +373,16 @@ async function generateGoalReport(year: number, month: number, offset: number, r
     const { display } = getWeekDateRange(year, month, weekIdx + offset);
     let text = `🎯 **${year}년 ${month}월 [${isAllRegions ? '청년회 전체' : regionName}] 목표 현황**\n`;
     text += `🗓 **${weekIdx + 1}주차** (${display}) | 지연: ${offset}주\n`;
-    text += `🏆 **해당 월 총 기준점수: ${targetPoints}점**\n\n`;
+    text += `🏆 **총 기준점수: ${targetPoints}점**\n\n`;
 
     if (teamsInfo.length === 0) {
-        text += `⚠️ 하드코딩에 설정된 [${regionName}]의 팀별 목표 데이터가 없습니다.`;
+        text += `⚠️ 설정된 목표 데이터가 없습니다.`;
     } else {
         text += `\`\`\`text\n`;
         teamsInfo.forEach((team) => {
             const label = team.displayTeam.includes('팀') ? team.displayTeam : `${team.displayTeam}팀`;
-            text += `[${label}]\n`;
+
+            text += isAllRegions ? `[${team.belongsRegion} - ${label}]\n` : `[${label}]\n`;
             text += `단계|   주간(%)   |   누적(%)\n`;
             text += `--------------------------------\n`;
 
@@ -392,14 +390,16 @@ async function generateGoalReport(year: number, month: number, offset: number, r
                 const weeklyGoal = team.weeklyGoals[weekIdx]?.[s] || 0;
                 const totalGoal = team.monthlyGoals[s] || 0;
 
-                const wkDone = achievements[team.teamKey]?.[weekIdx]?.[s]?.target || 0;
-                const wkAll = achievements[team.teamKey]?.[weekIdx]?.[s]?.all || 0;
+                const teamData = achievements[team.belongsRegion]?.[team.teamKey]?.[weekIdx]?.[s];
+                const wkDone = teamData?.target || 0;
+                const wkAll = teamData?.all || 0;
 
                 let cumDone = 0;
                 let cumAll = 0;
                 for (let i = 0; i <= weekIdx; i++) {
-                    cumDone += achievements[team.teamKey]?.[i]?.[s]?.target || 0;
-                    cumAll += achievements[team.teamKey]?.[i]?.[s]?.all || 0;
+                    const historicalData = achievements[team.belongsRegion]?.[team.teamKey]?.[i]?.[s];
+                    cumDone += historicalData?.target || 0;
+                    cumAll += historicalData?.all || 0;
                 }
 
                 const wRate = weeklyGoal > 0 ? ((wkDone / weeklyGoal) * 100).toFixed(0) : '-';
@@ -449,7 +449,6 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         },
     ]);
 
-    // 💡 변경: 인라인 키보드 첫 번째 줄에 '청년회 전체' 선택 버튼 단독 생성 (regionIdx = -1)
     kb.push([
         {
             text: regionIdx === -1 ? `✅ 청년회 전체` : `청년회 전체`,
@@ -560,7 +559,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ ok: true });
         }
 
-        // 🎯 목표 달성 명령어 초기 진입
         if (isGoalCommand) {
             await sendTelegramMessage('📊 실시간 목표 달성 데이터를 계산 중입니다...', chatId);
 
@@ -583,7 +581,6 @@ export async function POST(request: NextRequest) {
                 }
             }
 
-            // 💡 초기 진입 시 네 번째 인자인 regionIdx에 -1을 주어 '청년회 전체' 대시보드가 기본으로 출력되도록 수정
             const report = await generateGoalReport(targetYear, targetMonth, 0, -1, 0);
 
             await fetch(`${TELEGRAM_API}/sendMessage`, {
