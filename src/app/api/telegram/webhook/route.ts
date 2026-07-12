@@ -215,7 +215,7 @@ function generateReportText(rows: TeacherData[], region: string, sort: string, p
 async function generateGoalReport(year: number, month: number, offset: number, regionIdx: number, weekIdx: number) {
     const regionName = REGIONS[regionIdx];
     const weekCount = getWeekCount(year, month);
-    const targetPoints = getRegionTargetPoints(regionName, month); // 💡 지역 기준 점수
+    const targetPoints = getRegionTargetPoints(regionName, month);
 
     // 1. 설정(목표) 불러오기 (안전한 JSON 파싱 적용)
     const configResult = await pool.query(
@@ -241,7 +241,6 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         const 예정Goal = Number(goalStr ?? 0);
         if (예정Goal <= 0) return;
 
-        // 월간/주간 목표 분배 계산
         const monthlyGoals = initSteps(() => 0);
         steps.forEach((s) => (monthlyGoals[s] = roundToUnit(예정Goal * GOAL_MULTIPLIERS[s], getUnit(s))));
 
@@ -330,40 +329,56 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         });
     });
 
-    // 3. 메시지 텍스트 조립
+    // 3. 메시지 텍스트 조립 (✅ 표 형태로 정렬하는 로직 추가)
     const { display } = getWeekDateRange(year, month, weekIdx + offset);
     let text = `🎯 **${year}년 ${month}월 [${regionName}] 목표 현황**\n`;
     text += `🗓 **${weekIdx + 1}주차** (${display}) | 지연: ${offset}주\n`;
-    text += `🏆 **해당 월 지역 기준점수: ${targetPoints}점**\n\n`; // 💡 추가된 타겟 포인트
+    text += `🏆 **해당 월 지역 기준점수: ${targetPoints}점**\n\n`;
 
     if (teamsInfo.length === 0) {
         text += `⚠️ DB에 설정된 팀별 목표(fGoals) 데이터가 없습니다.\n관리자 페이지에서 목표를 먼저 설정해주세요.`;
     } else {
+        // 모바일 텔레그램 화면에 맞춰 고정폭 글꼴(Monospace) 텍스트 블록 사용
+        text += `\`\`\`text\n`;
         teamsInfo.forEach((team) => {
-            text += `🔹 **[${team.team}팀]**\n`;
+            text += `[${team.team}팀]\n`;
+            text += `단계|   주간(%)   |   누적(%)\n`;
+            text += `--------------------------------\n`;
 
             steps.forEach((s) => {
                 const weeklyGoal = team.weeklyGoals[weekIdx]?.[s] || 0;
                 const totalGoal = team.monthlyGoals[s] || 0;
 
-                let cumDone = 0;
                 const wkDone = achievements[team.team]?.[weekIdx]?.[s]?.target || 0;
+                const wkAll = achievements[team.team]?.[weekIdx]?.[s]?.all || 0;
+
+                let cumDone = 0;
+                let cumAll = 0;
                 for (let i = 0; i <= weekIdx; i++) {
                     cumDone += achievements[team.team]?.[i]?.[s]?.target || 0;
+                    cumAll += achievements[team.team]?.[i]?.[s]?.all || 0;
                 }
 
-                const wRate = weeklyGoal > 0 ? ((wkDone / weeklyGoal) * 100).toFixed(0) : '0';
-                const cRate = totalGoal > 0 ? ((cumDone / totalGoal) * 100).toFixed(0) : '0';
+                const wRate = weeklyGoal > 0 ? ((wkDone / weeklyGoal) * 100).toFixed(0) : '-';
+                const cRate = totalGoal > 0 ? ((cumDone / totalGoal) * 100).toFixed(0) : '-';
 
-                // 이모지로 달성률 상태 표시 (가독성 향상)
-                let status = '🔴';
-                if (Number(wRate) >= 100) status = '🟢';
-                else if (Number(wRate) >= 70) status = '🟡';
+                // 합, 섭, 복, 예정 등 괄호가 필요한 데이터 서식 포맷팅 반영
+                const needsFmt = ['합', '섭', '복', '예정'].includes(s);
+                let wkStr = needsFmt ? `${wkDone}(${wkAll})/${weeklyGoal}` : `${wkDone}/${weeklyGoal}`;
+                let cumStr = needsFmt ? `${cumDone}(${cumAll})/${totalGoal}` : `${cumDone}/${totalGoal}`;
 
-                text += `  ${status} ${s}: 주간 ${wkDone}|${weeklyGoal} (${wRate}%) / 누적 ${cumDone}|${totalGoal} (${cRate}%)\n`;
+                // 텍스트 길이 정렬(Padding) 처리
+                wkStr = wkStr.padStart(9, ' ');
+                cumStr = cumStr.padStart(9, ' ');
+                const wRStr = wRate.padStart(3, ' ');
+                const cRStr = cRate.padStart(3, ' ');
+
+                text += ` ${s} |${wkStr}(${wRStr}%)|${cumStr}(${cRStr}%)\n`;
             });
             text += `\n`;
         });
+        text += `\`\`\`\n`;
+        text += `💡 가로로 넓은 상세 표는 웹페이지에서 확인해주세요!`;
     }
 
     // 4. 인라인 키보드 조립
