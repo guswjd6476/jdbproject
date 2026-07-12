@@ -13,7 +13,7 @@ import {
     type PeriodType,
 } from '@/app/lib/missingReport';
 import { getWeekDateRange } from '@/app/lib/function';
-
+import { get_DEFAULT_예정_goals } from '@/app/lib/types';
 dayjs.extend(isBetween);
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -26,6 +26,7 @@ const PAGE_SIZE = 15;
 const steps = ['발', '찾', '합', '섭', '복', '예정'] as const;
 type Step = (typeof steps)[number];
 const GOAL_MULTIPLIERS: Record<Step, number> = { 발: 30, 찾: 10, 합: 4, 섭: 2, 복: 1.5, 예정: 1 };
+
 const WEEK_WEIGHTS: Record<number, Partial<Record<Step, number>>> = {
     0: { 발: 1 },
     1: { 발: 1, 찾: 1 },
@@ -36,7 +37,8 @@ const WEEK_WEIGHTS: Record<number, Partial<Record<Step, number>>> = {
     6: { 복: 1 },
     7: {},
 };
-const REGIONS = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자', '이음'];
+const REGIONS = ['도봉', '성북', '노원', '중랑', '강북', '대학', '새신자', '이음'] as const;
+type Region = (typeof REGIONS)[number];
 
 const getUnit = (step: Step) => (['발', '찾', '합'].includes(step) ? 1 : 0.5);
 const roundToUnit = (value: number, unit: number) => Math.round(value / unit) * unit;
@@ -218,64 +220,79 @@ async function generateGoalReport(year: number, month: number, offset: number, r
     const targetPoints = getRegionTargetPoints(regionName, month);
 
     // 1. 설정(목표) 불러오기 (안전한 JSON 파싱 적용)
-    const configResult = await pool.query(
-        'SELECT 예정_goals, weekly_percentages, conversion_rates FROM region_configs WHERE year = $1 AND month = $2 AND region = $3',
-        [year, month, regionName],
-    );
 
-    let fGoals: Record<string, string> = {};
-    if (configResult.rows.length > 0) {
-        const rowData = configResult.rows[0].예정_goals;
-        try {
-            fGoals = typeof rowData === 'string' ? JSON.parse(rowData) : rowData || {};
-        } catch (e) {
-            console.error('Failed to parse fGoals', e);
-        }
-    }
+    const regionGoals = get_DEFAULT_예정_goals(month);
+    const fGoals = regionGoals[regionName] ?? {};
 
     const teamsInfo: any[] = [];
     Object.entries(fGoals).forEach(([teamKey, goalStr]) => {
         let teamName = teamKey.replace('team', '');
-        if (regionName === '중랑' && teamKey === 'team4') teamName = '사랑';
 
-        const 예정Goal = Number(goalStr ?? 0);
-        if (예정Goal <= 0) return;
+        if (teamKey === 'team4' && regionName === '중랑') {
+            teamName = '사랑';
+        }
+
+        const 예정Goal = Number(goalStr);
+
+        if (!예정Goal) return;
 
         const monthlyGoals = initSteps(() => 0);
-        steps.forEach((s) => (monthlyGoals[s] = roundToUnit(예정Goal * GOAL_MULTIPLIERS[s], getUnit(s))));
 
-        const weights = Array.from({ length: weekCount }).map((_, idx) => WEEK_WEIGHTS[idx] ?? {});
-        const weeklyGoals = Array.from({ length: weekCount }).map(() => initSteps(() => 0));
+        steps.forEach((step) => {
+            monthlyGoals[step] = roundToUnit(예정Goal * GOAL_MULTIPLIERS[step], getUnit(step));
+        });
+
+        const weeklyGoals = Array.from({ length: weekCount }, () => initSteps(() => 0));
 
         steps.forEach((step) => {
             const totalGoal = monthlyGoals[step];
             if (!totalGoal) return;
-            const unit = getUnit(step);
-            const totalUnits = Math.round(totalGoal / unit);
-            let wArr = weights.map((w) => w[step] ?? 0);
-            let wSum = wArr.reduce((a, b) => a + b, 0);
-            if (wSum === 0) {
-                wArr = Array(weekCount).fill(1);
-                wSum = weekCount;
-            }
 
-            const quotas = wArr.map((w) => (totalUnits * w) / wSum);
-            const unitsPerWeek = quotas.map((q) => Math.floor(q));
-            let remain = totalUnits - unitsPerWeek.reduce((a, b) => a + b, 0);
-            const remainders = quotas.map((q, i) => ({ i, r: q - Math.floor(q) })).sort((a, b) => b.r - a.r);
+            const unit = getUnit(step);
+
+            const weights = Array.from({ length: weekCount }, (_, i) => WEEK_WEIGHTS[i]?.[step] ?? 0);
+
+            let weightSum = weights.reduce((a, b) => a + b, 0);
+
+            const useWeights = weightSum === 0 ? Array(weekCount).fill(1) : weights;
+
+            weightSum = useWeights.reduce((a, b) => a + b, 0);
+
+            const totalUnits = Math.round(totalGoal / unit);
+
+            const quotas = useWeights.map((w) => (totalUnits * w) / weightSum);
+
+            const units = quotas.map(Math.floor);
+
+            let remain = totalUnits - units.reduce((a, b) => a + b, 0);
+
+            const order = quotas
+                .map((q, i) => ({
+                    i,
+                    r: q - Math.floor(q),
+                }))
+                .sort((a, b) => b.r - a.r);
 
             let idx = 0;
+
             while (remain > 0) {
-                unitsPerWeek[remainders[idx % weekCount].i] += 1;
-                remain -= 1;
-                idx += 1;
+                units[order[idx].i]++;
+                remain--;
+                idx++;
+
+                if (idx >= order.length) idx = 0;
             }
-            unitsPerWeek.forEach((val, i) => {
-                weeklyGoals[i][step] = val * unit;
+
+            units.forEach((v, i) => {
+                weeklyGoals[i][step] = v * unit;
             });
         });
 
-        teamsInfo.push({ team: teamName, monthlyGoals, weeklyGoals });
+        teamsInfo.push({
+            team: teamName,
+            monthlyGoals,
+            weeklyGoals,
+        });
     });
 
     // 2. 실적(학생) 불러오기 및 계산
