@@ -1,4 +1,3 @@
-// app/api/telegram/webhook/route.ts
 import { pool } from '@/app/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { sendTelegramMessage } from '@/app/lib/telegram';
@@ -219,21 +218,39 @@ function generateReportText(rows: TeacherData[], region: string, sort: string, p
  * 🎯 [목표 달성] 데이터 처리 및 대시보드 렌더링 함수
  * ===================================================== */
 async function generateGoalReport(year: number, month: number, offset: number, regionIdx: number, weekIdx: number) {
-    const regionName = REGIONS[regionIdx];
+    // 💡 regionIdx가 -1이면 '전체', 0 이상이면 해당 지역명 지정
+    const isAllRegions = regionIdx === -1;
+    const regionName = isAllRegions ? '전체' : REGIONS[regionIdx];
     const weekCount = getWeekCount(year, month);
-    const targetPoints = getRegionTargetPoints(regionName, month);
 
+    // 전체 지역일 경우 기준 점수는 모든 지역 점수의 합산 처리
+    const targetPoints = isAllRegions
+        ? REGIONS.reduce((sum, r) => sum + getRegionTargetPoints(r, month), 0)
+        : getRegionTargetPoints(regionName, month);
+
+    // 💡 목표 데이터 세팅: 전체일 경우 모든 지역의 팀별 목표치를 추출하여 누적 합산
     const regionGoals = get_DEFAULT_예정_goals(month);
-    const fGoals = regionGoals[regionName] ?? {};
+    const combinedGoals: Record<string, number> = {};
+
+    if (isAllRegions) {
+        REGIONS.forEach((r) => {
+            const goals = regionGoals[r] ?? {};
+            Object.entries(goals).forEach(([teamKey, goalStr]) => {
+                let internalKey = normalizeTeamForAchievements(r, teamKey.replace('team', ''));
+                combinedGoals[internalKey] = (combinedGoals[internalKey] || 0) + Number(goalStr);
+            });
+        });
+    } else {
+        // 💡 regionName을 Region 타입으로 단언(as Region)하여 7053 에러를 해결합니다.
+        const goals = regionGoals[regionName as Region] ?? {};
+        Object.entries(goals).forEach(([teamKey, goalStr]) => {
+            let internalKey = normalizeTeamForAchievements(regionName as Region, teamKey.replace('team', ''));
+            combinedGoals[internalKey] = Number(goalStr);
+        });
+    }
 
     const teamsInfo: any[] = [];
-    Object.entries(fGoals).forEach(([teamKey, goalStr]) => {
-        let internalKey = teamKey.replace('team', '').trim();
-        if (internalKey === '4' || internalKey === '사랑') {
-            internalKey = '사랑';
-        }
-
-        const 예정Goal = Number(goalStr);
+    Object.entries(combinedGoals).forEach(([internalKey, 예정Goal]) => {
         if (!예정Goal || 예정Goal <= 0) return;
 
         const monthlyGoals = initSteps(() => 0);
@@ -285,19 +302,20 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         });
     });
 
+    // 💡 보기 좋게 팀 정렬 (예: 1팀, 2팀 ... 사랑팀순)
+    teamsInfo.sort((a, b) => a.displayTeam.localeCompare(b.displayTeam));
+
     const studentResult = await pool.query(`
-    SELECT
-        s.*,
-        mi.지역 AS "인도자지역",
-        mi.구역 AS "인도자팀",
-        mt.지역 AS "교사지역",
-        mt.구역 AS "교사팀"
-    FROM students s
-    LEFT JOIN members mi
-        ON s.인도자_고유번호 = mi.고유번호
-    LEFT JOIN members mt
-        ON s.교사_고유번호 = mt.고유번호
-`);
+        SELECT
+            s.*,
+            mi.지역 AS "인도자지역",
+            mi.구역 AS "인도자팀",
+            mt.지역 AS "교사지역",
+            mt.구역 AS "교사팀"
+        FROM students s
+        LEFT JOIN members mi ON s.인도자_고유번호 = mi.고유번호
+        LEFT JOIN members mt ON s.교사_고유번호 = mt.고유번호
+    `);
     const achievements: any = {};
 
     studentResult.rows.forEach((s) => {
@@ -306,7 +324,6 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         const lTeam = normalizeTeamForAchievements(lRegion, s.인도자팀);
         const tTeam = normalizeTeamForAchievements(tRegion, s.교사팀);
 
-        // 💡 텍스트 포맷 유연화 예외처리 ('7'이나 '07' 둘 다 매칭되도록 보정)
         const currentTarget = (s.target ?? '').trim();
         const isTargetMonth = currentTarget === `${month}월` || currentTarget === `${String(month).padStart(2, '0')}월`;
 
@@ -322,7 +339,6 @@ async function generateGoalReport(year: number, month: number, offset: number, r
             const dateStr = s[stepColMap[step]];
             if (!dateStr) return;
 
-            // 💡 타임존 편차를 최소화하기 위해 현지 일자 기준으로 오차 보정 생성
             const date = dayjs(dateStr).startOf('day');
             if (!date.isValid()) return;
 
@@ -335,7 +351,9 @@ async function generateGoalReport(year: number, month: number, offset: number, r
                 : [{ r: lRegion, t: lTeam, score: 1 }];
 
             targets.forEach(({ r, t, score }) => {
-                if (r !== regionName || !t) return;
+                // 💡 변경: 전체지역(isAllRegions)일 때는 지역 검증을 패스하여 팀이 매칭되면 실적 누적함
+                if (!isAllRegions && r !== regionName) return;
+                if (!t) return;
 
                 for (let i = 0; i < weekCount; i++) {
                     const { start, end } = getWeekDateRange(year, month, i + offset);
@@ -356,9 +374,9 @@ async function generateGoalReport(year: number, month: number, offset: number, r
     });
 
     const { display } = getWeekDateRange(year, month, weekIdx + offset);
-    let text = `🎯 **${year}년 ${month}월 [${regionName}] 목표 현황**\n`;
+    let text = `🎯 **${year}년 ${month}월 [${isAllRegions ? '청년회 전체' : regionName}] 목표 현황**\n`;
     text += `🗓 **${weekIdx + 1}주차** (${display}) | 지연: ${offset}주\n`;
-    text += `🏆 **해당 월 지역 기준점수: ${targetPoints}점**\n\n`;
+    text += `🏆 **해당 월 총 기준점수: ${targetPoints}점**\n\n`;
 
     if (teamsInfo.length === 0) {
         text += `⚠️ 하드코딩에 설정된 [${regionName}]의 팀별 목표 데이터가 없습니다.`;
@@ -411,9 +429,9 @@ async function generateGoalReport(year: number, month: number, offset: number, r
     const nextY = month === 12 ? year + 1 : year;
 
     kb.push([
-        { text: `◀️ ${prevM}월`, callback_data: `gl:${prevY - 2000}:${prevM}:${offset}:${regionIdx}:0` },
+        { text: `◀️ ${prevM}월`, callback_data: `gl:${prevY - 2000}:${prevM}:${offset}:${regionIdx}:${weekIdx}` },
         { text: `📅 ${year}.${month}`, callback_data: 'ignore' },
-        { text: `${nextM}월 ▶️`, callback_data: `gl:${nextY - 2000}:${nextM}:${offset}:${regionIdx}:0` },
+        { text: `${nextM}월 ▶️`, callback_data: `gl:${nextY - 2000}:${nextM}:${offset}:${regionIdx}:${weekIdx}` },
     ]);
 
     kb.push([
@@ -428,6 +446,14 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         {
             text: offset === 2 ? `✅ 2주 지연` : `2주 지연`,
             callback_data: `gl:${year - 2000}:${month}:2:${regionIdx}:${weekIdx}`,
+        },
+    ]);
+
+    // 💡 변경: 인라인 키보드 첫 번째 줄에 '청년회 전체' 선택 버튼 단독 생성 (regionIdx = -1)
+    kb.push([
+        {
+            text: regionIdx === -1 ? `✅ 청년회 전체` : `청년회 전체`,
+            callback_data: `gl:${year - 2000}:${month}:${offset}:-1:0`,
         },
     ]);
 
@@ -534,26 +560,22 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ ok: true });
         }
 
-        // 🎯 목표 달성 명령어 초기 진입 (💡 실적이 실제로 존재하는 달로 안전 매핑 최적화)
+        // 🎯 목표 달성 명령어 초기 진입
         if (isGoalCommand) {
             await sendTelegramMessage('📊 실시간 목표 달성 데이터를 계산 중입니다...', chatId);
 
-            // 데이터가 존재하는 달로 강제 설정 가능
-            // 이미지에 보이는 최신 실적 데이터가 있는 연도/월(예: 2026년 7월 등)로 동기화 처리
             const now = new Date();
             let targetYear = now.getFullYear();
             let targetMonth = now.getMonth() + 1;
 
-            // 💡 [안전 장치]: 만약 현재 달 데이터를 조회했는데 실적이 0개라면,
-            // 학생들이 주로 입력되어 있는 target 데이터가 있는 월로 서버 스코프 동기화 시도
             const checkData = await pool.query(`
-    SELECT target
-    FROM students
-    WHERE target IS NOT NULL
-    GROUP BY target
-    ORDER BY COUNT(*) DESC
-    LIMIT 1
-`);
+                SELECT target
+                FROM students
+                WHERE target IS NOT NULL
+                GROUP BY target
+                ORDER BY COUNT(*) DESC
+                LIMIT 1
+            `);
             if (checkData.rows.length > 0) {
                 const match = checkData.rows[0].target.match(/(\d+)월/);
                 if (match) {
@@ -561,7 +583,8 @@ export async function POST(request: NextRequest) {
                 }
             }
 
-            const report = await generateGoalReport(targetYear, targetMonth, 0, 0, 0);
+            // 💡 초기 진입 시 네 번째 인자인 regionIdx에 -1을 주어 '청년회 전체' 대시보드가 기본으로 출력되도록 수정
+            const report = await generateGoalReport(targetYear, targetMonth, 0, -1, 0);
 
             await fetch(`${TELEGRAM_API}/sendMessage`, {
                 method: 'POST',
