@@ -13,7 +13,7 @@ import {
     type PeriodType,
 } from '@/app/lib/missingReport';
 import { getWeekDateRange } from '@/app/lib/function';
-import { get_DEFAULT_예정_goals } from '@/app/lib/types';
+import { get_DEFAULT_예정_goals } from '@/app/lib/types'; // 💡 하드코딩 함수 복구
 dayjs.extend(isBetween);
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -67,7 +67,7 @@ function buildHelpMessage() {
     ].join('\n');
 }
 
-// 💡 "사랑-4" 등을 완벽히 '사랑'으로 치환하는 함수 (강북/중랑 관계없이 적용)
+// 💡 팀명 추출 유틸리티
 const extractTeamFromRaw = (raw?: string) => {
     let t = (raw ?? '').trim();
     if (!t) return '';
@@ -79,7 +79,14 @@ const extractTeamFromRaw = (raw?: string) => {
     return m ? m[1] : t;
 };
 
-// 💡 추가된 비즈니스 로직: 지역 및 홀/짝수 달에 따른 목표 점수 계산
+// 💡 모든 지역에서 '사랑'팀 정규화 인정 (참고코드 반영)
+const normalizeTeamForAchievements = (region: string, rawTeam: string) => {
+    const team = extractTeamFromRaw(rawTeam);
+    if (team === '사랑') return '사랑';
+    return team;
+};
+
+// 💡 홀/짝수 달 지역 점수 계산
 const getRegionTargetPoints = (region: string, month: number): number => {
     const isEvenMonth = month % 2 === 0;
     const groupA = ['도봉', '성북', '노원', '중랑', '강북'];
@@ -219,8 +226,7 @@ async function generateGoalReport(year: number, month: number, offset: number, r
     const weekCount = getWeekCount(year, month);
     const targetPoints = getRegionTargetPoints(regionName, month);
 
-    // 1. 설정(목표) 불러오기 (안전한 JSON 파싱 적용)
-
+    // 1. 하드코딩 파일에서 설정(목표) 동적 불러오기
     const regionGoals = get_DEFAULT_예정_goals(month);
     const fGoals = regionGoals[regionName] ?? {};
 
@@ -233,13 +239,12 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         }
 
         const 예정Goal = Number(goalStr);
-
-        if (!예정Goal) return;
+        if (!예정Goal || 예정Goal <= 0) return;
 
         const monthlyGoals = initSteps(() => 0);
-
         steps.forEach((step) => {
-            monthlyGoals[step] = roundToUnit(예정Goal * GOAL_MULTIPLIERS[step], getUnit(step));
+            let val = roundToUnit(예정Goal * GOAL_MULTIPLIERS[step], getUnit(step));
+            monthlyGoals[step] = Object.is(val, -0) ? 0 : val;
         });
 
         const weeklyGoals = Array.from({ length: weekCount }, () => initSteps(() => 0));
@@ -249,38 +254,27 @@ async function generateGoalReport(year: number, month: number, offset: number, r
             if (!totalGoal) return;
 
             const unit = getUnit(step);
-
-            const weights = Array.from({ length: weekCount }, (_, i) => WEEK_WEIGHTS[i]?.[step] ?? 0);
-
-            let weightSum = weights.reduce((a, b) => a + b, 0);
-
-            const useWeights = weightSum === 0 ? Array(weekCount).fill(1) : weights;
-
-            weightSum = useWeights.reduce((a, b) => a + b, 0);
-
             const totalUnits = Math.round(totalGoal / unit);
 
-            const quotas = useWeights.map((w) => (totalUnits * w) / weightSum);
+            let wArr = Array.from({ length: weekCount }, (_, i) => WEEK_WEIGHTS[i]?.[step] ?? 0);
+            let wSum = wArr.reduce((a, b) => a + b, 0);
 
+            if (wSum === 0) {
+                wArr = Array(weekCount).fill(1);
+                wSum = weekCount;
+            }
+
+            const quotas = wArr.map((w) => (totalUnits * w) / wSum);
             const units = quotas.map(Math.floor);
 
             let remain = totalUnits - units.reduce((a, b) => a + b, 0);
-
-            const order = quotas
-                .map((q, i) => ({
-                    i,
-                    r: q - Math.floor(q),
-                }))
-                .sort((a, b) => b.r - a.r);
+            const remainders = quotas.map((q, i) => ({ i, r: q - Math.floor(q) })).sort((a, b) => b.r - a.r);
 
             let idx = 0;
-
             while (remain > 0) {
-                units[order[idx].i]++;
-                remain--;
-                idx++;
-
-                if (idx >= order.length) idx = 0;
+                units[remainders[idx % weekCount].i] += 1;
+                remain -= 1;
+                idx += 1;
             }
 
             units.forEach((v, i) => {
@@ -302,8 +296,8 @@ async function generateGoalReport(year: number, month: number, offset: number, r
     studentResult.rows.forEach((s) => {
         const lRegion = (s.인도자지역 ?? '').trim();
         const tRegion = (s.교사지역 ?? '').trim();
-        const lTeam = extractTeamFromRaw(s.인도자팀);
-        const tTeam = extractTeamFromRaw(s.교사팀);
+        const lTeam = normalizeTeamForAchievements(lRegion, s.인도자팀);
+        const tTeam = normalizeTeamForAchievements(tRegion, s.교사팀);
         const isTargetMonth = s.target === `${month}월`;
 
         steps.forEach((step) => {
@@ -346,16 +340,15 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         });
     });
 
-    // 3. 메시지 텍스트 조립 (✅ 표 형태로 정렬하는 로직 추가)
+    // 3. 메시지 텍스트 조립
     const { display } = getWeekDateRange(year, month, weekIdx + offset);
     let text = `🎯 **${year}년 ${month}월 [${regionName}] 목표 현황**\n`;
     text += `🗓 **${weekIdx + 1}주차** (${display}) | 지연: ${offset}주\n`;
     text += `🏆 **해당 월 지역 기준점수: ${targetPoints}점**\n\n`;
 
     if (teamsInfo.length === 0) {
-        text += `⚠️ DB에 설정된 팀별 목표(fGoals) 데이터가 없습니다.\n관리자 페이지에서 목표를 먼저 설정해주세요.`;
+        text += `⚠️ 하드코딩에 설정된 [${regionName}]의 팀별 목표 데이터가 없습니다.`;
     } else {
-        // 모바일 텔레그램 화면에 맞춰 고정폭 글꼴(Monospace) 텍스트 블록 사용
         text += `\`\`\`text\n`;
         teamsInfo.forEach((team) => {
             text += `[${team.team}팀]\n`;
@@ -379,12 +372,10 @@ async function generateGoalReport(year: number, month: number, offset: number, r
                 const wRate = weeklyGoal > 0 ? ((wkDone / weeklyGoal) * 100).toFixed(0) : '-';
                 const cRate = totalGoal > 0 ? ((cumDone / totalGoal) * 100).toFixed(0) : '-';
 
-                // 합, 섭, 복, 예정 등 괄호가 필요한 데이터 서식 포맷팅 반영
                 const needsFmt = ['합', '섭', '복', '예정'].includes(s);
                 let wkStr = needsFmt ? `${wkDone}(${wkAll})/${weeklyGoal}` : `${wkDone}/${weeklyGoal}`;
                 let cumStr = needsFmt ? `${cumDone}(${cumAll})/${totalGoal}` : `${cumDone}/${totalGoal}`;
 
-                // 텍스트 길이 정렬(Padding) 처리
                 wkStr = wkStr.padStart(9, ' ');
                 cumStr = cumStr.padStart(9, ' ');
                 const wRStr = wRate.padStart(3, ' ');
@@ -430,13 +421,13 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         REGIONS.slice(0, 4).map((r, i) => ({
             text: regionIdx === i ? `✅ ${r}` : r,
             callback_data: `gl:${year - 2000}:${month}:${offset}:${i}:0`,
-        })),
+        }))
     );
     kb.push(
         REGIONS.slice(4, 8).map((r, i) => ({
             text: regionIdx === i + 4 ? `✅ ${r}` : r,
             callback_data: `gl:${year - 2000}:${month}:${offset}:${i + 4}:0`,
-        })),
+        }))
     );
 
     const weekNav: any[] = [];
@@ -463,9 +454,7 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
 
-        // -----------------------------------------
         // [A] 인라인 버튼 클릭 이벤트 처리
-        // -----------------------------------------
         if (body.callback_query) {
             const callbackQuery = body.callback_query;
             const chatId = callbackQuery.message.chat.id;
@@ -476,7 +465,6 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ ok: true });
             }
 
-            // 🎯 목표 달성 대시보드 버튼 처리 (gl:)
             if (dataStr && dataStr.startsWith('gl:')) {
                 const [_, yStr, mStr, oStr, rgStr, wStr] = dataStr.split(':');
                 const [y, m, o, rg, w] = [Number(yStr) + 2000, Number(mStr), Number(oStr), Number(rgStr), Number(wStr)];
@@ -492,7 +480,6 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ ok: true });
             }
 
-            // 👥 교사 현황 버튼 처리 (tg:)
             if (dataStr && dataStr.startsWith('tg:')) {
                 const [_, region, sort, pageStr] = dataStr.split(':');
                 const page = Number(pageStr || 1);
@@ -514,9 +501,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ ok: true });
         }
 
-        // -----------------------------------------
         // [B] 일반 텍스트 명령어 처리
-        // -----------------------------------------
         const message = body?.message ?? body?.edited_message;
         const chatId = message?.chat?.id;
         const textRaw = message?.text;
@@ -537,7 +522,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ ok: true });
         }
 
-        // 🎯 목표 달성 명령어 초기 진입
         if (isGoalCommand) {
             await sendTelegramMessage('📊 실시간 목표 달성 데이터를 계산 중입니다...', chatId);
 
@@ -557,7 +541,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ ok: true });
         }
 
-        // 👥 교사 요약 명령어
         if (isTeacherSummary) {
             await sendTelegramMessage('🔄 교사 현황 데이터를 집계 중입니다...', chatId);
             const rows = await getTeachersDataDirectly();
@@ -588,7 +571,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ ok: true });
         }
 
-        // 📁 교사 명단(엑셀) 명령어
         if (isTeacherList) {
             await sendTelegramMessage('📁 교사 명단 엑셀 파일을 생성하고 있습니다...', chatId);
             const rows = await getTeachersDataDirectly();
@@ -615,7 +597,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ ok: true });
         }
 
-        // 📍 지역별 명령어
         if (isRegionCommand) {
             const rows = await getTeachersDataDirectly();
             const result = generateReportText(rows, '전체', 'name', 1);
@@ -634,7 +615,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ ok: true });
         }
 
-        // 🚨 미보고 명령어
         if (isMissingCommand) {
             const client = await pool.connect();
             try {
