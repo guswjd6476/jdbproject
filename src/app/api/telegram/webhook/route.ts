@@ -371,55 +371,112 @@ async function generateGoalReport(year: number, month: number, offset: number, r
     });
 
     const { display } = getWeekDateRange(year, month, weekIdx + offset);
-    let text = `🎯 **${year}년 ${month}월 [${isAllRegions ? '청년회 전체' : regionName}] 목표 현황**\n`;
-    text += `🗓 **${weekIdx + 1}주차** (${display}) | 지연: ${offset}주\n`;
-    text += `🏆 **총 기준점수: ${targetPoints}점**\n\n`;
+
+    // 💡 최적화: 결과 텍스트를 담을 배열로 선언 (글자수 제한 방지 분할 맵핑용)
+    const textChunks: string[] = [];
+
+    let headerText = `🎯 **${year}년 ${month}월 [${isAllRegions ? '청년회 전체' : regionName}] 목표 현황**\n`;
+    headerText += `🗓 **${weekIdx + 1}주차** (${display}) | 지연: ${offset}주\n`;
+    headerText += `🏆 **총 기준점수: ${targetPoints}점**\n\n`;
 
     if (teamsInfo.length === 0) {
-        text += `⚠️ 설정된 목표 데이터가 없습니다.`;
+        headerText += `⚠️ 설정된 목표 데이터가 없습니다.`;
+        textChunks.push(headerText);
     } else {
-        text += `\`\`\`text\n`;
-        teamsInfo.forEach((team) => {
-            const label = team.displayTeam.includes('팀') ? team.displayTeam : `${team.displayTeam}팀`;
+        if (isAllRegions) {
+            // 💡 전체보기일 때는 지역별로 텍스트 덩어리를 쪼개어 배열에 넣음
+            textChunks.push(headerText + `📢 청년회 전체 명단이 아래에 이어서 출력됩니다.\n`);
 
-            text += isAllRegions ? `[${team.belongsRegion} - ${label}]\n` : `[${label}]\n`;
-            text += `단계|   주간(%)   |   누적(%)\n`;
-            text += `--------------------------------\n`;
+            REGIONS.forEach((currentRegionName) => {
+                const regionTeams = teamsInfo.filter((t) => t.belongsRegion === currentRegionName);
+                if (regionTeams.length === 0) return;
 
-            steps.forEach((s) => {
-                const weeklyGoal = team.weeklyGoals[weekIdx]?.[s] || 0;
-                const totalGoal = team.monthlyGoals[s] || 0;
+                let regionChunk = `📍 **[${currentRegionName} 지역 팀별 상세]**\n\`\`\`text\n`;
+                regionTeams.forEach((team) => {
+                    const label = team.displayTeam.includes('팀') ? team.displayTeam : `${team.displayTeam}팀`;
+                    regionChunk += `[${label}]\n`;
+                    regionChunk += `단계|   주간(%)   |   누적(%)\n`;
+                    regionChunk += `--------------------------------\n`;
 
-                const teamData = achievements[team.belongsRegion]?.[team.teamKey]?.[weekIdx]?.[s];
-                const wkDone = teamData?.target || 0;
-                const wkAll = teamData?.all || 0;
+                    steps.forEach((s) => {
+                        const weeklyGoal = team.weeklyGoals[weekIdx]?.[s] || 0;
+                        const totalGoal = team.monthlyGoals[s] || 0;
 
-                let cumDone = 0;
-                let cumAll = 0;
-                for (let i = 0; i <= weekIdx; i++) {
-                    const historicalData = achievements[team.belongsRegion]?.[team.teamKey]?.[i]?.[s];
-                    cumDone += historicalData?.target || 0;
-                    cumAll += historicalData?.all || 0;
-                }
+                        const teamData = achievements[team.belongsRegion]?.[team.teamKey]?.[weekIdx]?.[s];
+                        const wkDone = teamData?.target || 0;
+                        const wkAll = teamData?.all || 0;
 
-                const wRate = weeklyGoal > 0 ? ((wkDone / weeklyGoal) * 100).toFixed(0) : '-';
-                const cRate = totalGoal > 0 ? ((cumDone / totalGoal) * 100).toFixed(0) : '-';
+                        let cumDone = 0;
+                        let cumAll = 0;
+                        for (let i = 0; i <= weekIdx; i++) {
+                            const historicalData = achievements[team.belongsRegion]?.[team.teamKey]?.[i]?.[s];
+                            cumDone += historicalData?.target || 0;
+                            cumAll += historicalData?.all || 0;
+                        }
 
-                const needsFmt = ['합', '섭', '복', '예정'].includes(s);
-                let wkStr = needsFmt ? `${wkDone}(${wkAll})/${weeklyGoal}` : `${wkDone}/${weeklyGoal}`;
-                let cumStr = needsFmt ? `${cumDone}(${cumAll})/${totalGoal}` : `${cumDone}/${totalGoal}`;
+                        const wRate = weeklyGoal > 0 ? ((wkDone / weeklyGoal) * 100).toFixed(0) : '-';
+                        const cRate = totalGoal > 0 ? ((cumDone / totalGoal) * 100).toFixed(0) : '-';
 
-                wkStr = wkStr.padStart(9, ' ');
-                cumStr = cumStr.padStart(9, ' ');
-                const wRStr = wRate.padStart(3, ' ');
-                const cRStr = cRate.padStart(3, ' ');
+                        const needsFmt = ['합', '섭', '복', '예정'].includes(s);
+                        let wkStr = needsFmt ? `${wkDone}(${wkAll})/${weeklyGoal}` : `${wkDone}/${weeklyGoal}`;
+                        let cumStr = needsFmt ? `${cumDone}(${cumAll})/${totalGoal}` : `${cumDone}/${totalGoal}`;
 
-                text += ` ${s} |${wkStr}(${wRStr}%)|${cumStr}(${cRStr}%)\n`;
+                        wkStr = wkStr.padStart(9, ' ');
+                        cumStr = cumStr.padStart(9, ' ');
+                        const wRStr = wRate.padStart(3, ' ');
+                        const cRStr = cRate.padStart(3, ' ');
+
+                        regionChunk += ` ${s} |${wkStr}(${wRStr}%)|${cumStr}(${cRStr}%)\n`;
+                    });
+                    regionChunk += `\n`;
+                });
+                regionChunk += `\`\`\`\n`;
+                textChunks.push(regionChunk);
             });
-            text += `\n`;
-        });
-        text += `\`\`\`\n`;
-        text += `💡 가로로 넓은 상세 표는 웹페이지에서 확인해주세요!`;
+        } else {
+            // 단일 지역 조회일 때
+            let singleChunk = headerText + `\`\`\`text\n`;
+            teamsInfo.forEach((team) => {
+                const label = team.displayTeam.includes('팀') ? team.displayTeam : `${team.displayTeam}팀`;
+                singleChunk += `[${label}]\n`;
+                singleChunk += `단계|   주간(%)   |   누적(%)\n`;
+                singleChunk += `--------------------------------\n`;
+
+                steps.forEach((s) => {
+                    const weeklyGoal = team.weeklyGoals[weekIdx]?.[s] || 0;
+                    const totalGoal = team.monthlyGoals[s] || 0;
+
+                    const teamData = achievements[team.belongsRegion]?.[team.teamKey]?.[weekIdx]?.[s];
+                    const wkDone = teamData?.target || 0;
+                    const wkAll = teamData?.all || 0;
+
+                    let cumDone = 0;
+                    let cumAll = 0;
+                    for (let i = 0; i <= weekIdx; i++) {
+                        const historicalData = achievements[team.belongsRegion]?.[team.teamKey]?.[i]?.[s];
+                        cumDone += historicalData?.target || 0;
+                        cumAll += historicalData?.all || 0;
+                    }
+
+                    const wRate = weeklyGoal > 0 ? ((wkDone / weeklyGoal) * 100).toFixed(0) : '-';
+                    const cRate = totalGoal > 0 ? ((cumDone / totalGoal) * 100).toFixed(0) : '-';
+
+                    const needsFmt = ['합', '섭', '복', '예정'].includes(s);
+                    let wkStr = needsFmt ? `${wkDone}(${wkAll})/${weeklyGoal}` : `${wkDone}/${weeklyGoal}`;
+                    let cumStr = needsFmt ? `${cumDone}(${cumAll})/${totalGoal}` : `${cumDone}/${totalGoal}`;
+
+                    wkStr = wkStr.padStart(9, ' ');
+                    cumStr = cumStr.padStart(9, ' ');
+                    const wRStr = wRate.padStart(3, ' ');
+                    const cRStr = cRate.padStart(3, ' ');
+
+                    singleChunk += ` ${s} |${wkStr}(${wRStr}%)|${cumStr}(${cRStr}%)\n`;
+                });
+                singleChunk += `\n`;
+            });
+            singleChunk += `\`\`\`\n💡 가로로 넓은 상세 표는 웹페이지에서 확인해주세요!`;
+            textChunks.push(singleChunk);
+        }
     }
 
     const kb: any[][] = [];
@@ -483,7 +540,8 @@ async function generateGoalReport(year: number, month: number, offset: number, r
         });
     kb.push(weekNav);
 
-    return { text, replyMarkup: { inline_keyboard: kb } };
+    // 💡 변경: 문자열 배열인 textChunks와 대시보드 조작 버튼 리스트를 함께 리턴
+    return { textChunks, replyMarkup: { inline_keyboard: kb } };
 }
 
 /* =====================================================
@@ -508,7 +566,28 @@ export async function POST(request: NextRequest) {
                 const [y, m, o, rg, w] = [Number(yStr) + 2000, Number(mStr), Number(oStr), Number(rgStr), Number(wStr)];
 
                 const report = await generateGoalReport(y, m, o, rg, w);
-                await editTelegramMessage(chatId, messageId, report.text, report.replyMarkup);
+
+                // 💡 최적화: 콜백쿼리(버튼조작) 이벤트 처리 시에도 분할 전송 기능 대응
+                // 기존 메시지는 지우고 새로 분할하여 전송합니다.
+                await fetch(`${TELEGRAM_API}/deleteMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
+                });
+
+                for (let i = 0; i < report.textChunks.length; i++) {
+                    const isLast = i === report.textChunks.length - 1;
+                    await fetch(`${TELEGRAM_API}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: chatId,
+                            text: report.textChunks[i],
+                            parse_mode: 'Markdown',
+                            reply_markup: isLast ? report.replyMarkup : undefined,
+                        }),
+                    });
+                }
 
                 await fetch(`${TELEGRAM_API}/answerCallbackQuery`, {
                     method: 'POST',
@@ -583,16 +662,21 @@ export async function POST(request: NextRequest) {
 
             const report = await generateGoalReport(targetYear, targetMonth, 0, -1, 0);
 
-            await fetch(`${TELEGRAM_API}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    text: report.text,
-                    parse_mode: 'Markdown',
-                    reply_markup: report.replyMarkup,
-                }),
-            });
+            // 💡 최적화: 청년회 전체일 때 여러 개로 분할된 대시보드를 루프를 돌며 차례대로 발송
+            for (let i = 0; i < report.textChunks.length; i++) {
+                const isLast = i === report.textChunks.length - 1;
+                await fetch(`${TELEGRAM_API}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        text: report.textChunks[i],
+                        parse_mode: 'Markdown',
+                        // 조작 기능 인라인 키보드 버튼들은 가장 마지막 메시지 하단에 한 번만 바인딩합니다.
+                        reply_markup: isLast ? report.replyMarkup : undefined,
+                    }),
+                });
+            }
             return NextResponse.json({ ok: true });
         }
 
