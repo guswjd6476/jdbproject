@@ -102,19 +102,44 @@ const distributeWeeklyGoals = (monthlyGoals: Record<Step, number>, weekCount: nu
 };
 
 const extractTeamFromRaw = (raw?: string) => {
-    const t = (raw ?? '').trim();
+    let t = (raw ?? '').trim();
     if (!t) return '';
-    if (t.includes('-')) return t.split('-')[0].trim();
+
+    // 1. 하이픈 문자 전처리 (다양한 형태의 대시 기호 대응)
+    t = t.replace(/[–—]/g, '-');
+
+    // 2. [핵심] '사랑'이라는 단어가 팀명에 포함되어 있다면,
+    //    뒤에 숫자가 뭐가 붙든 무조건 '사랑'으로 즉시 반환 (최우선 처리)
+    if (t.includes('사랑')) {
+        return '사랑';
+    }
+
+    // 3. 하이픈(-) 분리 처리 (예: "1-2" -> "1")
+    if (t.includes('-')) {
+        t = t.split('-')[0].trim();
+    }
+
+    // 4. 뒤에 붙은 '팀' 글자 제거 (예: "1팀" -> "1")
+    t = t.replace(/팀$/, '').trim();
+
+    // 5. 숫자로만 이루어진 팀명은 숫자만 추출하여 반환
     const m = t.match(/(\d+)/);
     return m ? m[1] : t;
 };
 
+// const normalizeTeamForAchievements = (region: string, rawTeam: string) => {
+//     const team = extractTeamFromRaw(rawTeam);
+//     if (team === '사랑') return region === '중랑' ? '사랑' : '';
+//     return team;
+// };
 const normalizeTeamForAchievements = (region: string, rawTeam: string) => {
     const team = extractTeamFromRaw(rawTeam);
-    if (team === '사랑') return region === '중랑' ? '사랑' : '';
+
+    // 💡 [수정] 이제 중랑뿐만 아니라 '강북' 등 어떤 지역이든 '사랑'팀을 그대로 인정합니다!
+    if (team === '사랑') return '사랑';
+
     return team;
 };
-
 /* =====================================================
  * 📈 DATA AGGREGATION
  * ===================================================== */
@@ -162,7 +187,7 @@ const calculateWeeklyAchievements = (
     students: Students[],
     month: number,
     year: number,
-    weekOffset: number
+    weekOffset: number,
 ): Achievements => {
     const weekly: Achievements = {};
     const weekCount = getWeekCount(year, month);
@@ -251,7 +276,7 @@ const initializeResults = (region: Region, year: number, month: number): Results
             });
             return acc;
         },
-        initSteps(() => 0)
+        initSteps(() => 0),
     );
 
     return { teams: baseTeams, totals };
@@ -305,7 +330,7 @@ const generateWeekRows = (data: { region: string; results: Results }[], achievem
             });
 
             return row;
-        })
+        }),
     );
 };
 
@@ -350,10 +375,7 @@ const WeeklyGoalsTable: React.FC<{
                 const dataSource = generateWeekRows(data, achievements, wIdx);
 
                 return (
-                    <div
-                        key={wIdx}
-                        className="mb-10"
-                    >
+                    <div key={wIdx} className="mb-10">
                         <h3 className="font-semibold mb-2">
                             {selectedYear}년 {selectedMonth}월 {wIdx + 1}주차 ({display})
                         </h3>
@@ -390,7 +412,7 @@ export default function GoalPage() {
 
     const weeklyAchievements = useMemo(
         () => calculateWeeklyAchievements(students, selectedMonth, selectedYear, weekOffset), // ✅ offset 전달
-        [students, selectedMonth, selectedYear, weekOffset]
+        [students, selectedMonth, selectedYear, weekOffset],
     );
 
     useEffect(() => {
@@ -399,7 +421,7 @@ export default function GoalPage() {
 
     const results = useMemo(
         () => initializeResults(region, selectedYear, selectedMonth),
-        [region, selectedMonth, selectedYear]
+        [region, selectedMonth, selectedYear],
     );
 
     const allRegionsResults = useMemo(() => {
@@ -473,11 +495,7 @@ export default function GoalPage() {
                     </select>
                 )}
 
-                <Radio.Group
-                    value={viewMode}
-                    onChange={(e) => setViewMode(e.target.value)}
-                    optionType="button"
-                >
+                <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} optionType="button">
                     <Radio.Button value="region">지역별</Radio.Button>
                     <Radio.Button value="month">월별</Radio.Button>
                 </Radio.Group>
@@ -486,10 +504,7 @@ export default function GoalPage() {
             {monthlySummary && (
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-4 mb-8">
                     {steps.map((s) => (
-                        <div
-                            key={s}
-                            className="border rounded p-3 text-center bg-white shadow-sm"
-                        >
+                        <div key={s} className="border rounded p-3 text-center bg-white shadow-sm">
                             <div className="text-sm text-gray-500 mb-1">{s}</div>
                             <div className="font-bold text-lg">
                                 {monthlySummary[s].done} <span className="text-gray-300 font-normal">|</span>{' '}
