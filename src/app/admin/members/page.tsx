@@ -99,8 +99,14 @@ export default function MemberUpload() {
                     body: JSON.stringify(chunks[i]),
                 });
 
-                const json = await res.json();
-                if (!res.ok) throw new Error(json?.message || `서버 에러 (chunk ${i + 1})`);
+                console.log('status', res.status);
+
+                const text = await res.text();
+                console.log(text);
+
+                if (!res.ok) {
+                    throw new Error(text);
+                }
 
                 setProgress({ current: i + 1, total: chunks.length });
             }
