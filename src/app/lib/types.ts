@@ -107,7 +107,7 @@ export const get_DEFAULT_예정_goals = (month: number): Record<Region, 예정Go
         // 짝수 달: 5개 지역 5점 / 대학 2점 / 새신자 3점 / 이음 1점
         return {
             도봉: { team1: '1.5', team2: '1.5', team3: '1.5', 사랑: '0.5' }, // 합: 5
-            성북: { team1: '1', team2: '1', team3: '1.5', team4: '1.5', 사랑: '0' }, // 합: 5
+            성북: { team1: '1.5', team2: '1', team3: '1', team4: '1.5', 사랑: '0' }, // 합: 5
             노원: { team1: '1.5', team2: '1.5', team3: '1.5', 사랑: '0.5' }, // 합: 5
             중랑: { team1: '2', team2: '2', team3: '1', 사랑: '0' }, // 합: 5
             강북: { team1: '1.5', team2: '1.5', team3: '1.5', 사랑: '0.5' }, // 합: 5
