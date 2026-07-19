@@ -181,7 +181,7 @@ function generateReportText(rows: TeacherData[], region: string, sort: string, p
     if (sort === 'name') {
         list.sort((a, b) => a.이름.localeCompare(b.이름));
     } else {
-        list.sort((a, b) => b.c이상건수 - a.c이상건수);
+        list.sort((a, b) => b.교사매칭건 - a.교사매칭건);
     }
 
     const totalCount = list.length;
@@ -202,7 +202,7 @@ function generateReportText(rows: TeacherData[], region: string, sort: string, p
             return (
                 `${start + idx + 1}. ${t.이름}\n` +
                 `   └ ${t.지역} / ${teamInfo} / ${t.활동여부}\n` +
-                `   └ 관리건수 : ${t.c이상건수}건\n` +
+                `   └ 관리건수 : ${t.교사매칭건}건\n` +
                 `   └ 실명단 : ${t.섭외자목록 || '없음'}`
             );
         })
@@ -722,7 +722,7 @@ export async function POST(request: NextRequest) {
                 구역: t.구역 ? `${String(t.구역).trim()}` : '',
                 교사형태: t.교사형태,
                 활동여부: t.활동여부,
-                'C 이상 건수': t.c이상건수,
+                '교사 매칭건': t.교사매칭건,
                 '마지막 업데이트': t.마지막업데이트,
                 등록사유: t.reason ?? '',
             }));

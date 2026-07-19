@@ -19,7 +19,7 @@ interface Teacher {
     구역: string;
     교사형태: string;
     활동여부: string;
-    c이상건수: number;
+    교사매칭건: number;
     마지막업데이트: string;
     등록사유?: string;
     fail?: boolean;
@@ -133,7 +133,7 @@ export default function TeacherPage() {
             구역: t.구역 ? `${String(t.구역).trim()}` : '',
             교사형태: t.교사형태,
             활동여부: t.활동여부,
-            'C 이상 건수': t.c이상건수,
+            '교사 매칭건': t.교사매칭건,
             '마지막 업데이트': t.마지막업데이트,
             등록사유: t.등록사유 ?? '',
             탈락사유: t.reason ?? '',
@@ -184,10 +184,10 @@ export default function TeacherPage() {
             onFilter: (value, record) => record.활동여부 === value,
         },
         {
-            title: 'C 이상 건수',
-            dataIndex: 'c이상건수',
-            key: 'c이상건수',
-            sorter: (a, b) => a.c이상건수 - b.c이상건수,
+            title: '교사 매칭건',
+            dataIndex: '교사매칭건',
+            key: '교사매칭건',
+            sorter: (a, b) => a.교사매칭건 - b.교사매칭건,
         },
         {
             title: '교사형태',
@@ -248,7 +248,10 @@ export default function TeacherPage() {
             children: (
                 <>
                     <Space style={{ marginBottom: 16 }}>
-                        <Button type="primary" onClick={() => exportToExcel(data, '현재_교사_명단.xlsx')}>
+                        <Button
+                            type="primary"
+                            onClick={() => exportToExcel(data, '현재_교사_명단.xlsx')}
+                        >
                             현재 교사 엑셀 내보내기
                         </Button>
                         <Search
@@ -297,11 +300,21 @@ export default function TeacherPage() {
 
     return (
         <div style={{ padding: 24 }}>
-            <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
+            <Space
+                direction="vertical"
+                size="middle"
+                style={{ display: 'flex' }}
+            >
                 <Title level={3}>교사 목록</Title>
 
-                <Collapse defaultActiveKey={['1']} ghost>
-                    <Panel header="요약 테이블 보기 / 숨기기" key="1">
+                <Collapse
+                    defaultActiveKey={['1']}
+                    ghost
+                >
+                    <Panel
+                        header="요약 테이블 보기 / 숨기기"
+                        key="1"
+                    >
                         <Table
                             dataSource={summaryData}
                             columns={[
